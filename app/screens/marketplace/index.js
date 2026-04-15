@@ -489,6 +489,7 @@ export default function MarketplaceScreen() {
 	};
 
 	const activeList = activeTab === TAB_PRODUCTS ? filteredProducts : activeTab === TAB_TRACKING ? activeOrders : completedOrders;
+	const isProductsEmpty = activeTab === TAB_PRODUCTS && !loading && activeList.length === 0;
 
 	return (
 		<ScreenContainer>
@@ -570,10 +571,13 @@ export default function MarketplaceScreen() {
 					removeClippedSubviews={false}
 					style={styles.list}
 					refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => fetchMarketplaceData(true)} tintColor={theme.colors.primary} />}
-					contentContainerStyle={styles.listContent}
+					contentContainerStyle={[
+						styles.listContent,
+						isProductsEmpty && styles.listContentProductsEmpty,
+					]}
 					showsVerticalScrollIndicator={false}
 					ListEmptyComponent={
-						<View style={styles.emptyStateWrap}>
+						<View style={[styles.emptyStateWrap, isProductsEmpty && styles.emptyStateWrapProductsEmpty]}>
 							<MaterialIcons name="inventory" size={24} color={theme.colors.textMuted} />
 							<Text style={styles.emptyStateText}>
 								{activeTab === TAB_PRODUCTS
@@ -789,9 +793,15 @@ const styles = StyleSheet.create({
 	},
 	list: {
 		backgroundColor: 'transparent',
+		marginTop: 2,
 	},
 	listContent: {
-		paddingBottom: 190,
+		paddingTop: 6,
+		paddingBottom: 160,
+	},
+	listContentProductsEmpty: {
+		paddingTop: 10,
+		paddingBottom: 80,
 	},
 	productCard: {
 		backgroundColor: theme.colors.white,
@@ -972,8 +982,12 @@ const styles = StyleSheet.create({
 	emptyStateWrap: {
 		alignItems: 'center',
 		justifyContent: 'center',
-		paddingVertical: theme.spacing.xl,
+		paddingVertical: theme.spacing.lg,
 		gap: 10,
+	},
+	emptyStateWrapProductsEmpty: {
+		paddingTop: 36,
+		paddingBottom: 16,
 	},
 	emptyStateText: {
 		color: theme.colors.textMuted,
