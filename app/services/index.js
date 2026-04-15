@@ -1,0 +1,21 @@
+export { API_CONFIG } from './config';
+export {
+	api,
+	login,
+	register,
+	logout,
+	getEstablishments,
+	getEstablishment,
+	getCoffeeTrail,
+	getCouponPromos,
+	verifyCouponPromoQr,
+	getProducts,
+	placeOrder,
+	submitRating,
+	getRatingsFeed,
+	getMessages,
+	sendMessage,
+	getProfile,
+	updateProfile,
+	authService,
+} from './api';
