@@ -27,7 +27,8 @@
     },
     "plugins": [
       "expo-font",
-      "expo-barcode-scanner"
+      "expo-barcode-scanner",
+      "@react-native-community/datetimepicker"
     ]
   }
 }

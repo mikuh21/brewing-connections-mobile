@@ -4,9 +4,9 @@ import {
 	FlatList,
 	Image,
 	Modal,
+	Platform,
 	Pressable,
 	RefreshControl,
-	ScrollView,
 	StyleSheet,
 	Text,
 	TextInput,
@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { MaterialIcons } from '@expo/vector-icons';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { ScreenContainer } from '../../components';
 import { API_CONFIG, getMyOrders, getProducts, placeOrder, updateOrderStatus } from '../../services';
 import theme from '../../theme';
@@ -22,7 +23,6 @@ const TAB_PRODUCTS = 'products';
 const TAB_TRACKING = 'tracking';
 const TAB_HISTORY = 'history';
 
-const PICKUP_TIME_OPTIONS = ['08:00', '09:00', '10:00', '11:00', '13:00', '14:00', '15:00', '16:00'];
 const PRODUCT_TYPE_FILTERS = [
 	{ value: 'all', label: 'All' },
 	{ value: 'coffee beans', label: 'Coffee Beans' },
@@ -37,29 +37,39 @@ const ROLE_PILL_THEME = {
 	reseller: { bg: 'rgba(30, 64, 175, 0.13)', border: 'rgba(30, 64, 175, 0.35)', text: '#1E40AF', label: 'Reseller' },
 };
 
-function buildPickupDateOptions(days = 7) {
-	const options = [];
-	const now = new Date();
-
-	for (let i = 0; i < days; i += 1) {
-		const date = new Date(now);
-		date.setDate(now.getDate() + i);
-
-		const yyyy = date.getFullYear();
-		const mm = String(date.getMonth() + 1).padStart(2, '0');
-		const dd = String(date.getDate()).padStart(2, '0');
-
-		options.push({
-			value: `${yyyy}-${mm}-${dd}`,
-			label: `${mm}/${dd}`,
-		});
-	}
-
-	return options;
-}
-
 function money(value) {
 	return `PHP ${Number(value || 0).toFixed(2)}`;
+}
+
+function formatDateValue(date) {
+	const yyyy = date.getFullYear();
+	const mm = String(date.getMonth() + 1).padStart(2, '0');
+	const dd = String(date.getDate()).padStart(2, '0');
+	return `${yyyy}-${mm}-${dd}`;
+}
+
+function formatTimeValue(date) {
+	const hh = String(date.getHours()).padStart(2, '0');
+	const mm = String(date.getMinutes()).padStart(2, '0');
+	return `${hh}:${mm}`;
+}
+
+function parseDateValue(value) {
+	if (/^\d{4}-\d{2}-\d{2}$/.test(String(value || ''))) {
+		const [y, m, d] = String(value).split('-').map(Number);
+		return new Date(y, (m || 1) - 1, d || 1, 12, 0, 0);
+	}
+
+	return new Date();
+}
+
+function parseTimeValue(value) {
+	const date = new Date();
+	if (/^\d{2}:\d{2}$/.test(String(value || ''))) {
+		const [h, m] = String(value).split(':').map(Number);
+		date.setHours(Number.isFinite(h) ? h : 8, Number.isFinite(m) ? m : 0, 0, 0);
+	}
+	return date;
 }
 
 function normalizeSellerRole(product) {
@@ -143,12 +153,10 @@ export default function MarketplaceScreen() {
 	const [orderQuantity, setOrderQuantity] = useState(1);
 	const [pickupDate, setPickupDate] = useState('');
 	const [pickupTime, setPickupTime] = useState('');
-	const [datePickerOpen, setDatePickerOpen] = useState(false);
-	const [timePickerOpen, setTimePickerOpen] = useState(false);
+	const [showNativeDatePicker, setShowNativeDatePicker] = useState(false);
+	const [showNativeTimePicker, setShowNativeTimePicker] = useState(false);
 	const [submittingOrder, setSubmittingOrder] = useState(false);
 	const [cancellingOrderId, setCancellingOrderId] = useState(null);
-
-	const pickupDateOptions = useMemo(() => buildPickupDateOptions(7), []);
 
 	const fetchMarketplaceData = async (isRefresh = false) => {
 		if (isRefresh) {
@@ -239,8 +247,9 @@ export default function MarketplaceScreen() {
 	const openReserveModal = (product) => {
 		setSelectedProduct(product);
 		setOrderQuantity(Math.max(1, Number(product?.moq || 1)));
-		setPickupDate(pickupDateOptions[0]?.value || '');
-		setPickupTime(PICKUP_TIME_OPTIONS[0]);
+		const now = new Date();
+		setPickupDate(formatDateValue(now));
+		setPickupTime(formatTimeValue(now));
 		setReserveModalOpen(true);
 	};
 
@@ -251,8 +260,38 @@ export default function MarketplaceScreen() {
 
 		setReserveModalOpen(false);
 		setSelectedProduct(null);
-		setDatePickerOpen(false);
-		setTimePickerOpen(false);
+		setShowNativeDatePicker(false);
+		setShowNativeTimePicker(false);
+	};
+
+	const handleNativeDateChange = (event, selectedDate) => {
+		if (event?.type === 'dismissed') {
+			setShowNativeDatePicker(false);
+			return;
+		}
+
+		if (selectedDate) {
+			setPickupDate(formatDateValue(selectedDate));
+		}
+
+		if (Platform.OS === 'android') {
+			setShowNativeDatePicker(false);
+		}
+	};
+
+	const handleNativeTimeChange = (event, selectedTime) => {
+		if (event?.type === 'dismissed') {
+			setShowNativeTimePicker(false);
+			return;
+		}
+
+		if (selectedTime) {
+			setPickupTime(formatTimeValue(selectedTime));
+		}
+
+		if (Platform.OS === 'android') {
+			setShowNativeTimePicker(false);
+		}
 	};
 
 	const submitOrder = async () => {
@@ -330,6 +369,7 @@ export default function MarketplaceScreen() {
 		const imageUrl = resolveImageUrl(item?.image_url);
 		const stock = Math.max(0, Number(item?.stock_quantity || 0));
 		const minimum = Math.max(1, Number(item?.moq || 1));
+		const productType = item?.category || item?.type || item?.product_type || null;
 		const roastType = item?.roast_type || item?.roast_level || item?.roast || null;
 		const grindType = item?.grind_type || item?.grind || null;
 		const sellerRole = normalizeSellerRole(item);
@@ -363,8 +403,10 @@ export default function MarketplaceScreen() {
 						</View>
 					) : null}
 
-					{roastType || grindType ? (
+					{productType || roastType || grindType ? (
 						<Text style={styles.productRoastGrind}>
+							{productType ? `${productType}` : ''}
+							{productType && (roastType || grindType) ? ' • ' : ''}
 							{roastType ? `Roast: ${roastType}` : ''}
 							{roastType && grindType ? ' • ' : ''}
 							{grindType ? `Grind: ${grindType}` : ''}
@@ -453,7 +495,7 @@ export default function MarketplaceScreen() {
 				<View style={styles.headerRow}>
 					<Text style={styles.title}>Marketplace</Text>
 					<Pressable style={styles.backButton} onPress={() => navigation.goBack()}>
-						<MaterialIcons name="arrow-back" size={16} color="#2D4A1E" />
+						<MaterialIcons name="arrow-back" size={16} color={theme.colors.white} />
 						<Text style={styles.backButtonText}>Back</Text>
 					</Pressable>
 				</View>
@@ -495,7 +537,7 @@ export default function MarketplaceScreen() {
 							style={styles.searchInput}
 						/>
 					</View>
-					<ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
+					<View style={styles.filterRow}>
 						{PRODUCT_TYPE_FILTERS.map((filter) => {
 							const active = selectedTypeFilter === filter.value;
 							return (
@@ -508,7 +550,7 @@ export default function MarketplaceScreen() {
 								</Pressable>
 							);
 						})}
-					</ScrollView>
+					</View>
 				</>
 			) : null}
 
@@ -563,18 +605,35 @@ export default function MarketplaceScreen() {
 
 						<View style={styles.modalFieldWrap}>
 							<Text style={styles.modalLabel}>Pickup Date</Text>
-							<Pressable style={styles.pickerTrigger} onPress={() => setDatePickerOpen(true)}>
+							<Pressable style={styles.pickerTrigger} onPress={() => setShowNativeDatePicker(true)}>
 								<MaterialIcons name="calendar-today" size={16} color={theme.colors.primary} />
 								<Text style={styles.pickerTriggerText}>{pickupDate || 'Select date'}</Text>
 							</Pressable>
+							{showNativeDatePicker ? (
+								<DateTimePicker
+									value={parseDateValue(pickupDate)}
+									mode="date"
+									display={Platform.OS === 'ios' ? 'compact' : 'default'}
+									onChange={handleNativeDateChange}
+								/>
+							) : null}
 						</View>
 
 						<View style={styles.modalFieldWrap}>
 							<Text style={styles.modalLabel}>Estimated Pickup Time</Text>
-							<Pressable style={styles.pickerTrigger} onPress={() => setTimePickerOpen(true)}>
+							<Pressable style={styles.pickerTrigger} onPress={() => setShowNativeTimePicker(true)}>
 								<MaterialIcons name="access-time" size={16} color={theme.colors.primary} />
 								<Text style={styles.pickerTriggerText}>{pickupTime || 'Select time'}</Text>
 							</Pressable>
+							{showNativeTimePicker ? (
+								<DateTimePicker
+									value={parseTimeValue(pickupTime)}
+									mode="time"
+									is24Hour
+									display={Platform.OS === 'ios' ? 'compact' : 'default'}
+									onChange={handleNativeTimeChange}
+								/>
+							) : null}
 						</View>
 
 						<View style={styles.modalFieldWrap}>
@@ -594,60 +653,6 @@ export default function MarketplaceScreen() {
 								<Text style={styles.modalSubmitText}>{submittingOrder ? 'Submitting...' : 'Submit Order'}</Text>
 							</Pressable>
 						</View>
-					</View>
-				</View>
-			</Modal>
-
-			<Modal visible={datePickerOpen} transparent animationType="fade" onRequestClose={() => setDatePickerOpen(false)}>
-				<View style={styles.pickerModalBackdrop}>
-					<View style={styles.pickerModalCard}>
-						<Text style={styles.pickerModalTitle}>Select Pickup Date</Text>
-						<ScrollView style={styles.pickerModalList}>
-							{pickupDateOptions.map((option) => (
-								<Pressable
-									key={option.value}
-									style={[styles.pickerModalItem, pickupDate === option.value && styles.pickerModalItemActive]}
-									onPress={() => {
-										setPickupDate(option.value);
-										setDatePickerOpen(false);
-									}}
-								>
-									<Text style={[styles.pickerModalItemText, pickupDate === option.value && styles.pickerModalItemTextActive]}>
-										{option.value}
-									</Text>
-								</Pressable>
-							))}
-						</ScrollView>
-						<Pressable style={styles.pickerModalCloseButton} onPress={() => setDatePickerOpen(false)}>
-							<Text style={styles.pickerModalCloseButtonText}>Close</Text>
-						</Pressable>
-					</View>
-				</View>
-			</Modal>
-
-			<Modal visible={timePickerOpen} transparent animationType="fade" onRequestClose={() => setTimePickerOpen(false)}>
-				<View style={styles.pickerModalBackdrop}>
-					<View style={styles.pickerModalCard}>
-						<Text style={styles.pickerModalTitle}>Select Pickup Time</Text>
-						<ScrollView style={styles.pickerModalList}>
-							{PICKUP_TIME_OPTIONS.map((timeValue) => (
-								<Pressable
-									key={timeValue}
-									style={[styles.pickerModalItem, pickupTime === timeValue && styles.pickerModalItemActive]}
-									onPress={() => {
-										setPickupTime(timeValue);
-										setTimePickerOpen(false);
-									}}
-								>
-									<Text style={[styles.pickerModalItemText, pickupTime === timeValue && styles.pickerModalItemTextActive]}>
-										{timeValue}
-									</Text>
-								</Pressable>
-							))}
-						</ScrollView>
-						<Pressable style={styles.pickerModalCloseButton} onPress={() => setTimePickerOpen(false)}>
-							<Text style={styles.pickerModalCloseButtonText}>Close</Text>
-						</Pressable>
 					</View>
 				</View>
 			</Modal>
@@ -739,16 +744,20 @@ const styles = StyleSheet.create({
 		fontFamily: theme.fonts.body,
 	},
 	filterRow: {
+		flexDirection: 'row',
+		flexWrap: 'wrap',
 		paddingBottom: theme.spacing.sm,
 		gap: 8,
 	},
 	filterChip: {
-		paddingHorizontal: 12,
-		paddingVertical: 7,
+		paddingHorizontal: 14,
+		paddingVertical: 8,
 		borderRadius: theme.borderRadius.pill,
 		borderWidth: 1,
 		borderColor: '#D7CFC4',
 		backgroundColor: '#F7F1E8',
+		minHeight: 34,
+		justifyContent: 'center',
 	},
 	filterChipActive: {
 		backgroundColor: '#2D4A1E',
@@ -756,8 +765,8 @@ const styles = StyleSheet.create({
 	},
 	filterChipText: {
 		fontFamily: 'PoppinsMedium',
-		fontSize: 12,
-		lineHeight: 16,
+		fontSize: 13,
+		lineHeight: 18,
 		color: '#6B7280',
 	},
 	filterChipTextActive: {
@@ -774,7 +783,7 @@ const styles = StyleSheet.create({
 		fontFamily: theme.fonts.body,
 	},
 	listContent: {
-		paddingBottom: theme.spacing.md,
+		paddingBottom: 130,
 	},
 	productCard: {
 		backgroundColor: theme.colors.white,
@@ -1041,56 +1050,6 @@ const styles = StyleSheet.create({
 	pickerTriggerText: {
 		color: theme.colors.sidebar,
 		fontFamily: 'PoppinsRegular',
-		fontSize: theme.fontSizes.sm,
-	},
-	pickerModalBackdrop: {
-		flex: 1,
-		backgroundColor: 'rgba(0,0,0,0.35)',
-		justifyContent: 'center',
-		paddingHorizontal: theme.spacing.md,
-	},
-	pickerModalCard: {
-		backgroundColor: theme.colors.white,
-		borderRadius: theme.borderRadius.lg,
-		padding: theme.spacing.md,
-		maxHeight: 360,
-	},
-	pickerModalTitle: {
-		fontFamily: 'PoppinsBold',
-		fontSize: theme.fontSizes.md,
-		color: theme.colors.sidebar,
-		marginBottom: 8,
-	},
-	pickerModalList: {
-		maxHeight: 220,
-	},
-	pickerModalItem: {
-		paddingVertical: 10,
-		paddingHorizontal: 10,
-		borderRadius: theme.borderRadius.sm,
-	},
-	pickerModalItemActive: {
-		backgroundColor: '#EEF4E8',
-	},
-	pickerModalItemText: {
-		fontFamily: 'PoppinsRegular',
-		color: theme.colors.sidebar,
-		fontSize: theme.fontSizes.sm,
-	},
-	pickerModalItemTextActive: {
-		fontFamily: 'PoppinsMedium',
-		color: '#2D4A1E',
-	},
-	pickerModalCloseButton: {
-		marginTop: 10,
-		backgroundColor: theme.colors.primary,
-		borderRadius: theme.borderRadius.md,
-		paddingVertical: 10,
-		alignItems: 'center',
-	},
-	pickerModalCloseButtonText: {
-		color: theme.colors.white,
-		fontFamily: 'PoppinsBold',
 		fontSize: theme.fontSizes.sm,
 	},
 	cancelOrderButton: {
