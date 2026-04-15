@@ -13,9 +13,11 @@ import {
 	TextInput,
 	View,
 } from 'react-native';
+import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { MaterialIcons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ScreenContainer } from '../../components';
 import { API_CONFIG, getMyOrders, getProducts, placeOrder, updateOrderStatus } from '../../services';
 import theme from '../../theme';
@@ -141,6 +143,8 @@ function orderStatusStyle(status) {
 
 export default function MarketplaceScreen() {
 	const navigation = useNavigation();
+	const tabBarHeight = useBottomTabBarHeight();
+	const insets = useSafeAreaInsets();
 	const [activeTab, setActiveTab] = useState(TAB_PRODUCTS);
 	const [products, setProducts] = useState([]);
 	const [orders, setOrders] = useState([]);
@@ -490,6 +494,7 @@ export default function MarketplaceScreen() {
 
 	const activeList = activeTab === TAB_PRODUCTS ? filteredProducts : activeTab === TAB_TRACKING ? activeOrders : completedOrders;
 	const isProductsEmpty = activeTab === TAB_PRODUCTS && !loading && activeList.length === 0;
+	const listBottomSpacing = Math.max(28, tabBarHeight + insets.bottom + 12);
 
 	return (
 		<ScreenContainer>
@@ -573,6 +578,7 @@ export default function MarketplaceScreen() {
 					refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => fetchMarketplaceData(true)} tintColor={theme.colors.primary} />}
 					contentContainerStyle={[
 						styles.listContent,
+						{ paddingBottom: listBottomSpacing },
 						isProductsEmpty && styles.listContentProductsEmpty,
 					]}
 					showsVerticalScrollIndicator={false}
@@ -751,18 +757,20 @@ const styles = StyleSheet.create({
 		fontFamily: theme.fonts.body,
 	},
 	filterRow: {
-		paddingBottom: theme.spacing.sm,
+		paddingBottom: 6,
+		paddingTop: 2,
 		paddingRight: 6,
+		paddingLeft: 2,
 		alignItems: 'center',
 	},
 	filterChip: {
 		paddingHorizontal: 10,
-		paddingVertical: 6,
+		paddingVertical: 5,
 		borderRadius: 16,
 		borderWidth: 1,
 		borderColor: '#D7CFC4',
 		backgroundColor: '#F7F1E8',
-		minHeight: 30,
+		minHeight: 28,
 		justifyContent: 'center',
 		alignItems: 'center',
 		flexShrink: 0,
@@ -793,15 +801,13 @@ const styles = StyleSheet.create({
 	},
 	list: {
 		backgroundColor: 'transparent',
-		marginTop: 2,
+		marginTop: 6,
 	},
 	listContent: {
-		paddingTop: 6,
-		paddingBottom: 160,
+		paddingTop: 8,
 	},
 	listContentProductsEmpty: {
-		paddingTop: 10,
-		paddingBottom: 80,
+		paddingTop: 2,
 	},
 	productCard: {
 		backgroundColor: theme.colors.white,
@@ -986,7 +992,7 @@ const styles = StyleSheet.create({
 		gap: 10,
 	},
 	emptyStateWrapProductsEmpty: {
-		paddingTop: 36,
+		paddingTop: 14,
 		paddingBottom: 16,
 	},
 	emptyStateText: {
