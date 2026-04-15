@@ -13,7 +13,6 @@ import {
 	TextInput,
 	View,
 } from 'react-native';
-import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { MaterialIcons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -143,7 +142,6 @@ function orderStatusStyle(status) {
 
 export default function MarketplaceScreen() {
 	const navigation = useNavigation();
-	const tabBarHeight = useBottomTabBarHeight();
 	const insets = useSafeAreaInsets();
 	const [activeTab, setActiveTab] = useState(TAB_PRODUCTS);
 	const [products, setProducts] = useState([]);
@@ -494,7 +492,7 @@ export default function MarketplaceScreen() {
 
 	const activeList = activeTab === TAB_PRODUCTS ? filteredProducts : activeTab === TAB_TRACKING ? activeOrders : completedOrders;
 	const isProductsEmpty = activeTab === TAB_PRODUCTS && !loading && activeList.length === 0;
-	const listBottomSpacing = Math.max(28, tabBarHeight + insets.bottom + 12);
+	const listBottomSpacing = Math.max(36, insets.bottom + 84);
 
 	return (
 		<ScreenContainer>
