@@ -124,6 +124,16 @@ export const placeOrder = async (data) => {
   return unwrap(response);
 };
 
+export const getMyOrders = async () => {
+  const response = await api.get('/api/orders');
+  return unwrap(response);
+};
+
+export const updateOrderStatus = async (orderId, status) => {
+  const response = await api.patch(`/api/orders/${orderId}`, { status });
+  return unwrap(response);
+};
+
 export const submitRating = async (data) => {
   const hasPhoto = Boolean(data?.photo?.uri);
 

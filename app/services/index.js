@@ -11,6 +11,8 @@ export {
 	verifyCouponPromoQr,
 	getProducts,
 	placeOrder,
+	getMyOrders,
+	updateOrderStatus,
 	submitRating,
 	getRatingsFeed,
 	getMessages,
