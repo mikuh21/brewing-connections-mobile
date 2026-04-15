@@ -21,7 +21,7 @@ import MapView, { Callout, Marker, Polyline } from 'react-native-maps';
 import * as Location from 'expo-location';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
-import { API_CONFIG, api, getEstablishments } from '../../services';
+import { api, getEstablishments } from '../../services';
 
 const LIPA_REGION = {
   latitude: 13.9411,
@@ -82,45 +82,6 @@ const VARIETY_COLOR_MAP = {
   arabica: '#8B1A1A',
 };
 
-function resolveMapImageUrl(pathOrUrl) {
-  if (!pathOrUrl) {
-    return null;
-  }
-
-  const raw = String(pathOrUrl).trim();
-  if (!raw) {
-    return null;
-  }
-
-  const runtimeApiBase = process.env.EXPO_PUBLIC_API_URL || API_CONFIG?.baseUrl;
-  const baseUrl = String(runtimeApiBase || '').replace(/\/+$/, '');
-  const apiOriginMatch = baseUrl.match(/^(https?:\/\/[^/]+)/i);
-  const apiOrigin = apiOriginMatch ? apiOriginMatch[1] : baseUrl;
-
-  if (/^https?:\/\//i.test(raw)) {
-    const isLocalhostUrl = /^https?:\/\/(localhost|127\.0\.0\.1|0\.0\.0\.0)(:\d+)?\//i.test(raw);
-    if (!isLocalhostUrl || !apiOrigin) {
-      return raw;
-    }
-
-    const pathOnly = raw.replace(/^https?:\/\/[^/]+/i, '');
-    const normalizedPath = pathOnly.startsWith('/') ? pathOnly : `/${pathOnly}`;
-    return `${apiOrigin}${normalizedPath}`;
-  }
-
-  if (!apiOrigin) {
-    return raw;
-  }
-
-  const normalizedPath = raw.startsWith('/') ? raw : `/${raw}`;
-  if (/^\/storage\//i.test(normalizedPath)) {
-    return `${apiOrigin}${normalizedPath}`;
-  }
-
-  const storagePath = raw.replace(/^\/+/, '');
-  return `${apiOrigin}/storage/${storagePath}`;
-}
-
 function normalizeEstablishment(item, index) {
   const source = item?.properties || item;
   const geometryCoords = item?.geometry?.coordinates;
@@ -152,7 +113,7 @@ function normalizeEstablishment(item, index) {
     longitude,
     address: `${source.address || 'No address provided'}${barangay}`,
     rating: Number(source.rating_average ?? source.average_rating ?? 0),
-    image: resolveMapImageUrl(source.image || source.photo_url || source.image_url || null),
+    image: source.image || source.photo_url || source.image_url || null,
     description: source.description || '',
     contactNumber: source.contact_number || '',
     email: source.email || '',
