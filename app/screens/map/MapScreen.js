@@ -21,7 +21,7 @@ import MapView, { Callout, Marker, Polyline } from 'react-native-maps';
 import * as Location from 'expo-location';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
-import { api, getEstablishments } from '../../services';
+import { API_CONFIG, api, getEstablishments } from '../../services';
 
 const LIPA_REGION = {
   latitude: 13.9411,
@@ -82,6 +82,97 @@ const VARIETY_COLOR_MAP = {
   arabica: '#8B1A1A',
 };
 
+function resolveMapImageUrl(pathOrUrl) {
+  if (!pathOrUrl) {
+    return null;
+  }
+
+  const raw = String(pathOrUrl).trim();
+  if (!raw) {
+    return null;
+  }
+
+  const runtimeApiBase = process.env.EXPO_PUBLIC_API_URL || API_CONFIG?.baseUrl;
+  const baseUrl = String(runtimeApiBase || '').replace(/\/+$/, '');
+  const apiOriginMatch = baseUrl.match(/^(https?:\/\/[^/]+)/i);
+  const apiOrigin = apiOriginMatch ? apiOriginMatch[1] : baseUrl;
+
+  if (/^https?:\/\//i.test(raw)) {
+    const isLocalhostUrl = /^https?:\/\/(localhost|127\.0\.0\.1|0\.0\.0\.0)(:\d+)?\//i.test(raw);
+    if (!isLocalhostUrl || !apiOrigin) {
+      return raw;
+    }
+
+    const pathOnly = raw.replace(/^https?:\/\/[^/]+/i, '');
+    const normalizedPath = pathOnly.startsWith('/') ? pathOnly : `/${pathOnly}`;
+    return `${apiOrigin}${normalizedPath}`;
+  }
+
+  if (!apiOrigin) {
+    return raw;
+  }
+
+  const normalizedPath = raw.startsWith('/') ? raw : `/${raw}`;
+  if (/^\/storage\//i.test(normalizedPath)) {
+    return `${apiOrigin}${normalizedPath}`;
+  }
+
+  const storagePath = raw.replace(/^\/+/, '');
+  return `${apiOrigin}/storage/${storagePath}`;
+}
+
+function resolveMapImageCandidates(...possibleValues) {
+  const values = possibleValues.filter((value) => value !== null && value !== undefined && String(value).trim() !== '');
+  if (!values.length) {
+    return [];
+  }
+
+  const runtimeApiBase = process.env.EXPO_PUBLIC_API_URL || API_CONFIG?.baseUrl || api?.defaults?.baseURL;
+  const baseUrl = String(runtimeApiBase || '').replace(/\/+$/, '');
+  const apiOriginMatch = baseUrl.match(/^(https?:\/\/[^/]+)/i);
+  const apiOrigin = apiOriginMatch ? apiOriginMatch[1] : baseUrl;
+
+  const candidates = [];
+
+  values.forEach((value) => {
+    const raw = String(value).trim();
+
+    if (/^https?:\/\//i.test(raw)) {
+      candidates.push(raw);
+
+      const pathOnly = raw.replace(/^https?:\/\/[^/]+/i, '');
+      if (apiOrigin && pathOnly) {
+        const normalizedPath = pathOnly.startsWith('/') ? pathOnly : `/${pathOnly}`;
+        candidates.push(`${apiOrigin}${normalizedPath}`);
+      }
+
+      return;
+    }
+
+    const normalizedPath = raw.startsWith('/') ? raw : `/${raw}`;
+
+    if (apiOrigin) {
+      candidates.push(`${apiOrigin}${normalizedPath}`);
+    }
+
+    if (/^\/storage\//i.test(normalizedPath)) {
+      if (baseUrl) {
+        candidates.push(`${baseUrl}${normalizedPath}`);
+      }
+      return;
+    }
+
+    if (apiOrigin) {
+      candidates.push(`${apiOrigin}/storage/${raw.replace(/^\/+/, '')}`);
+    }
+    if (baseUrl) {
+      candidates.push(`${baseUrl}/storage/${raw.replace(/^\/+/, '')}`);
+    }
+  });
+
+  return candidates.filter((candidate, index, list) => candidate && list.indexOf(candidate) === index);
+}
+
 function normalizeEstablishment(item, index) {
   const source = item?.properties || item;
   const geometryCoords = item?.geometry?.coordinates;
@@ -113,7 +204,23 @@ function normalizeEstablishment(item, index) {
     longitude,
     address: `${source.address || 'No address provided'}${barangay}`,
     rating: Number(source.rating_average ?? source.average_rating ?? 0),
-    image: source.image || source.photo_url || source.image_url || null,
+    image: resolveMapImageUrl(
+      source.image ||
+      source.photo_url ||
+      source.image_url ||
+      source.profile_photo ||
+      source.profile_photo_path ||
+      source.photo ||
+      null
+    ),
+    imageCandidates: resolveMapImageCandidates(
+      source.image,
+      source.photo_url,
+      source.image_url,
+      source.profile_photo,
+      source.profile_photo_path,
+      source.photo
+    ),
     description: source.description || '',
     contactNumber: source.contact_number || '',
     email: source.email || '',
@@ -464,6 +571,8 @@ export default function MapScreen({ navigation, route }) {
   const [distanceRemaining, setDistanceRemaining] = useState('0.0 km');
   const [etaRemaining, setEtaRemaining] = useState('0 mins');
   const [showDestinationReachedModal, setShowDestinationReachedModal] = useState(false);
+  const [activeSheetImageUri, setActiveSheetImageUri] = useState(null);
+  const [activeSheetImageIndex, setActiveSheetImageIndex] = useState(0);
   const lastRerouteRef = useRef({
     point: null,
     at: 0,
@@ -537,6 +646,25 @@ export default function MapScreen({ navigation, route }) {
     () => establishments.find((item) => item.id === selectedEstablishmentId) || null,
     [establishments, selectedEstablishmentId]
   );
+
+  useEffect(() => {
+    const nextCandidates = selectedEstablishment?.imageCandidates || [];
+    setActiveSheetImageIndex(0);
+    setActiveSheetImageUri(nextCandidates[0] || selectedEstablishment?.image || null);
+  }, [selectedEstablishment]);
+
+  const handleSheetImageError = () => {
+    const candidates = selectedEstablishment?.imageCandidates || [];
+    const nextIndex = activeSheetImageIndex + 1;
+
+    if (nextIndex < candidates.length) {
+      setActiveSheetImageIndex(nextIndex);
+      setActiveSheetImageUri(candidates[nextIndex]);
+      return;
+    }
+
+    setActiveSheetImageUri(null);
+  };
 
   const availableVarieties = useMemo(() => {
     const set = new Set();
@@ -1697,10 +1825,11 @@ export default function MapScreen({ navigation, route }) {
             </View>
 
             <View style={styles.sheetImageWrap}>
-              {selectedEstablishment.image ? (
+              {activeSheetImageUri ? (
                 <Image
-                  source={{ uri: selectedEstablishment.image }}
+                  source={{ uri: activeSheetImageUri }}
                   style={[styles.sheetImage, isDetailsExpanded && styles.sheetImageExpanded]}
+                  onError={handleSheetImageError}
                 />
               ) : (
                 <View
