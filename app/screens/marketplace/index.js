@@ -12,7 +12,7 @@ import {
 	TextInput,
 	View,
 } from 'react-native';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { ScreenContainer } from '../../components';
 import { API_CONFIG, getMyOrders, getProducts, placeOrder, updateOrderStatus } from '../../services';
@@ -99,6 +99,7 @@ function orderStatusStyle(status) {
 }
 
 export default function MarketplaceScreen() {
+	const navigation = useNavigation();
 	const [activeTab, setActiveTab] = useState(TAB_PRODUCTS);
 	const [products, setProducts] = useState([]);
 	const [orders, setOrders] = useState([]);
@@ -286,6 +287,8 @@ export default function MarketplaceScreen() {
 		const imageUrl = resolveImageUrl(item?.image_url);
 		const stock = Math.max(0, Number(item?.stock_quantity || 0));
 		const minimum = Math.max(1, Number(item?.moq || 1));
+		const roastType = item?.roast_type || item?.roast_level || item?.roast || null;
+		const grindType = item?.grind_type || item?.grind || null;
 
 		return (
 			<View style={styles.productCard}>
@@ -304,6 +307,14 @@ export default function MarketplaceScreen() {
 						{item?.establishment_name ? ` • ${item.establishment_name}` : ''}
 					</Text>
 
+					{roastType || grindType ? (
+						<Text style={styles.productRoastGrind}>
+							{roastType ? `Roast: ${roastType}` : ''}
+							{roastType && grindType ? ' • ' : ''}
+							{grindType ? `Grind: ${grindType}` : ''}
+						</Text>
+					) : null}
+
 					<Text numberOfLines={2} style={styles.productDescription}>
 						{item?.description || 'No description available.'}
 					</Text>
@@ -317,7 +328,7 @@ export default function MarketplaceScreen() {
 
 					<Pressable style={styles.reserveButton} onPress={() => openReserveModal(item)}>
 						<MaterialIcons name="event-available" size={16} color={theme.colors.white} />
-						<Text style={styles.reserveButtonText}>Reserve / Order</Text>
+						<Text style={styles.reserveButtonText}>Order</Text>
 					</Pressable>
 				</View>
 			</View>
@@ -356,7 +367,7 @@ export default function MarketplaceScreen() {
 						<Text style={styles.orderDetail}>
 							Pickup: {item?.pickup_date || 'Not set'} {item?.pickup_time || ''}
 						</Text>
-						{item?.notes ? <Text style={styles.orderNotes}>Notes: {item.notes}</Text> : null}
+						{item?.notes ? <Text style={styles.orderNotes}>Chat with seller: {item.notes}</Text> : null}
 
 						{cancellable ? (
 							<Pressable
@@ -380,8 +391,14 @@ export default function MarketplaceScreen() {
 	return (
 		<ScreenContainer>
 			<View style={styles.headerWrap}>
-				<Text style={styles.title}>Marketplace</Text>
-				<Text style={styles.subtitle}>Reserve fresh coffee products and track your orders</Text>
+				<View style={styles.headerRow}>
+					<Text style={styles.title}>Marketplace</Text>
+					<Pressable style={styles.backButton} onPress={() => navigation.goBack()}>
+						<MaterialIcons name="arrow-back" size={16} color="#2D4A1E" />
+						<Text style={styles.backButtonText}>Back</Text>
+					</Pressable>
+				</View>
+				<Text style={styles.subtitle}>Order fresh coffee products and track your orders</Text>
 			</View>
 
 			<View style={styles.tabRow}>
@@ -453,7 +470,7 @@ export default function MarketplaceScreen() {
 			<Modal visible={reserveModalOpen} transparent animationType="fade" onRequestClose={closeReserveModal}>
 				<View style={styles.modalBackdrop}>
 					<View style={styles.modalCard}>
-						<Text style={styles.modalTitle}>Reserve Product</Text>
+						<Text style={styles.modalTitle}>Order Product</Text>
 
 						<Text style={styles.modalProductName}>{selectedProduct?.name || ''}</Text>
 						<Text style={styles.modalDetail}>{money(selectedProduct?.price_per_unit)} / {selectedProduct?.unit || 'kg'}</Text>
@@ -522,11 +539,11 @@ export default function MarketplaceScreen() {
 						</View>
 
 						<View style={styles.modalFieldWrap}>
-							<Text style={styles.modalLabel}>Notes (optional)</Text>
+							<Text style={styles.modalLabel}>Chat with seller (optional)</Text>
 							<TextInput
 								value={orderNotes}
 								onChangeText={setOrderNotes}
-								placeholder="Special instructions"
+								placeholder="Add message for seller"
 								placeholderTextColor={theme.colors.textMuted}
 								style={[styles.modalInput, styles.modalNotesInput]}
 								multiline
@@ -553,42 +570,69 @@ const styles = StyleSheet.create({
 	headerWrap: {
 		marginBottom: theme.spacing.md,
 	},
+	headerRow: {
+		flexDirection: 'row',
+		alignItems: 'center',
+		justifyContent: 'space-between',
+	},
 	title: {
 		fontSize: theme.fontSizes.xl,
 		fontWeight: '700',
 		color: theme.colors.sidebar,
-		fontFamily: theme.fonts.display,
+		fontFamily: 'PoppinsBold',
+	},
+	backButton: {
+		flexDirection: 'row',
+		alignItems: 'center',
+		gap: 4,
+		paddingHorizontal: 10,
+		paddingVertical: 6,
+		borderRadius: theme.borderRadius.pill,
+		backgroundColor: '#EDE3D4',
+		borderWidth: 1,
+		borderColor: '#D7CFC4',
+	},
+	backButtonText: {
+		color: '#2D4A1E',
+		fontFamily: 'PoppinsMedium',
+		fontSize: theme.fontSizes.sm,
 	},
 	subtitle: {
 		marginTop: 4,
 		color: theme.colors.textMuted,
 		fontSize: theme.fontSizes.sm,
-		fontFamily: theme.fonts.body,
+		fontFamily: 'PoppinsRegular',
 	},
 	tabRow: {
 		flexDirection: 'row',
 		marginBottom: theme.spacing.md,
-		backgroundColor: '#EFE6D7',
+		backgroundColor: '#EDE3D4',
 		borderRadius: theme.borderRadius.pill,
-		padding: 4,
+		padding: 3,
+		borderWidth: 1,
+		borderColor: '#D7CFC4',
+		gap: 4,
 	},
 	tabButton: {
 		flex: 1,
 		borderRadius: theme.borderRadius.pill,
-		paddingVertical: 8,
+		paddingVertical: 6,
 		alignItems: 'center',
 	},
 	tabButtonActive: {
-		backgroundColor: theme.colors.primary,
+		backgroundColor: '#FFFFFF',
+		borderWidth: 1,
+		borderColor: '#D7CFC4',
 	},
 	tabButtonText: {
-		color: theme.colors.sidebar,
-		fontWeight: '600',
-		fontSize: theme.fontSizes.sm,
-		fontFamily: theme.fonts.body,
+		color: '#6B7280',
+		fontSize: 12,
+		lineHeight: 16,
+		fontFamily: 'PoppinsMedium',
+		textAlign: 'center',
 	},
 	tabButtonTextActive: {
-		color: theme.colors.white,
+		color: '#2D4A1E',
 	},
 	searchWrap: {
 		flexDirection: 'row',
@@ -644,14 +688,20 @@ const styles = StyleSheet.create({
 	productName: {
 		fontSize: theme.fontSizes.lg,
 		color: theme.colors.sidebar,
-		fontFamily: theme.fonts.display,
+		fontFamily: 'PoppinsBold',
 		fontWeight: '700',
 	},
 	productMeta: {
 		marginTop: 2,
 		color: theme.colors.textMuted,
 		fontSize: theme.fontSizes.sm,
-		fontFamily: theme.fonts.body,
+		fontFamily: 'PoppinsRegular',
+	},
+	productRoastGrind: {
+		marginTop: 4,
+		color: '#6B5B4A',
+		fontSize: theme.fontSizes.xs,
+		fontFamily: 'PoppinsMedium',
 	},
 	productDescription: {
 		marginTop: 8,
@@ -745,7 +795,7 @@ const styles = StyleSheet.create({
 	orderProductName: {
 		color: theme.colors.sidebar,
 		fontWeight: '700',
-		fontFamily: theme.fonts.body,
+		fontFamily: 'PoppinsBold',
 	},
 	orderDetail: {
 		marginTop: 2,
@@ -798,7 +848,7 @@ const styles = StyleSheet.create({
 		marginTop: 8,
 		color: theme.colors.sidebar,
 		fontWeight: '700',
-		fontFamily: theme.fonts.body,
+		fontFamily: 'PoppinsBold',
 	},
 	modalDetail: {
 		marginTop: 2,
