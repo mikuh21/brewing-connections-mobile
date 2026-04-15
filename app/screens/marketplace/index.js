@@ -568,10 +568,10 @@ export default function MarketplaceScreen() {
 					keyExtractor={(item) => String(item?.id || Math.random())}
 					renderItem={activeTab === TAB_PRODUCTS ? renderProductCard : renderOrderCard}
 					removeClippedSubviews={false}
+					style={styles.list}
 					refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => fetchMarketplaceData(true)} tintColor={theme.colors.primary} />}
 					contentContainerStyle={styles.listContent}
 					showsVerticalScrollIndicator={false}
-					ListFooterComponent={<View style={styles.listFooterSpacer} />}
 					ListEmptyComponent={
 						<View style={styles.emptyStateWrap}>
 							<MaterialIcons name="inventory" size={24} color={theme.colors.textMuted} />
@@ -748,18 +748,21 @@ const styles = StyleSheet.create({
 	},
 	filterRow: {
 		paddingBottom: theme.spacing.sm,
-		paddingRight: 10,
-		gap: 8,
+		paddingRight: 6,
+		alignItems: 'center',
 	},
 	filterChip: {
-		paddingHorizontal: 14,
-		paddingVertical: 8,
-		borderRadius: theme.borderRadius.pill,
+		paddingHorizontal: 10,
+		paddingVertical: 6,
+		borderRadius: 16,
 		borderWidth: 1,
 		borderColor: '#D7CFC4',
 		backgroundColor: '#F7F1E8',
-		minHeight: 34,
+		minHeight: 30,
 		justifyContent: 'center',
+		alignItems: 'center',
+		flexShrink: 0,
+		marginRight: 8,
 	},
 	filterChipActive: {
 		backgroundColor: '#2D4A1E',
@@ -767,8 +770,8 @@ const styles = StyleSheet.create({
 	},
 	filterChipText: {
 		fontFamily: 'PoppinsMedium',
-		fontSize: 13,
-		lineHeight: 18,
+		fontSize: 11,
+		lineHeight: 14,
 		color: '#6B7280',
 	},
 	filterChipTextActive: {
@@ -784,11 +787,11 @@ const styles = StyleSheet.create({
 		color: theme.colors.textMuted,
 		fontFamily: theme.fonts.body,
 	},
-	listContent: {
-		paddingBottom: 170,
+	list: {
+		backgroundColor: 'transparent',
 	},
-	listFooterSpacer: {
-		height: 10,
+	listContent: {
+		paddingBottom: 190,
 	},
 	productCard: {
 		backgroundColor: theme.colors.white,
