@@ -7,6 +7,7 @@ import {
 	Platform,
 	Pressable,
 	RefreshControl,
+	ScrollView,
 	StyleSheet,
 	Text,
 	TextInput,
@@ -537,7 +538,7 @@ export default function MarketplaceScreen() {
 							style={styles.searchInput}
 						/>
 					</View>
-					<View style={styles.filterRow}>
+					<ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
 						{PRODUCT_TYPE_FILTERS.map((filter) => {
 							const active = selectedTypeFilter === filter.value;
 							return (
@@ -550,7 +551,7 @@ export default function MarketplaceScreen() {
 								</Pressable>
 							);
 						})}
-					</View>
+					</ScrollView>
 				</>
 			) : null}
 
@@ -566,9 +567,11 @@ export default function MarketplaceScreen() {
 					data={activeList}
 					keyExtractor={(item) => String(item?.id || Math.random())}
 					renderItem={activeTab === TAB_PRODUCTS ? renderProductCard : renderOrderCard}
+					removeClippedSubviews={false}
 					refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => fetchMarketplaceData(true)} tintColor={theme.colors.primary} />}
 					contentContainerStyle={styles.listContent}
 					showsVerticalScrollIndicator={false}
+					ListFooterComponent={<View style={styles.listFooterSpacer} />}
 					ListEmptyComponent={
 						<View style={styles.emptyStateWrap}>
 							<MaterialIcons name="inventory" size={24} color={theme.colors.textMuted} />
@@ -744,9 +747,8 @@ const styles = StyleSheet.create({
 		fontFamily: theme.fonts.body,
 	},
 	filterRow: {
-		flexDirection: 'row',
-		flexWrap: 'wrap',
 		paddingBottom: theme.spacing.sm,
+		paddingRight: 10,
 		gap: 8,
 	},
 	filterChip: {
@@ -783,7 +785,10 @@ const styles = StyleSheet.create({
 		fontFamily: theme.fonts.body,
 	},
 	listContent: {
-		paddingBottom: 130,
+		paddingBottom: 170,
+	},
+	listFooterSpacer: {
+		height: 10,
 	},
 	productCard: {
 		backgroundColor: theme.colors.white,
