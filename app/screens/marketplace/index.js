@@ -23,6 +23,19 @@ const TAB_TRACKING = 'tracking';
 const TAB_HISTORY = 'history';
 
 const PICKUP_TIME_OPTIONS = ['08:00', '09:00', '10:00', '11:00', '13:00', '14:00', '15:00', '16:00'];
+const PRODUCT_TYPE_FILTERS = [
+	{ value: 'all', label: 'All' },
+	{ value: 'coffee beans', label: 'Coffee Beans' },
+	{ value: 'ground coffee', label: 'Ground Coffee' },
+	{ value: 'cafe menus', label: 'Cafe Menus' },
+];
+
+const ROLE_PILL_THEME = {
+	farm: { bg: 'rgba(45, 74, 30, 0.14)', border: 'rgba(45, 74, 30, 0.35)', text: '#2D4A1E', label: 'Farm' },
+	cafe: { bg: 'rgba(139, 69, 19, 0.20)', border: 'rgba(139, 69, 19, 0.50)', text: '#6D3408', label: 'Cafe' },
+	roaster: { bg: 'rgba(200, 151, 58, 0.18)', border: 'rgba(160, 114, 18, 0.40)', text: '#8A5F0F', label: 'Roaster' },
+	reseller: { bg: 'rgba(30, 64, 175, 0.13)', border: 'rgba(30, 64, 175, 0.35)', text: '#1E40AF', label: 'Reseller' },
+};
 
 function buildPickupDateOptions(days = 7) {
 	const options = [];
@@ -47,6 +60,23 @@ function buildPickupDateOptions(days = 7) {
 
 function money(value) {
 	return `PHP ${Number(value || 0).toFixed(2)}`;
+}
+
+function normalizeSellerRole(product) {
+	const rawRole =
+		product?.seller_type ||
+		product?.seller_role ||
+		product?.user_type ||
+		product?.seller?.role ||
+		product?.seller?.type ||
+		'';
+
+	const normalized = String(rawRole).trim().toLowerCase();
+	if (normalized.includes('farm')) return 'farm';
+	if (normalized.includes('cafe')) return 'cafe';
+	if (normalized.includes('roast')) return 'roaster';
+	if (normalized.includes('resell')) return 'reseller';
+	return null;
 }
 
 function resolveImageUrl(pathOrUrl) {
@@ -107,12 +137,14 @@ export default function MarketplaceScreen() {
 	const [refreshing, setRefreshing] = useState(false);
 	const [error, setError] = useState('');
 	const [query, setQuery] = useState('');
+	const [selectedTypeFilter, setSelectedTypeFilter] = useState('all');
 	const [reserveModalOpen, setReserveModalOpen] = useState(false);
 	const [selectedProduct, setSelectedProduct] = useState(null);
 	const [orderQuantity, setOrderQuantity] = useState(1);
 	const [pickupDate, setPickupDate] = useState('');
 	const [pickupTime, setPickupTime] = useState('');
-	const [orderNotes, setOrderNotes] = useState('');
+	const [datePickerOpen, setDatePickerOpen] = useState(false);
+	const [timePickerOpen, setTimePickerOpen] = useState(false);
 	const [submittingOrder, setSubmittingOrder] = useState(false);
 	const [cancellingOrderId, setCancellingOrderId] = useState(null);
 
@@ -156,11 +188,21 @@ export default function MarketplaceScreen() {
 
 	const filteredProducts = useMemo(() => {
 		const normalizedQuery = query.trim().toLowerCase();
-		if (!normalizedQuery) {
-			return products;
-		}
 
 		return products.filter((product) => {
+			const productTypeFields = [product?.category, product?.type, product?.product_type]
+				.filter(Boolean)
+				.join(' ')
+				.toLowerCase();
+
+			if (selectedTypeFilter !== 'all' && !productTypeFields.includes(selectedTypeFilter)) {
+				return false;
+			}
+
+			if (!normalizedQuery) {
+				return true;
+			}
+
 			const searchable = [
 				product?.name,
 				product?.category,
@@ -174,7 +216,7 @@ export default function MarketplaceScreen() {
 
 			return searchable.includes(normalizedQuery);
 		});
-	}, [products, query]);
+	}, [products, query, selectedTypeFilter]);
 
 	const activeOrders = useMemo(
 		() =>
@@ -199,7 +241,6 @@ export default function MarketplaceScreen() {
 		setOrderQuantity(Math.max(1, Number(product?.moq || 1)));
 		setPickupDate(pickupDateOptions[0]?.value || '');
 		setPickupTime(PICKUP_TIME_OPTIONS[0]);
-		setOrderNotes('');
 		setReserveModalOpen(true);
 	};
 
@@ -210,6 +251,8 @@ export default function MarketplaceScreen() {
 
 		setReserveModalOpen(false);
 		setSelectedProduct(null);
+		setDatePickerOpen(false);
+		setTimePickerOpen(false);
 	};
 
 	const submitOrder = async () => {
@@ -244,7 +287,7 @@ export default function MarketplaceScreen() {
 				quantity,
 				pickup_date: pickupDate || null,
 				pickup_time: pickupTime || null,
-				notes: orderNotes.trim() || null,
+				notes: null,
 			});
 
 			setReserveModalOpen(false);
@@ -289,6 +332,8 @@ export default function MarketplaceScreen() {
 		const minimum = Math.max(1, Number(item?.moq || 1));
 		const roastType = item?.roast_type || item?.roast_level || item?.roast || null;
 		const grindType = item?.grind_type || item?.grind || null;
+		const sellerRole = normalizeSellerRole(item);
+		const sellerRoleTheme = sellerRole ? ROLE_PILL_THEME[sellerRole] : null;
 
 		return (
 			<View style={styles.productCard}>
@@ -306,6 +351,17 @@ export default function MarketplaceScreen() {
 						{(item?.seller_name || 'Seller')}
 						{item?.establishment_name ? ` • ${item.establishment_name}` : ''}
 					</Text>
+
+					{sellerRoleTheme ? (
+						<View
+							style={[
+								styles.rolePill,
+								{ backgroundColor: sellerRoleTheme.bg, borderColor: sellerRoleTheme.border },
+							]}
+						>
+							<Text style={[styles.rolePillText, { color: sellerRoleTheme.text }]}>{sellerRoleTheme.label}</Text>
+						</View>
+					) : null}
 
 					{roastType || grindType ? (
 						<Text style={styles.productRoastGrind}>
@@ -367,7 +423,10 @@ export default function MarketplaceScreen() {
 						<Text style={styles.orderDetail}>
 							Pickup: {item?.pickup_date || 'Not set'} {item?.pickup_time || ''}
 						</Text>
-						{item?.notes ? <Text style={styles.orderNotes}>Chat with seller: {item.notes}</Text> : null}
+						<Pressable style={styles.chatSellerButton} onPress={() => {}}>
+							<MaterialIcons name="chat-bubble-outline" size={14} color={theme.colors.primary} />
+							<Text style={styles.chatSellerButtonText}>Chat with seller</Text>
+						</Pressable>
 
 						{cancellable ? (
 							<Pressable
@@ -425,16 +484,32 @@ export default function MarketplaceScreen() {
 			</View>
 
 			{activeTab === TAB_PRODUCTS ? (
-				<View style={styles.searchWrap}>
-					<MaterialIcons name="search" size={18} color={theme.colors.textMuted} />
-					<TextInput
-						value={query}
-						onChangeText={setQuery}
-						placeholder="Search products, category, seller"
-						placeholderTextColor={theme.colors.textMuted}
-						style={styles.searchInput}
-					/>
-				</View>
+				<>
+					<View style={styles.searchWrap}>
+						<MaterialIcons name="search" size={18} color={theme.colors.textMuted} />
+						<TextInput
+							value={query}
+							onChangeText={setQuery}
+							placeholder="Search products, category, seller"
+							placeholderTextColor={theme.colors.textMuted}
+							style={styles.searchInput}
+						/>
+					</View>
+					<ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
+						{PRODUCT_TYPE_FILTERS.map((filter) => {
+							const active = selectedTypeFilter === filter.value;
+							return (
+								<Pressable
+									key={filter.value}
+									style={[styles.filterChip, active && styles.filterChipActive]}
+									onPress={() => setSelectedTypeFilter(filter.value)}
+								>
+									<Text style={[styles.filterChipText, active && styles.filterChipTextActive]}>{filter.label}</Text>
+								</Pressable>
+							);
+						})}
+					</ScrollView>
+				</>
 			) : null}
 
 			{error ? <Text style={styles.errorText}>{error}</Text> : null}
@@ -488,66 +563,26 @@ export default function MarketplaceScreen() {
 
 						<View style={styles.modalFieldWrap}>
 							<Text style={styles.modalLabel}>Pickup Date</Text>
-							<ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.optionRow}>
-								{pickupDateOptions.map((option) => (
-									<Pressable
-										key={option.value}
-										style={[
-											styles.optionChip,
-											pickupDate === option.value && styles.optionChipActive,
-										]}
-										onPress={() => setPickupDate(option.value)}
-									>
-										<Text
-											style={[
-												styles.optionChipText,
-												pickupDate === option.value && styles.optionChipTextActive,
-											]}
-										>
-											{option.label}
-										</Text>
-									</Pressable>
-								))}
-							</ScrollView>
-							<Text style={styles.selectedOptionText}>{pickupDate || 'No date selected'}</Text>
+							<Pressable style={styles.pickerTrigger} onPress={() => setDatePickerOpen(true)}>
+								<MaterialIcons name="calendar-today" size={16} color={theme.colors.primary} />
+								<Text style={styles.pickerTriggerText}>{pickupDate || 'Select date'}</Text>
+							</Pressable>
 						</View>
 
 						<View style={styles.modalFieldWrap}>
 							<Text style={styles.modalLabel}>Estimated Pickup Time</Text>
-							<ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.optionRow}>
-								{PICKUP_TIME_OPTIONS.map((timeValue) => (
-									<Pressable
-										key={timeValue}
-										style={[
-											styles.optionChip,
-											pickupTime === timeValue && styles.optionChipActive,
-										]}
-										onPress={() => setPickupTime(timeValue)}
-									>
-										<Text
-											style={[
-												styles.optionChipText,
-												pickupTime === timeValue && styles.optionChipTextActive,
-											]}
-										>
-											{timeValue}
-										</Text>
-									</Pressable>
-								))}
-							</ScrollView>
-							<Text style={styles.selectedOptionText}>{pickupTime || 'No time selected'}</Text>
+							<Pressable style={styles.pickerTrigger} onPress={() => setTimePickerOpen(true)}>
+								<MaterialIcons name="access-time" size={16} color={theme.colors.primary} />
+								<Text style={styles.pickerTriggerText}>{pickupTime || 'Select time'}</Text>
+							</Pressable>
 						</View>
 
 						<View style={styles.modalFieldWrap}>
-							<Text style={styles.modalLabel}>Chat with seller (optional)</Text>
-							<TextInput
-								value={orderNotes}
-								onChangeText={setOrderNotes}
-								placeholder="Add message for seller"
-								placeholderTextColor={theme.colors.textMuted}
-								style={[styles.modalInput, styles.modalNotesInput]}
-								multiline
-							/>
+							<Text style={styles.modalLabel}>Chat with seller</Text>
+							<Pressable style={styles.chatSellerButtonModal} onPress={() => {}}>
+								<MaterialIcons name="chat" size={16} color={theme.colors.white} />
+								<Text style={styles.chatSellerButtonModalText}>Open Chat</Text>
+							</Pressable>
 						</View>
 
 						<View style={styles.modalActionsRow}>
@@ -559,6 +594,60 @@ export default function MarketplaceScreen() {
 								<Text style={styles.modalSubmitText}>{submittingOrder ? 'Submitting...' : 'Submit Order'}</Text>
 							</Pressable>
 						</View>
+					</View>
+				</View>
+			</Modal>
+
+			<Modal visible={datePickerOpen} transparent animationType="fade" onRequestClose={() => setDatePickerOpen(false)}>
+				<View style={styles.pickerModalBackdrop}>
+					<View style={styles.pickerModalCard}>
+						<Text style={styles.pickerModalTitle}>Select Pickup Date</Text>
+						<ScrollView style={styles.pickerModalList}>
+							{pickupDateOptions.map((option) => (
+								<Pressable
+									key={option.value}
+									style={[styles.pickerModalItem, pickupDate === option.value && styles.pickerModalItemActive]}
+									onPress={() => {
+										setPickupDate(option.value);
+										setDatePickerOpen(false);
+									}}
+								>
+									<Text style={[styles.pickerModalItemText, pickupDate === option.value && styles.pickerModalItemTextActive]}>
+										{option.value}
+									</Text>
+								</Pressable>
+							))}
+						</ScrollView>
+						<Pressable style={styles.pickerModalCloseButton} onPress={() => setDatePickerOpen(false)}>
+							<Text style={styles.pickerModalCloseButtonText}>Close</Text>
+						</Pressable>
+					</View>
+				</View>
+			</Modal>
+
+			<Modal visible={timePickerOpen} transparent animationType="fade" onRequestClose={() => setTimePickerOpen(false)}>
+				<View style={styles.pickerModalBackdrop}>
+					<View style={styles.pickerModalCard}>
+						<Text style={styles.pickerModalTitle}>Select Pickup Time</Text>
+						<ScrollView style={styles.pickerModalList}>
+							{PICKUP_TIME_OPTIONS.map((timeValue) => (
+								<Pressable
+									key={timeValue}
+									style={[styles.pickerModalItem, pickupTime === timeValue && styles.pickerModalItemActive]}
+									onPress={() => {
+										setPickupTime(timeValue);
+										setTimePickerOpen(false);
+									}}
+								>
+									<Text style={[styles.pickerModalItemText, pickupTime === timeValue && styles.pickerModalItemTextActive]}>
+										{timeValue}
+									</Text>
+								</Pressable>
+							))}
+						</ScrollView>
+						<Pressable style={styles.pickerModalCloseButton} onPress={() => setTimePickerOpen(false)}>
+							<Text style={styles.pickerModalCloseButtonText}>Close</Text>
+						</Pressable>
 					</View>
 				</View>
 			</Modal>
@@ -588,12 +677,10 @@ const styles = StyleSheet.create({
 		paddingHorizontal: 10,
 		paddingVertical: 6,
 		borderRadius: theme.borderRadius.pill,
-		backgroundColor: '#EDE3D4',
-		borderWidth: 1,
-		borderColor: '#D7CFC4',
+		backgroundColor: theme.colors.primary,
 	},
 	backButtonText: {
-		color: '#2D4A1E',
+		color: theme.colors.white,
 		fontFamily: 'PoppinsMedium',
 		fontSize: theme.fontSizes.sm,
 	},
@@ -651,6 +738,31 @@ const styles = StyleSheet.create({
 		paddingVertical: 10,
 		fontFamily: theme.fonts.body,
 	},
+	filterRow: {
+		paddingBottom: theme.spacing.sm,
+		gap: 8,
+	},
+	filterChip: {
+		paddingHorizontal: 12,
+		paddingVertical: 7,
+		borderRadius: theme.borderRadius.pill,
+		borderWidth: 1,
+		borderColor: '#D7CFC4',
+		backgroundColor: '#F7F1E8',
+	},
+	filterChipActive: {
+		backgroundColor: '#2D4A1E',
+		borderColor: '#2D4A1E',
+	},
+	filterChipText: {
+		fontFamily: 'PoppinsMedium',
+		fontSize: 12,
+		lineHeight: 16,
+		color: '#6B7280',
+	},
+	filterChipTextActive: {
+		color: '#FFFFFF',
+	},
 	loaderWrap: {
 		alignItems: 'center',
 		justifyContent: 'center',
@@ -662,7 +774,7 @@ const styles = StyleSheet.create({
 		fontFamily: theme.fonts.body,
 	},
 	listContent: {
-		paddingBottom: 110,
+		paddingBottom: theme.spacing.md,
 	},
 	productCard: {
 		backgroundColor: theme.colors.white,
@@ -696,6 +808,19 @@ const styles = StyleSheet.create({
 		color: theme.colors.textMuted,
 		fontSize: theme.fontSizes.sm,
 		fontFamily: 'PoppinsRegular',
+	},
+	rolePill: {
+		alignSelf: 'flex-start',
+		marginTop: 6,
+		paddingHorizontal: 8,
+		paddingVertical: 4,
+		borderRadius: theme.borderRadius.pill,
+		borderWidth: 1,
+	},
+	rolePillText: {
+		fontFamily: 'PoppinsMedium',
+		fontSize: 11,
+		lineHeight: 14,
 	},
 	productRoastGrind: {
 		marginTop: 4,
@@ -803,11 +928,23 @@ const styles = StyleSheet.create({
 		fontSize: theme.fontSizes.sm,
 		fontFamily: theme.fonts.body,
 	},
-	orderNotes: {
-		marginTop: 4,
-		color: '#6B5B4A',
-		fontSize: theme.fontSizes.sm,
-		fontFamily: theme.fonts.body,
+	chatSellerButton: {
+		marginTop: 8,
+		alignSelf: 'flex-start',
+		paddingHorizontal: 10,
+		paddingVertical: 6,
+		borderRadius: theme.borderRadius.pill,
+		borderWidth: 1,
+		borderColor: '#2D4A1E',
+		backgroundColor: '#EEF4E8',
+		flexDirection: 'row',
+		alignItems: 'center',
+		gap: 6,
+	},
+	chatSellerButtonText: {
+		color: '#2D4A1E',
+		fontFamily: 'PoppinsMedium',
+		fontSize: theme.fontSizes.xs,
 	},
 	errorText: {
 		marginBottom: theme.spacing.sm,
@@ -842,7 +979,7 @@ const styles = StyleSheet.create({
 		color: theme.colors.sidebar,
 		fontSize: theme.fontSizes.lg,
 		fontWeight: '700',
-		fontFamily: theme.fonts.display,
+		fontFamily: 'PoppinsBold',
 	},
 	modalProductName: {
 		marginTop: 8,
@@ -875,40 +1012,86 @@ const styles = StyleSheet.create({
 		fontFamily: theme.fonts.body,
 		backgroundColor: '#FCFAF7',
 	},
-	modalNotesInput: {
-		minHeight: 70,
-		textAlignVertical: 'top',
-	},
-	optionRow: {
-		paddingVertical: 2,
+	chatSellerButtonModal: {
+		borderRadius: theme.borderRadius.md,
+		backgroundColor: theme.colors.primary,
+		paddingVertical: 10,
+		paddingHorizontal: 12,
+		flexDirection: 'row',
+		alignItems: 'center',
+		justifyContent: 'center',
 		gap: 8,
 	},
-	optionChip: {
-		paddingHorizontal: 12,
-		paddingVertical: 8,
-		borderRadius: theme.borderRadius.pill,
+	chatSellerButtonModalText: {
+		color: theme.colors.white,
+		fontFamily: 'PoppinsBold',
+		fontSize: theme.fontSizes.sm,
+	},
+	pickerTrigger: {
 		borderWidth: 1,
 		borderColor: theme.colors.border,
+		borderRadius: theme.borderRadius.sm,
+		paddingHorizontal: 10,
+		paddingVertical: 10,
 		backgroundColor: '#FCFAF7',
+		flexDirection: 'row',
+		alignItems: 'center',
+		gap: 8,
 	},
-	optionChipActive: {
-		backgroundColor: theme.colors.primary,
-		borderColor: theme.colors.primary,
+	pickerTriggerText: {
+		color: theme.colors.sidebar,
+		fontFamily: 'PoppinsRegular',
+		fontSize: theme.fontSizes.sm,
 	},
-	optionChipText: {
+	pickerModalBackdrop: {
+		flex: 1,
+		backgroundColor: 'rgba(0,0,0,0.35)',
+		justifyContent: 'center',
+		paddingHorizontal: theme.spacing.md,
+	},
+	pickerModalCard: {
+		backgroundColor: theme.colors.white,
+		borderRadius: theme.borderRadius.lg,
+		padding: theme.spacing.md,
+		maxHeight: 360,
+	},
+	pickerModalTitle: {
+		fontFamily: 'PoppinsBold',
+		fontSize: theme.fontSizes.md,
+		color: theme.colors.sidebar,
+		marginBottom: 8,
+	},
+	pickerModalList: {
+		maxHeight: 220,
+	},
+	pickerModalItem: {
+		paddingVertical: 10,
+		paddingHorizontal: 10,
+		borderRadius: theme.borderRadius.sm,
+	},
+	pickerModalItemActive: {
+		backgroundColor: '#EEF4E8',
+	},
+	pickerModalItemText: {
+		fontFamily: 'PoppinsRegular',
 		color: theme.colors.sidebar,
 		fontSize: theme.fontSizes.sm,
-		fontWeight: '600',
-		fontFamily: theme.fonts.body,
 	},
-	optionChipTextActive: {
+	pickerModalItemTextActive: {
+		fontFamily: 'PoppinsMedium',
+		color: '#2D4A1E',
+	},
+	pickerModalCloseButton: {
+		marginTop: 10,
+		backgroundColor: theme.colors.primary,
+		borderRadius: theme.borderRadius.md,
+		paddingVertical: 10,
+		alignItems: 'center',
+	},
+	pickerModalCloseButtonText: {
 		color: theme.colors.white,
-	},
-	selectedOptionText: {
-		marginTop: 6,
-		fontSize: theme.fontSizes.xs,
-		color: theme.colors.textMuted,
-		fontFamily: theme.fonts.body,
+		fontFamily: 'PoppinsBold',
+		fontSize: theme.fontSizes.sm,
 	},
 	cancelOrderButton: {
 		marginTop: 8,
