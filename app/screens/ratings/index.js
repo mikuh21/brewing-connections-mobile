@@ -329,7 +329,12 @@ function RatingsFeedView({ navigation, onSwitchToForm }) {
 						<Text style={styles.subtitle}>Your recent ratings and from the community</Text>
 						<Pressable
 							style={styles.feedActionButton}
-							onPress={() => navigation.navigate('Trail')}
+							onPress={() => {
+								Alert.alert('Open Trail', 'Go to Trail screen to rate another destination?', [
+									{ text: 'No', style: 'cancel' },
+									{ text: 'Yes', onPress: () => navigation.navigate('Trail') },
+								]);
+							}}
 						>
 							<MaterialIcons name="coffee" size={16} color="#FFFFFF" />
 							<Text style={styles.feedActionButtonText}>Rate Another Trail</Text>
@@ -709,77 +714,85 @@ export default function RatingScreen({ navigation, route }) {
 			return;
 		}
 
-		setIsSubmitting(true);
-		try {
-			const completeRatingFlow = async () => {
-				try {
-					await AsyncStorage.setItem(TRAIL_RESET_SIGNAL_KEY, String(Date.now()));
-				} catch {
-					// Do not block completion flow if reset-signal write fails.
-				}
+		Alert.alert('Confirm Submission', 'Submit this rating now?', [
+			{ text: 'No', style: 'cancel' },
+			{
+				text: 'Yes',
+				onPress: async () => {
+					setIsSubmitting(true);
+					try {
+						const completeRatingFlow = async () => {
+							try {
+								await AsyncStorage.setItem(TRAIL_RESET_SIGNAL_KEY, String(Date.now()));
+							} catch {
+								// Do not block completion flow if reset-signal write fails.
+							}
 
-				resetRatingState();
-				setScreenView('feed');
-			};
+							resetRatingState();
+							setScreenView('feed');
+						};
 
-			const payload = {
-				establishment_id: selectedStopId,
-				taste_rating: ratings.taste,
-				environment_rating: ratings.environment,
-				cleanliness_rating: ratings.cleanliness,
-				service_rating: ratings.service,
-				photo: selectedPhoto?.uri
-					? {
-						uri: selectedPhoto.uri,
-						type: selectedPhoto.mimeType || 'image/jpeg',
-						name:
-							selectedPhoto.fileName ||
-							`rating-${Date.now()}.${
-								String(selectedPhoto.mimeType || 'image/jpeg').split('/')[1] || 'jpg'
-							}`,
+						const payload = {
+							establishment_id: selectedStopId,
+							taste_rating: ratings.taste,
+							environment_rating: ratings.environment,
+							cleanliness_rating: ratings.cleanliness,
+							service_rating: ratings.service,
+							photo: selectedPhoto?.uri
+								? {
+									uri: selectedPhoto.uri,
+									type: selectedPhoto.mimeType || 'image/jpeg',
+									name:
+										selectedPhoto.fileName ||
+										`rating-${Date.now()}.${
+											String(selectedPhoto.mimeType || 'image/jpeg').split('/')[1] || 'jpg'
+										}`,
+								}
+								: undefined,
+						};
+
+						await submitRating(payload);
+
+						const ratedStopKey = toStopKey(selectedStopId);
+						const remainingStops = availableStops.filter(
+							(stop) => toStopKey(stop.id) !== ratedStopKey
+						);
+
+						setDraftsByStop((prev) => {
+							const next = { ...prev };
+							delete next[ratedStopKey];
+							return next;
+						});
+						setRatedStopIds((prev) => (prev.includes(ratedStopKey) ? prev : [...prev, ratedStopKey]));
+						const nextStopId = remainingStops[0]?.id ?? null;
+						setSelectedStopId(nextStopId);
+						if (nextStopId !== null && nextStopId !== undefined) {
+							applyDraftForStop(nextStopId);
+						} else {
+							resetFeedbackInputs();
+						}
+
+						if (remainingStops.length) {
+							Alert.alert('Thanks for rating!', 'Saved. You can now rate your next destination.');
+						} else {
+							Alert.alert('All done!', 'You already rated all destinations in this trail.', [
+								{
+									text: 'Done',
+									onPress: () => {
+										void completeRatingFlow();
+									},
+								},
+							]);
+						}
+					} catch (error) {
+						const message = error?.response?.data?.message || error?.message || 'Unable to submit rating.';
+						Alert.alert('Submission failed', message);
+					} finally {
+						setIsSubmitting(false);
 					}
-					: undefined,
-			};
-
-			await submitRating(payload);
-
-			const ratedStopKey = toStopKey(selectedStopId);
-			const remainingStops = availableStops.filter(
-				(stop) => toStopKey(stop.id) !== ratedStopKey
-			);
-
-			setDraftsByStop((prev) => {
-				const next = { ...prev };
-				delete next[ratedStopKey];
-				return next;
-			});
-			setRatedStopIds((prev) => (prev.includes(ratedStopKey) ? prev : [...prev, ratedStopKey]));
-			const nextStopId = remainingStops[0]?.id ?? null;
-			setSelectedStopId(nextStopId);
-			if (nextStopId !== null && nextStopId !== undefined) {
-				applyDraftForStop(nextStopId);
-			} else {
-				resetFeedbackInputs();
-			}
-
-			if (remainingStops.length) {
-				Alert.alert('Thanks for rating!', 'Saved. You can now rate your next destination.');
-			} else {
-				Alert.alert('All done!', 'You already rated all destinations in this trail.', [
-					{
-						text: 'Done',
-						onPress: () => {
-							void completeRatingFlow();
-						},
-					},
-				]);
-			}
-		} catch (error) {
-			const message = error?.response?.data?.message || error?.message || 'Unable to submit rating.';
-			Alert.alert('Submission failed', message);
-		} finally {
-			setIsSubmitting(false);
-		}
+				},
+			},
+		]);
 	};
 
 	if (screenView === 'feed') {
@@ -828,13 +841,21 @@ export default function RatingScreen({ navigation, route }) {
 							<Pressable
 								style={styles.inlineClearButton}
 								onPress={() => {
-									setRatings(INITIAL_RATINGS);
-									if (selectedStopId !== null && selectedStopId !== undefined) {
-										setDraftsByStop((prev) => ({
-											...prev,
-											[toStopKey(selectedStopId)]: buildDraft(INITIAL_RATINGS, selectedPhoto),
-										}));
-									}
+									Alert.alert('Confirm Clear', 'Clear all current rating values?', [
+										{ text: 'No', style: 'cancel' },
+										{
+											text: 'Yes',
+											onPress: () => {
+												setRatings(INITIAL_RATINGS);
+												if (selectedStopId !== null && selectedStopId !== undefined) {
+													setDraftsByStop((prev) => ({
+														...prev,
+														[toStopKey(selectedStopId)]: buildDraft(INITIAL_RATINGS, selectedPhoto),
+													}));
+												}
+											},
+										},
+									]);
 								}}
 							>
 								<Text style={styles.inlineClearButtonText}>Clear</Text>
@@ -935,13 +956,21 @@ export default function RatingScreen({ navigation, route }) {
 							<Pressable
 								style={styles.removePhotoButton}
 								onPress={() => {
-									setSelectedPhoto(null);
-									if (selectedStopId !== null && selectedStopId !== undefined) {
-										setDraftsByStop((prev) => ({
-											...prev,
-											[toStopKey(selectedStopId)]: buildDraft(ratings, null),
-										}));
-									}
+									Alert.alert('Remove Photo', 'Remove this selected photo?', [
+										{ text: 'No', style: 'cancel' },
+										{
+											text: 'Yes',
+											onPress: () => {
+												setSelectedPhoto(null);
+												if (selectedStopId !== null && selectedStopId !== undefined) {
+													setDraftsByStop((prev) => ({
+														...prev,
+														[toStopKey(selectedStopId)]: buildDraft(ratings, null),
+													}));
+												}
+											},
+										},
+									]);
 								}}
 							>
 								<MaterialIcons name="close" size={14} color="#FFFFFF" />

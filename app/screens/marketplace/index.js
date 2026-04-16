@@ -181,7 +181,6 @@ export default function MarketplaceScreen() {
 	const [showNativeTimePicker, setShowNativeTimePicker] = useState(false);
 	const [modalAction, setModalAction] = useState('order');
 	const [cartItems, setCartItems] = useState([]);
-	const [cartModalOpen, setCartModalOpen] = useState(false);
 	const [submittingOrder, setSubmittingOrder] = useState(false);
 	const [cancellingOrderId, setCancellingOrderId] = useState(null);
 
@@ -366,73 +365,62 @@ export default function MarketplaceScreen() {
 			return;
 		}
 
-		setSubmittingOrder(true);
-		setError('');
+		Alert.alert(
+			modalAction === 'cart' ? 'Confirm Add to Cart' : 'Confirm Order',
+			modalAction === 'cart'
+				? 'Add this item to your cart?'
+				: 'Place this order now?',
+			[
+				{ text: 'No', style: 'cancel' },
+				{
+					text: 'Yes',
+					onPress: async () => {
+						setSubmittingOrder(true);
+						setError('');
 
-		if (modalAction === 'cart') {
-			const cartEntry = {
-				id: `${selectedProduct.id}-${Date.now()}`,
-				product: selectedProduct,
-				quantity,
-				pickup_date: pickupDate,
-				pickup_time: pickupTime,
-				added_at: new Date().toISOString(),
-			};
+						if (modalAction === 'cart') {
+							const cartEntry = {
+								id: `${selectedProduct.id}-${Date.now()}`,
+								product: selectedProduct,
+								quantity,
+								pickup_date: pickupDate,
+								pickup_time: pickupTime,
+								added_at: new Date().toISOString(),
+							};
 
-			setCartItems((prev) => [...prev, cartEntry]);
-			setReserveModalOpen(false);
-			setSelectedProduct(null);
-			setSubmittingOrder(false);
-			Alert.alert('Added to Cart', 'This item has been saved to your cart.');
-			return;
-		}
+							setCartItems((prev) => [...prev, cartEntry]);
+							setReserveModalOpen(false);
+							setSelectedProduct(null);
+							setSubmittingOrder(false);
+							Alert.alert('Added to Cart', 'This item has been saved to your cart.');
+							return;
+						}
 
-		try {
-			await placeOrder({
-				product_id: selectedProduct.id,
-				quantity,
-				pickup_date: pickupDate || null,
-				pickup_time: pickupTime || null,
-				notes: null,
-			});
+						try {
+							await placeOrder({
+								product_id: selectedProduct.id,
+								quantity,
+								pickup_date: pickupDate || null,
+								pickup_time: pickupTime || null,
+								notes: null,
+							});
 
-			setReserveModalOpen(false);
-			setActiveTab(TAB_TRACKING);
-			await fetchMarketplaceData(false);
-		} catch (submitError) {
-			const message =
-				submitError?.response?.data?.message ||
-				submitError?.message ||
-				'Unable to submit order right now.';
-			setError(message);
-		} finally {
-			setSubmittingOrder(false);
-		}
-	};
-
-	const submitCartItemAsOrder = async (item) => {
-		if (!item?.product?.id) return;
-
-		try {
-			await placeOrder({
-				product_id: item.product.id,
-				quantity: Number(item.quantity || 1),
-				pickup_date: item.pickup_date || null,
-				pickup_time: item.pickup_time || null,
-				notes: null,
-			});
-
-			setCartItems((prev) => prev.filter((entry) => entry.id !== item.id));
-			setCartModalOpen(false);
-			setActiveTab(TAB_TRACKING);
-			await fetchMarketplaceData(false);
-		} catch (submitError) {
-			const message =
-				submitError?.response?.data?.message ||
-				submitError?.message ||
-				'Unable to submit cart item right now.';
-			setError(message);
-		}
+							setReserveModalOpen(false);
+							setActiveTab(TAB_TRACKING);
+							await fetchMarketplaceData(false);
+						} catch (submitError) {
+							const message =
+								submitError?.response?.data?.message ||
+								submitError?.message ||
+								'Unable to submit order right now.';
+							setError(message);
+						} finally {
+							setSubmittingOrder(false);
+						}
+					},
+				},
+			]
+		);
 	};
 
 	const cancelOrder = async (order) => {
@@ -440,21 +428,29 @@ export default function MarketplaceScreen() {
 			return;
 		}
 
-		setCancellingOrderId(order.id);
-		setError('');
+		Alert.alert('Confirm Cancel', 'Cancel this order?', [
+			{ text: 'No', style: 'cancel' },
+			{
+				text: 'Yes',
+				onPress: async () => {
+					setCancellingOrderId(order.id);
+					setError('');
 
-		try {
-			await updateOrderStatus(order.id, 'cancelled');
-			await fetchMarketplaceData(false);
-		} catch (cancelError) {
-			const message =
-				cancelError?.response?.data?.message ||
-				cancelError?.message ||
-				'Unable to cancel order right now.';
-			setError(message);
-		} finally {
-			setCancellingOrderId(null);
-		}
+					try {
+						await updateOrderStatus(order.id, 'cancelled');
+						await fetchMarketplaceData(false);
+					} catch (cancelError) {
+						const message =
+							cancelError?.response?.data?.message ||
+							cancelError?.message ||
+							'Unable to cancel order right now.';
+						setError(message);
+					} finally {
+						setCancellingOrderId(null);
+					}
+				},
+			},
+		]);
 	};
 
 	const renderProductCard = ({ item }) => {
@@ -780,7 +776,7 @@ export default function MarketplaceScreen() {
 
 			<Pressable
 				style={[styles.floatingCartButton, { bottom: Math.max(insets.bottom + 18, 26) }]}
-				onPress={() => setCartModalOpen(true)}
+				onPress={() => navigation.navigate('MarketplaceCart')}
 			>
 				<MaterialIcons name="shopping-cart" size={22} color={theme.colors.white} />
 				{cartItems.length > 0 ? (
@@ -789,41 +785,6 @@ export default function MarketplaceScreen() {
 					</View>
 				) : null}
 			</Pressable>
-
-			<Modal visible={cartModalOpen} transparent animationType="fade" onRequestClose={() => setCartModalOpen(false)}>
-				<View style={styles.modalBackdrop}>
-					<View style={styles.modalCard}>
-						<Text style={styles.modalTitle}>Cart</Text>
-						{cartItems.length === 0 ? (
-							<Text style={styles.emptyCartText}>Your cart is empty.</Text>
-						) : (
-							<ScrollView style={styles.cartItemsList}>
-								{cartItems.map((item) => (
-									<View key={item.id} style={styles.cartItemRow}>
-										<Text style={styles.cartItemName}>{item?.product?.name || 'Product'}</Text>
-										<Text style={styles.cartItemMeta}>Qty: {item.quantity}</Text>
-										<Text style={styles.cartItemMeta}>Pickup: {formatDisplayDate(item.pickup_date)} at {formatDisplayTime(item.pickup_time)}</Text>
-										<View style={styles.cartItemActions}>
-											<Pressable
-												style={styles.cartItemRemoveButton}
-												onPress={() => setCartItems((prev) => prev.filter((entry) => entry.id !== item.id))}
-											>
-												<Text style={styles.cartItemRemoveButtonText}>Remove</Text>
-											</Pressable>
-											<Pressable style={styles.cartItemOrderButton} onPress={() => submitCartItemAsOrder(item)}>
-												<Text style={styles.cartItemOrderButtonText}>Order Now</Text>
-											</Pressable>
-										</View>
-									</View>
-								))}
-							</ScrollView>
-						)}
-						<Pressable style={styles.modalCancelButton} onPress={() => setCartModalOpen(false)}>
-							<Text style={styles.modalCancelText}>Close</Text>
-						</Pressable>
-					</View>
-				</View>
-			</Modal>
 		</ScreenContainer>
 	);
 }
@@ -1344,68 +1305,5 @@ const styles = StyleSheet.create({
 		color: '#FFFFFF',
 		fontSize: 11,
 		fontFamily: 'PoppinsBold',
-	},
-	emptyCartText: {
-		marginTop: 8,
-		marginBottom: 14,
-		color: theme.colors.textMuted,
-		fontFamily: 'PoppinsRegular',
-		fontSize: theme.fontSizes.sm,
-	},
-	cartItemsList: {
-		maxHeight: 280,
-		marginTop: 8,
-		marginBottom: 12,
-	},
-	cartItemRow: {
-		borderWidth: 1,
-		borderColor: theme.colors.border,
-		borderRadius: theme.borderRadius.md,
-		padding: 10,
-		marginBottom: 8,
-	},
-	cartItemName: {
-		color: theme.colors.sidebar,
-		fontFamily: 'PoppinsBold',
-		fontSize: theme.fontSizes.sm,
-	},
-	cartItemMeta: {
-		marginTop: 2,
-		color: theme.colors.textMuted,
-		fontFamily: 'PoppinsRegular',
-		fontSize: theme.fontSizes.xs,
-	},
-	cartItemActions: {
-		marginTop: 8,
-		flexDirection: 'row',
-		gap: 8,
-	},
-	cartItemRemoveButton: {
-		flex: 1,
-		borderWidth: 1,
-		borderColor: '#C62828',
-		borderRadius: theme.borderRadius.sm,
-		alignItems: 'center',
-		justifyContent: 'center',
-		paddingVertical: 8,
-		backgroundColor: '#FFF5F5',
-	},
-	cartItemRemoveButtonText: {
-		color: '#C62828',
-		fontFamily: 'PoppinsMedium',
-		fontSize: theme.fontSizes.xs,
-	},
-	cartItemOrderButton: {
-		flex: 1,
-		borderRadius: theme.borderRadius.sm,
-		alignItems: 'center',
-		justifyContent: 'center',
-		paddingVertical: 8,
-		backgroundColor: theme.colors.primary,
-	},
-	cartItemOrderButtonText: {
-		color: theme.colors.white,
-		fontFamily: 'PoppinsMedium',
-		fontSize: theme.fontSizes.xs,
 	},
 });

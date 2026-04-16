@@ -1,13 +1,14 @@
 import { useState } from 'react';
 import { MaterialIcons } from '@expo/vector-icons';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { createStackNavigator } from '@react-navigation/stack';
+import { CardStyleInterpolators, createStackNavigator } from '@react-navigation/stack';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import MapScreen from '../screens/map';
 import TrailScreen from '../screens/trail';
 import PromosScreen from '../screens/promos';
 import MarketplaceScreen from '../screens/marketplace';
+import MarketplaceCartScreen from '../screens/marketplace/CartScreen';
 import ProfileScreen from '../screens/profile';
 import RatingScreen from '../screens/ratings';
 
@@ -153,6 +154,16 @@ export default function AppNavigator() {
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="MainTabs" component={MainTabNavigator} />
       <Stack.Screen name="Marketplace" component={MarketplaceScreen} />
+      <Stack.Screen
+        name="MarketplaceCart"
+        component={MarketplaceCartScreen}
+        options={{
+          presentation: 'modal',
+          gestureDirection: 'vertical',
+          cardStyleInterpolator: CardStyleInterpolators.forVerticalIOS,
+          cardStyle: { backgroundColor: 'transparent' },
+        }}
+      />
       <Stack.Screen name="Profile" component={ProfileScreen} />
     </Stack.Navigator>
   );
