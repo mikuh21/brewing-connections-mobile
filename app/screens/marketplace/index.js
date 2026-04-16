@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
 	ActivityIndicator,
-	Alert,
 	FlatList,
 	Image,
 	Modal,
@@ -196,6 +195,7 @@ export default function MarketplaceScreen() {
 	const [cartItems, setCartItems] = useState([]);
 	const [submittingOrder, setSubmittingOrder] = useState(false);
 	const [cancellingOrderId, setCancellingOrderId] = useState(null);
+	const [toastState, setToastState] = useState({ visible: false, message: '' });
 	const [confirmState, setConfirmState] = useState({
 		visible: false,
 		title: '',
@@ -203,6 +203,39 @@ export default function MarketplaceScreen() {
 		confirmLabel: 'Yes',
 		onConfirm: null,
 	});
+
+	const showToast = (message) => {
+		setToastState({ visible: true, message });
+	};
+
+	const readCartItems = useCallback(async () => {
+		try {
+			const raw = await AsyncStorage.getItem(CART_STORAGE_KEY);
+			if (!raw) {
+				return [];
+			}
+
+			const parsed = JSON.parse(raw);
+			return Array.isArray(parsed) ? parsed : [];
+		} catch {
+			return [];
+		}
+	}, []);
+
+	const loadCartFromStorage = useCallback(async () => {
+		const storedItems = await readCartItems();
+		setCartItems(storedItems);
+		return storedItems;
+	}, [readCartItems]);
+
+	const saveCartToStorage = useCallback(async (nextItems) => {
+		setCartItems(nextItems);
+		try {
+			await AsyncStorage.setItem(CART_STORAGE_KEY, JSON.stringify(nextItems));
+		} catch {
+			setError('Unable to update cart right now.');
+		}
+	}, []);
 
 	const openConfirm = ({ title, message, confirmLabel = 'Yes', onConfirm }) => {
 		setConfirmState({
@@ -227,25 +260,20 @@ export default function MarketplaceScreen() {
 	};
 
 	useEffect(() => {
-		const loadCart = async () => {
-			try {
-				const raw = await AsyncStorage.getItem(CART_STORAGE_KEY);
-				if (!raw) return;
-				const parsed = JSON.parse(raw);
-				if (Array.isArray(parsed)) {
-					setCartItems(parsed);
-				}
-			} catch {
-				setCartItems([]);
-			}
-		};
-
-		void loadCart();
-	}, []);
+		void loadCartFromStorage();
+	}, [loadCartFromStorage]);
 
 	useEffect(() => {
-		void AsyncStorage.setItem(CART_STORAGE_KEY, JSON.stringify(cartItems));
-	}, [cartItems]);
+		if (!toastState.visible) {
+			return undefined;
+		}
+
+		const timer = setTimeout(() => {
+			setToastState((prev) => ({ ...prev, visible: false }));
+		}, 1800);
+
+		return () => clearTimeout(timer);
+	}, [toastState.visible]);
 
 	const fetchMarketplaceData = async (isRefresh = false) => {
 		if (isRefresh) {
@@ -280,7 +308,8 @@ export default function MarketplaceScreen() {
 	useFocusEffect(
 		useCallback(() => {
 			fetchMarketplaceData(false);
-		}, [])
+			void loadCartFromStorage();
+		}, [loadCartFromStorage])
 	);
 
 	const filteredProducts = useMemo(() => {
@@ -429,8 +458,10 @@ export default function MarketplaceScreen() {
 				added_at: new Date().toISOString(),
 			};
 
-			setCartItems((prev) => [...prev, cartEntry]);
-			setError('Added to cart.');
+			const currentItems = await readCartItems();
+			const nextItems = [...currentItems, cartEntry];
+			await saveCartToStorage(nextItems);
+			showToast('Added to cart');
 			return;
 		}
 
@@ -840,6 +871,12 @@ export default function MarketplaceScreen() {
 				onCancel={closeConfirm}
 				onConfirm={handleConfirm}
 			/>
+
+			{toastState.visible ? (
+				<View style={styles.toastWrap} pointerEvents="none">
+					<Text style={styles.toastText}>{toastState.message}</Text>
+				</View>
+			) : null}
 		</ScreenContainer>
 	);
 }
@@ -1360,5 +1397,24 @@ const styles = StyleSheet.create({
 		color: '#FFFFFF',
 		fontSize: 11,
 		fontFamily: 'PoppinsBold',
+	},
+	toastWrap: {
+		position: 'absolute',
+		left: theme.spacing.md,
+		right: theme.spacing.md,
+		bottom: Math.max(94, theme.spacing.xl + 56),
+		backgroundColor: 'rgba(45, 74, 30, 0.96)',
+		borderRadius: theme.borderRadius.md,
+		paddingVertical: 10,
+		paddingHorizontal: 12,
+		alignItems: 'center',
+		justifyContent: 'center',
+		zIndex: 30,
+		...theme.shadows.sm,
+	},
+	toastText: {
+		color: '#FFFFFF',
+		fontFamily: 'PoppinsMedium',
+		fontSize: theme.fontSizes.sm,
 	},
 });

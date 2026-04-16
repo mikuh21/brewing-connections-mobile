@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
 	Alert,
 	Image,
@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { MaterialIcons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { ConfirmToastModal, ScreenContainer } from '../../components';
 import { API_CONFIG, placeOrder } from '../../services';
 import theme from '../../theme';
@@ -92,6 +92,33 @@ export default function MarketplaceCartScreen() {
 		onConfirm: null,
 	});
 
+	const readCartItems = useCallback(async () => {
+		try {
+			const raw = await AsyncStorage.getItem(CART_STORAGE_KEY);
+			if (!raw) {
+				return [];
+			}
+			const parsed = JSON.parse(raw);
+			return Array.isArray(parsed) ? parsed : [];
+		} catch {
+			return [];
+		}
+	}, []);
+
+	const loadCartItems = useCallback(async () => {
+		const currentItems = await readCartItems();
+		setCartItems(currentItems);
+	}, [readCartItems]);
+
+	const saveCartItems = useCallback(async (nextItems) => {
+		setCartItems(nextItems);
+		try {
+			await AsyncStorage.setItem(CART_STORAGE_KEY, JSON.stringify(nextItems));
+		} catch {
+			// Keep UI responsive even if persistence fails.
+		}
+	}, []);
+
 	const openConfirm = ({ title, message, confirmLabel = 'Yes, Confirm', onConfirm }) => {
 		setConfirmState({
 			visible: true,
@@ -115,25 +142,14 @@ export default function MarketplaceCartScreen() {
 	};
 
 	useEffect(() => {
-		const loadCart = async () => {
-			try {
-				const raw = await AsyncStorage.getItem(CART_STORAGE_KEY);
-				if (!raw) return;
-				const parsed = JSON.parse(raw);
-				if (Array.isArray(parsed)) {
-					setCartItems(parsed);
-				}
-			} catch {
-				setCartItems([]);
-			}
-		};
+		void loadCartItems();
+	}, [loadCartItems]);
 
-		void loadCart();
-	}, []);
-
-	useEffect(() => {
-		void AsyncStorage.setItem(CART_STORAGE_KEY, JSON.stringify(cartItems));
-	}, [cartItems]);
+	useFocusEffect(
+		useCallback(() => {
+			void loadCartItems();
+		}, [loadCartItems])
+	);
 
 	const totalItems = useMemo(() => cartItems.length, [cartItems]);
 
@@ -142,8 +158,10 @@ export default function MarketplaceCartScreen() {
 			title: 'Confirm Remove',
 			message: 'Remove this item from cart?',
 			confirmLabel: 'Yes, Remove',
-			onConfirm: () => {
-				setCartItems((prev) => prev.filter((entry) => entry.id !== itemId));
+			onConfirm: async () => {
+				const currentItems = await readCartItems();
+				const nextItems = currentItems.filter((entry) => entry.id !== itemId);
+				await saveCartItems(nextItems);
 			},
 		});
 	};
@@ -166,7 +184,9 @@ export default function MarketplaceCartScreen() {
 						notes: null,
 					});
 
-					setCartItems((prev) => prev.filter((entry) => entry.id !== item.id));
+					const currentItems = await readCartItems();
+					const nextItems = currentItems.filter((entry) => entry.id !== item.id);
+					await saveCartItems(nextItems);
 					Alert.alert('Order Placed', 'Your cart item was ordered successfully.');
 				} catch (error) {
 					const message =
