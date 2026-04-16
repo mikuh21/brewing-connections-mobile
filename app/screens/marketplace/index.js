@@ -655,7 +655,7 @@ export default function MarketplaceScreen() {
 		const normalizedStatus = status.toLowerCase();
 		const statusStyle = orderStatusStyle(status);
 		const imageUrl = resolveImageUrl(item?.product?.image_url);
-		const cancellable = activeTab === TAB_TRACKING && (normalizedStatus === 'pending' || normalizedStatus === 'confirmed');
+		const cancellable = activeTab === TAB_TRACKING && normalizedStatus === 'pending';
 		const sellerDisplayName = getSellerDisplayName(item);
 
 		return (
