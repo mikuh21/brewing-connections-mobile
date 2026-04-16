@@ -17,7 +17,7 @@ import { API_CONFIG, placeOrder } from '../../services';
 import theme from '../../theme';
 
 const CART_STORAGE_KEY = 'marketplace_cart_items';
-const MARKETPLACE_ACTION_GREEN = '#2E5A3D';
+const MARKETPLACE_ACTION_GREEN = '#2D4A1E';
 
 function money(value) {
 	return `PHP ${Number(value || 0).toFixed(2)}`;

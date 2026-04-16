@@ -26,7 +26,7 @@ const TAB_PRODUCTS = 'products';
 const TAB_TRACKING = 'tracking';
 const TAB_HISTORY = 'history';
 const CART_STORAGE_KEY = 'marketplace_cart_items';
-const MARKETPLACE_ACTION_GREEN = '#2E5A3D';
+const MARKETPLACE_ACTION_GREEN = '#2D4A1E';
 
 const PRODUCT_TYPE_FILTERS = [
 	{ value: 'all', label: 'All' },
@@ -642,7 +642,7 @@ export default function MarketplaceScreen() {
 							<Text style={styles.reserveButtonText}>Order Now</Text>
 						</Pressable>
 						<Pressable style={styles.addToCartButton} onPress={() => openReserveModal(item, 'cart')}>
-							<MaterialIcons name="add-shopping-cart" size={16} color={theme.colors.white} />
+							<MaterialIcons name="add-shopping-cart" size={16} color={theme.colors.primary} />
 							<Text style={styles.addToCartButtonText}>Add to Cart</Text>
 						</Pressable>
 					</View>
@@ -1177,8 +1177,8 @@ const styles = StyleSheet.create({
 		flex: 1,
 		borderRadius: theme.borderRadius.md,
 		borderWidth: 1,
-		borderColor: MARKETPLACE_ACTION_GREEN,
-		backgroundColor: MARKETPLACE_ACTION_GREEN,
+		borderColor: theme.colors.primary,
+		backgroundColor: '#EEF4E8',
 		flexDirection: 'row',
 		alignItems: 'center',
 		justifyContent: 'center',
@@ -1192,7 +1192,7 @@ const styles = StyleSheet.create({
 		fontFamily: theme.fonts.body,
 	},
 	addToCartButtonText: {
-		color: theme.colors.white,
+		color: theme.colors.primary,
 		fontWeight: '700',
 		fontSize: theme.fontSizes.sm,
 		fontFamily: theme.fonts.body,
