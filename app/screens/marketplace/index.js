@@ -399,39 +399,52 @@ export default function MarketplaceScreen() {
 			message: modalAction === 'cart' ? 'Add this item to your cart?' : 'Place this order now?',
 			confirmLabel: 'Yes, Confirm',
 			onConfirm: async () => {
+				const product = selectedProduct;
+				const action = modalAction;
+				const selectedQuantity = quantity;
+				const selectedPickupDate = pickupDate;
+				const selectedPickupTime = pickupTime;
+
+				if (!product?.id) {
+					return;
+				}
+
+				// Close the modal immediately to avoid stacked overlays blocking interaction.
+				setReserveModalOpen(false);
+				setSelectedProduct(null);
+				setShowNativeDatePicker(false);
+				setShowNativeTimePicker(false);
+
 				setSubmittingOrder(true);
 				setError('');
 
-				if (modalAction === 'cart') {
+				if (action === 'cart') {
 					const cartEntry = {
-						id: `${selectedProduct.id}-${Date.now()}`,
-						product: selectedProduct,
-						quantity,
-						pickup_date: pickupDate,
-						pickup_time: pickupTime,
+						id: `${product.id}-${Date.now()}`,
+						product,
+						quantity: selectedQuantity,
+						pickup_date: selectedPickupDate,
+						pickup_time: selectedPickupTime,
 						added_at: new Date().toISOString(),
 					};
 
 					setCartItems((prev) => [...prev, cartEntry]);
-					setReserveModalOpen(false);
-					setSelectedProduct(null);
 					setSubmittingOrder(false);
-					Alert.alert('Added to Cart', 'This item has been saved to your cart.');
+					setError('Added to cart.');
 					return;
 				}
 
 				try {
 					await placeOrder({
-						product_id: selectedProduct.id,
-						quantity,
-						pickup_date: pickupDate || null,
-						pickup_time: pickupTime || null,
+						product_id: product.id,
+						quantity: selectedQuantity,
+						pickup_date: selectedPickupDate || null,
+						pickup_time: selectedPickupTime || null,
 						notes: null,
 					});
 
-					setReserveModalOpen(false);
 					setActiveTab(TAB_TRACKING);
-					await fetchMarketplaceData(false);
+					await fetchMarketplaceData(true);
 				} catch (submitError) {
 					const message =
 						submitError?.response?.data?.message ||
@@ -460,7 +473,7 @@ export default function MarketplaceScreen() {
 
 				try {
 					await updateOrderStatus(order.id, 'cancelled');
-					await fetchMarketplaceData(false);
+					await fetchMarketplaceData(true);
 				} catch (cancelError) {
 					const message =
 						cancelError?.response?.data?.message ||
