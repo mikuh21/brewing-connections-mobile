@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   Animated,
   Pressable,
@@ -14,7 +15,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { MaterialIcons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import Slider from '@react-native-community/slider';
-import { getCoffeeTrail } from '../../services';
+import { getCoffeeTrail, getCoffeeTrailHistory } from '../../services';
 
 const VARIETY_OPTIONS = ['Liberica', 'Excelsa', 'Robusta', 'Arabica'];
 const TYPE_OPTIONS = [
@@ -34,22 +35,11 @@ const COLORS = {
   border: '#D7CFC4',
 };
 
-const SAVED_TRAILS_KEY = 'saved_coffee_trails';
 const TRAIL_RESET_SIGNAL_KEY = 'trail_reset_signal_at';
-
-function getTrailSignature({ trailStops, trailOrigin, preferences }) {
-  const stopPart = (Array.isArray(trailStops) ? trailStops : [])
-    .map((stop) => `${stop?.establishment_id ?? stop?.id ?? ''}:${stop?.latitude ?? ''}:${stop?.longitude ?? ''}`)
-    .join('|');
-  const originPart = trailOrigin
-    ? `${trailOrigin.latitude ?? ''},${trailOrigin.longitude ?? ''}`
-    : 'no-origin';
-  const prefPart = `${(preferences?.varieties || []).join(',')}|${(preferences?.types || []).join(',')}|${
-    preferences?.maxStops ?? ''
-  }`;
-
-  return `${originPart}::${prefPart}::${stopPart}`;
-}
+const TRAIL_TABS = {
+  GENERATE: 'generate',
+  HISTORY: 'history',
+};
 
 const TYPE_BADGE_THEME = {
   farm: { bg: 'rgba(45, 74, 30, 0.14)', border: 'rgba(45, 74, 30, 0.35)', text: '#2D4A1E' },
@@ -194,6 +184,58 @@ function normalizeTrailResponse(response) {
   };
 }
 
+function normalizeTrailHistoryResponse(response) {
+  const rawHistory = Array.isArray(response)
+    ? response
+    : response?.history || response?.data || [];
+
+  if (!Array.isArray(rawHistory)) {
+    return [];
+  }
+
+  return rawHistory
+    .map((trailItem, index) => {
+      const normalized = normalizeTrailResponse(trailItem);
+      const preferences = trailItem?.preferences || {};
+      return {
+        trailId: trailItem?.trail_id || trailItem?.id || `trail-${index}`,
+        createdAt: trailItem?.created_at || trailItem?.savedAt || null,
+        origin: {
+          latitude: toNumber(trailItem?.origin?.latitude ?? trailItem?.trailOrigin?.latitude, 0),
+          longitude: toNumber(trailItem?.origin?.longitude ?? trailItem?.trailOrigin?.longitude, 0),
+        },
+        preferences: {
+          varieties: Array.isArray(preferences?.varieties) ? preferences.varieties : [],
+          types: Array.isArray(preferences?.types) ? preferences.types : [],
+          maxStops: toNumber(preferences?.max_stops ?? preferences?.maxStops, 0),
+        },
+        stops: normalized.stops,
+        totalDistanceKm: normalized.totalDistanceKm,
+        totalEtaMinutes: normalized.totalEtaMinutes,
+      };
+    })
+    .filter((item) => item.stops.length > 0);
+}
+
+function formatTrailTimestamp(dateValue) {
+  if (!dateValue) {
+    return 'Unknown date';
+  }
+
+  const parsed = new Date(dateValue);
+  if (Number.isNaN(parsed.getTime())) {
+    return 'Unknown date';
+  }
+
+  return parsed.toLocaleString('en-US', {
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
+
 function getTypeBadge(type) {
   const key = String(type || '').toLowerCase();
   if (!key) {
@@ -226,6 +268,7 @@ function formatAddressWithBarangay(address, barangay) {
 }
 
 export default function CoffeeTrailScreen({ navigation }) {
+  const [activeTab, setActiveTab] = useState(TRAIL_TABS.GENERATE);
   const [step, setStep] = useState(1);
   const [selectedVarieties, setSelectedVarieties] = useState([]);
   const [selectedTypes, setSelectedTypes] = useState([]);
@@ -235,14 +278,15 @@ export default function CoffeeTrailScreen({ navigation }) {
   const [trailOrigin, setTrailOrigin] = useState(null);
   const [errorMessage, setErrorMessage] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
-  const [isSavingTrail, setIsSavingTrail] = useState(false);
-  const [isTrailSaved, setIsTrailSaved] = useState(false);
+  const [historyTrails, setHistoryTrails] = useState([]);
+  const [isHistoryLoading, setIsHistoryLoading] = useState(false);
+  const [isHistoryRefreshing, setIsHistoryRefreshing] = useState(false);
+  const [historyErrorMessage, setHistoryErrorMessage] = useState('');
 
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const steamAnimA = useRef(new Animated.Value(0)).current;
   const steamAnimB = useRef(new Animated.Value(0)).current;
   const steamAnimC = useRef(new Animated.Value(0)).current;
-  const saveStateAnim = useRef(new Animated.Value(0)).current;
   const [dotCount, setDotCount] = useState(1);
   const isGenerateDisabled =
     isGenerating || (selectedVarieties.length === 0 && selectedTypes.length === 0);
@@ -254,8 +298,6 @@ export default function CoffeeTrailScreen({ navigation }) {
     setTrailData([]);
     setTrailOrigin(null);
     setTrailTotals({ totalDistanceKm: 0, totalEtaMinutes: 0 });
-    setIsTrailSaved(false);
-    saveStateAnim.setValue(0);
     setErrorMessage('');
   };
 
@@ -401,6 +443,43 @@ export default function CoffeeTrailScreen({ navigation }) {
     };
   }, [trailData, trailTotals]);
 
+  const loadTrailHistory = useCallback(
+    async ({ silent = false } = {}) => {
+      if (silent) {
+        setIsHistoryRefreshing(true);
+      } else {
+        setIsHistoryLoading(true);
+      }
+
+      setHistoryErrorMessage('');
+
+      try {
+        const response = await getCoffeeTrailHistory();
+        const normalizedHistory = normalizeTrailHistoryResponse(response);
+        setHistoryTrails(normalizedHistory);
+      } catch (error) {
+        const status = error?.response?.status;
+        if (status === 401) {
+          setHistoryErrorMessage('Session expired. Please log in again to view trail history.');
+        } else {
+          setHistoryErrorMessage(
+            error?.response?.data?.message || 'Unable to load your trail history right now.'
+          );
+        }
+      } finally {
+        setIsHistoryLoading(false);
+        setIsHistoryRefreshing(false);
+      }
+    },
+    []
+  );
+
+  useEffect(() => {
+    if (activeTab === TRAIL_TABS.HISTORY) {
+      loadTrailHistory();
+    }
+  }, [activeTab, loadTrailHistory]);
+
   const togglePill = (value, current, setCurrent) => {
     const exists = current.includes(value);
     if (exists) {
@@ -460,8 +539,22 @@ export default function CoffeeTrailScreen({ navigation }) {
         totalDistanceKm: normalized.totalDistanceKm,
         totalEtaMinutes: normalized.totalEtaMinutes,
       });
-      setIsTrailSaved(false);
-      saveStateAnim.setValue(0);
+      const normalizedHistoryEntry = normalizeTrailHistoryResponse({
+        history: [
+          {
+            ...response,
+            stops: stopsWithLegMetrics,
+          },
+        ],
+      })[0];
+
+      if (normalizedHistoryEntry) {
+        setHistoryTrails((prev) => {
+          const next = [normalizedHistoryEntry, ...prev.filter((item) => item.trailId !== normalizedHistoryEntry.trailId)];
+          return next.slice(0, 30);
+        });
+      }
+
       setStep(3);
     } catch (error) {
       setStep(1);
@@ -510,6 +603,37 @@ export default function CoffeeTrailScreen({ navigation }) {
     });
   };
 
+  const tabSwitch = (
+    <View style={styles.tabSwitchWrap}>
+      <Pressable
+        style={[styles.tabSwitchItem, activeTab === TRAIL_TABS.GENERATE && styles.tabSwitchItemActive]}
+        onPress={() => setActiveTab(TRAIL_TABS.GENERATE)}
+      >
+        <Text
+          style={[
+            styles.tabSwitchText,
+            activeTab === TRAIL_TABS.GENERATE && styles.tabSwitchTextActive,
+          ]}
+        >
+          Generate Trail
+        </Text>
+      </Pressable>
+      <Pressable
+        style={[styles.tabSwitchItem, activeTab === TRAIL_TABS.HISTORY && styles.tabSwitchItemActive]}
+        onPress={() => setActiveTab(TRAIL_TABS.HISTORY)}
+      >
+        <Text
+          style={[
+            styles.tabSwitchText,
+            activeTab === TRAIL_TABS.HISTORY && styles.tabSwitchTextActive,
+          ]}
+        >
+          Trail History
+        </Text>
+      </Pressable>
+    </View>
+  );
+
   const resetPreferences = () => {
     setSelectedVarieties([]);
     setSelectedTypes([]);
@@ -531,79 +655,100 @@ export default function CoffeeTrailScreen({ navigation }) {
     });
   };
 
-  const handleSaveTrail = async () => {
-    if (!trailData.length || isSavingTrail) {
-      return;
-    }
+  if (activeTab === TRAIL_TABS.HISTORY) {
+    return (
+      <SafeAreaView style={styles.screen}>
+        <View style={styles.historyContainer}>
+          <Text style={styles.title}>Your Trail History</Text>
+          <Text style={styles.subtitle}>Every generated trail is saved here with recommendations.</Text>
+          {tabSwitch}
 
-    setIsSavingTrail(true);
-    try {
-      const signature = getTrailSignature({
-        trailStops: trailData,
-        trailOrigin,
-        preferences: {
-          varieties: selectedVarieties,
-          types: selectedTypes,
-          maxStops,
-        },
-      });
+          {isHistoryLoading ? (
+            <View style={styles.historyLoadingWrap}>
+              <ActivityIndicator size="large" color={COLORS.primary} />
+              <Text style={styles.historyLoadingText}>Loading saved trails...</Text>
+            </View>
+          ) : (
+            <ScrollView
+              style={styles.historyList}
+              contentContainerStyle={styles.historyListContent}
+              showsVerticalScrollIndicator={false}
+            >
+              {historyErrorMessage ? (
+                <View style={styles.errorCard}>
+                  <Text style={styles.errorTitle}>Unable to load history</Text>
+                  <Text style={styles.errorText}>{historyErrorMessage}</Text>
+                </View>
+              ) : null}
 
-      const snapshot = {
-        id: Date.now().toString(),
-        savedAt: new Date().toISOString(),
-        signature,
-        trailStops: trailData,
-        trailTotals,
-        trailOrigin,
-        preferences: {
-          varieties: selectedVarieties,
-          types: selectedTypes,
-          maxStops,
-        },
-      };
+              {!historyErrorMessage && historyTrails.length === 0 ? (
+                <View style={styles.emptyHistoryCard}>
+                  <MaterialIcons name="history" size={24} color={COLORS.primary} />
+                  <Text style={styles.emptyHistoryTitle}>No trails yet</Text>
+                  <Text style={styles.emptyHistoryText}>Generate your first coffee trail to start building your history.</Text>
+                </View>
+              ) : null}
 
-      const existingRaw = await AsyncStorage.getItem(SAVED_TRAILS_KEY);
-      const parsed = JSON.parse(existingRaw || '[]');
-      const existing = Array.isArray(parsed) ? parsed : [];
-      const withoutCurrent = existing.filter((item) => {
-        const itemSignature =
-          item?.signature ||
-          getTrailSignature({
-            trailStops: item?.trailStops,
-            trailOrigin: item?.trailOrigin,
-            preferences: item?.preferences,
-          });
-        return itemSignature !== signature;
-      });
+              {historyTrails.map((trailItem) => (
+                <View key={trailItem.trailId} style={styles.historyCard}>
+                  <View style={styles.historyHeaderRow}>
+                    <Text style={styles.historyCardTitle}>{trailItem.stops.length} Stops</Text>
+                    <Text style={styles.historyDate}>{formatTrailTimestamp(trailItem.createdAt)}</Text>
+                  </View>
 
-      if (isTrailSaved) {
-        await AsyncStorage.setItem(SAVED_TRAILS_KEY, JSON.stringify(withoutCurrent));
-        setIsTrailSaved(false);
-        Animated.timing(saveStateAnim, {
-          toValue: 0,
-          duration: 220,
-          useNativeDriver: true,
-        }).start();
-      } else {
-        const next = [snapshot, ...withoutCurrent].slice(0, 20);
-        await AsyncStorage.setItem(SAVED_TRAILS_KEY, JSON.stringify(next));
-        setIsTrailSaved(true);
-        Animated.timing(saveStateAnim, {
-          toValue: 1,
-          duration: 220,
-          useNativeDriver: true,
-        }).start();
-      }
-    } catch {
-      setErrorMessage('Unable to update saved trail right now.');
-    } finally {
-      setIsSavingTrail(false);
-    }
-  };
+                  <View style={styles.historyMetaRow}>
+                    <MaterialIcons name="directions-car" size={14} color={COLORS.primary} />
+                    <Text style={styles.historyMetaText}>{formatDistance(trailItem.totalDistanceKm)} total</Text>
+                  </View>
+                  <View style={styles.historyMetaRow}>
+                    <MaterialIcons name="access-time" size={14} color={COLORS.primary} />
+                    <Text style={styles.historyMetaText}>{formatEta(trailItem.totalEtaMinutes)}</Text>
+                  </View>
+
+                  <View style={styles.historyStopsWrap}>
+                    {trailItem.stops.map((stop, index) => (
+                      <View key={`${trailItem.trailId}-${stop.establishment_id}-${index}`} style={styles.historyStopRow}>
+                        <Text style={styles.historyStopName}>{index + 1}. {stop.name}</Text>
+                        <Text style={styles.historyStopReason}>{stop.why_recommended}</Text>
+                      </View>
+                    ))}
+                  </View>
+
+                  <Pressable
+                    style={styles.historyMapButton}
+                    onPress={() =>
+                      navigation.navigate('Map', {
+                        trailStops: trailItem.stops,
+                        trailOrigin: trailItem.origin,
+                        isTrailMode: true,
+                      })
+                    }
+                  >
+                    <Text style={styles.historyMapButtonText}>Open Trail on Map</Text>
+                  </Pressable>
+                </View>
+              ))}
+
+              <Pressable
+                style={[styles.historyRefreshButton, isHistoryRefreshing && styles.generateButtonDisabled]}
+                onPress={() => loadTrailHistory({ silent: true })}
+                disabled={isHistoryRefreshing}
+              >
+                <Text style={styles.historyRefreshButtonText}>
+                  {isHistoryRefreshing ? 'Refreshing...' : 'Refresh History'}
+                </Text>
+              </Pressable>
+            </ScrollView>
+          )}
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   if (step === 2) {
     return (
       <SafeAreaView style={styles.loadingScreen}>
+        <View style={styles.loadingTabWrap}>{tabSwitch}</View>
         <View style={styles.loadingCupWrap}>
           <Animated.View
             style={[
@@ -687,6 +832,7 @@ export default function CoffeeTrailScreen({ navigation }) {
     return (
       <SafeAreaView style={styles.screen}>
         <View style={styles.resultsScreenContainer}>
+          {tabSwitch}
           <View style={styles.summaryCard}>
             <Text style={styles.summaryTop}>{trailSummary.totalStops} Stops</Text>
             <View style={styles.distanceMetaRow}>
@@ -767,57 +913,9 @@ export default function CoffeeTrailScreen({ navigation }) {
           </ScrollView>
 
           <View style={styles.actionsFooter}>
-            <Pressable
-              style={[styles.saveTrailButton, isSavingTrail && styles.saveTrailButtonDisabled]}
-              onPress={handleSaveTrail}
-              disabled={isSavingTrail}
-            >
-              {isSavingTrail ? (
-                <View style={styles.saveTrailContentWrap}>
-                  <MaterialIcons name="bookmark-border" size={16} color={COLORS.primary} />
-                  <Text style={styles.saveTrailButtonText}>{isTrailSaved ? 'Unsaving...' : 'Saving Trail...'}</Text>
-                </View>
-              ) : (
-                <View style={styles.saveTrailTransitionWrap}>
-                  <Animated.View
-                    style={[
-                      styles.saveTrailContentWrap,
-                      styles.saveTrailContentLayer,
-                      {
-                        opacity: saveStateAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }),
-                        transform: [
-                          {
-                            translateY: saveStateAnim.interpolate({ inputRange: [0, 1], outputRange: [0, -4] }),
-                          },
-                        ],
-                      },
-                    ]}
-                    pointerEvents="none"
-                  >
-                    <MaterialIcons name="bookmark-border" size={16} color={COLORS.primary} />
-                    <Text style={styles.saveTrailButtonText}>Save Trail</Text>
-                  </Animated.View>
-
-                  <Animated.View
-                    style={[
-                      styles.saveTrailContentWrap,
-                      styles.saveTrailContentLayer,
-                      {
-                        opacity: saveStateAnim,
-                        transform: [
-                          {
-                            translateY: saveStateAnim.interpolate({ inputRange: [0, 1], outputRange: [4, 0] }),
-                          },
-                        ],
-                      },
-                    ]}
-                    pointerEvents="none"
-                  >
-                    <MaterialIcons name="bookmark" size={16} color={COLORS.primary} />
-                    <Text style={styles.saveTrailButtonText}>Saved</Text>
-                  </Animated.View>
-                </View>
-              )}
+            <Pressable style={styles.historyShortcutButton} onPress={() => setActiveTab(TRAIL_TABS.HISTORY)}>
+              <MaterialIcons name="history" size={16} color={COLORS.primary} />
+              <Text style={styles.historyShortcutButtonText}>View Trail History</Text>
             </Pressable>
 
             <View style={styles.bottomActions}>
@@ -843,6 +941,7 @@ export default function CoffeeTrailScreen({ navigation }) {
       <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
         <Text style={styles.title}>Generate Your Coffee Trail</Text>
         <Text style={styles.subtitle}>Discover Lipa's finest coffee spots</Text>
+        {tabSwitch}
 
         <View style={styles.resetAllRow}>
           <Pressable style={styles.inlineResetButton} onPress={resetPreferences}>
@@ -976,6 +1075,171 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     fontFamily: 'PoppinsRegular',
   },
+  tabSwitchWrap: {
+    marginTop: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#D5CCBF',
+    backgroundColor: '#EEE7DC',
+    padding: 4,
+    flexDirection: 'row',
+    gap: 6,
+  },
+  tabSwitchItem: {
+    flex: 1,
+    minHeight: 36,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  tabSwitchItemActive: {
+    backgroundColor: COLORS.primary,
+  },
+  tabSwitchText: {
+    color: COLORS.primary,
+    fontSize: 13,
+    lineHeight: 16,
+    fontFamily: 'PoppinsBold',
+  },
+  tabSwitchTextActive: {
+    color: '#FFFFFF',
+  },
+  historyContainer: {
+    flex: 1,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 12,
+  },
+  historyLoadingWrap: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+  },
+  historyLoadingText: {
+    color: COLORS.primary,
+    fontSize: 14,
+    lineHeight: 18,
+    fontFamily: 'PoppinsMedium',
+  },
+  historyList: {
+    marginTop: 12,
+    flex: 1,
+  },
+  historyListContent: {
+    paddingBottom: 16,
+    gap: 10,
+  },
+  emptyHistoryCard: {
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.card,
+    padding: 14,
+    alignItems: 'center',
+    gap: 6,
+  },
+  emptyHistoryTitle: {
+    color: COLORS.text,
+    fontSize: 15,
+    lineHeight: 18,
+    fontFamily: 'PoppinsBold',
+  },
+  emptyHistoryText: {
+    color: COLORS.muted,
+    textAlign: 'center',
+    fontSize: 12,
+    lineHeight: 16,
+    fontFamily: 'PoppinsRegular',
+  },
+  historyCard: {
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.card,
+    padding: 12,
+  },
+  historyHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 8,
+  },
+  historyCardTitle: {
+    color: COLORS.text,
+    fontSize: 16,
+    lineHeight: 20,
+    fontFamily: 'PoppinsBold',
+  },
+  historyDate: {
+    color: COLORS.muted,
+    fontSize: 11,
+    lineHeight: 14,
+    fontFamily: 'PoppinsRegular',
+  },
+  historyMetaRow: {
+    marginTop: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  historyMetaText: {
+    color: COLORS.text,
+    fontSize: 12,
+    lineHeight: 16,
+    fontFamily: 'PoppinsMedium',
+  },
+  historyStopsWrap: {
+    marginTop: 10,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#E2DACF',
+    gap: 8,
+  },
+  historyStopRow: {
+    gap: 2,
+  },
+  historyStopName: {
+    color: COLORS.text,
+    fontSize: 13,
+    lineHeight: 16,
+    fontFamily: 'PoppinsBold',
+  },
+  historyStopReason: {
+    color: COLORS.muted,
+    fontSize: 12,
+    lineHeight: 16,
+    fontFamily: 'PoppinsRegular',
+  },
+  historyMapButton: {
+    marginTop: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: COLORS.primary,
+    minHeight: 38,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  historyMapButtonText: {
+    color: COLORS.primary,
+    fontSize: 13,
+    lineHeight: 16,
+    fontFamily: 'PoppinsBold',
+  },
+  historyRefreshButton: {
+    marginTop: 2,
+    borderRadius: 12,
+    backgroundColor: COLORS.primary,
+    minHeight: 42,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  historyRefreshButtonText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    lineHeight: 16,
+    fontFamily: 'PoppinsBold',
+  },
   errorCard: {
     marginTop: 14,
     borderRadius: 14,
@@ -1090,6 +1354,13 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.bg,
     alignItems: 'center',
     justifyContent: 'center',
+    paddingHorizontal: 16,
+  },
+  loadingTabWrap: {
+    position: 'absolute',
+    top: 20,
+    left: 16,
+    right: 16,
   },
   loadingCupWrap: {
     width: 96,
@@ -1251,7 +1522,7 @@ const styles = StyleSheet.create({
     lineHeight: 16,
     fontFamily: 'PoppinsBold',
   },
-  saveTrailButton: {
+  historyShortcutButton: {
     marginTop: 10,
     minHeight: 42,
     borderRadius: 12,
@@ -1262,8 +1533,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     flexDirection: 'row',
     gap: 6,
-    position: 'relative',
-    overflow: 'hidden',
+  },
+  historyShortcutButtonText: {
+    color: COLORS.primary,
+    fontSize: 13,
+    lineHeight: 16,
+    fontFamily: 'PoppinsBold',
   },
   actionsFooter: {
     marginTop: 10,
@@ -1276,32 +1551,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.08,
     shadowRadius: 6,
     elevation: 4,
-  },
-  saveTrailButtonDisabled: {
-    opacity: 0.65,
-  },
-  saveTrailTransitionWrap: {
-    width: 112,
-    height: 18,
-    position: 'relative',
-    justifyContent: 'center',
-  },
-  saveTrailContentLayer: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-  },
-  saveTrailContentWrap: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-  },
-  saveTrailButtonText: {
-    color: COLORS.primary,
-    fontSize: 13,
-    lineHeight: 16,
-    fontFamily: 'PoppinsBold',
   },
   bottomActions: {
     marginTop: 12,

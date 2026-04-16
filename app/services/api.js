@@ -102,6 +102,11 @@ export const getCoffeeTrail = async (preferences) => {
   return unwrap(response);
 };
 
+export const getCoffeeTrailHistory = async () => {
+  const response = await api.get('/api/coffee-trail/history');
+  return unwrap(response);
+};
+
 export const getCouponPromos = async (params = {}) => {
   const response = await api.get('/api/coupon-promos', {
     params,
