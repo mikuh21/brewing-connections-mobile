@@ -660,7 +660,7 @@ export default function CoffeeTrailScreen({ navigation }) {
       <SafeAreaView style={styles.screen}>
         <View style={styles.historyContainer}>
           <Text style={styles.title}>Your Trail History</Text>
-          <Text style={styles.subtitle}>Every generated trail is saved here with recommendations.</Text>
+          <Text style={styles.subtitle}>Every generated trail is saved here with recommendations</Text>
           {tabSwitch}
 
           {isHistoryLoading ? (
@@ -1076,33 +1076,37 @@ const styles = StyleSheet.create({
     fontFamily: 'PoppinsRegular',
   },
   tabSwitchWrap: {
-    marginTop: 14,
-    borderRadius: 12,
+    marginTop: 8,
+    alignSelf: 'stretch',
+    borderRadius: 999,
+    padding: 3,
+    backgroundColor: '#EDE3D4',
     borderWidth: 1,
-    borderColor: '#D5CCBF',
-    backgroundColor: '#EEE7DC',
-    padding: 4,
+    borderColor: '#D7CFC4',
     flexDirection: 'row',
-    gap: 6,
+    gap: 4,
   },
   tabSwitchItem: {
     flex: 1,
-    minHeight: 36,
-    borderRadius: 10,
+    minWidth: 0,
+    paddingVertical: 6,
+    borderRadius: 999,
     alignItems: 'center',
-    justifyContent: 'center',
   },
   tabSwitchItemActive: {
-    backgroundColor: COLORS.primary,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#D7CFC4',
   },
   tabSwitchText: {
-    color: COLORS.primary,
-    fontSize: 13,
+    fontFamily: 'PoppinsMedium',
+    fontSize: 12,
     lineHeight: 16,
-    fontFamily: 'PoppinsBold',
+    color: '#6B7280',
+    textAlign: 'center',
   },
   tabSwitchTextActive: {
-    color: '#FFFFFF',
+    color: '#2D4A1E',
   },
   historyContainer: {
     flex: 1,
