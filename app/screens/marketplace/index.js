@@ -542,20 +542,27 @@ export default function MarketplaceScreen() {
 							style={styles.searchInput}
 						/>
 					</View>
-					<ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
-						{PRODUCT_TYPE_FILTERS.map((filter) => {
-							const active = selectedTypeFilter === filter.value;
-							return (
-								<Pressable
-									key={filter.value}
-									style={[styles.filterChip, active && styles.filterChipActive]}
-									onPress={() => setSelectedTypeFilter(filter.value)}
-								>
-									<Text style={[styles.filterChipText, active && styles.filterChipTextActive]}>{filter.label}</Text>
-								</Pressable>
-							);
-						})}
-					</ScrollView>
+					<View style={styles.filterWrap}>
+						<ScrollView
+							horizontal
+							showsHorizontalScrollIndicator={false}
+							style={styles.filterScroll}
+							contentContainerStyle={styles.filterRow}
+						>
+							{PRODUCT_TYPE_FILTERS.map((filter) => {
+								const active = selectedTypeFilter === filter.value;
+								return (
+									<Pressable
+										key={filter.value}
+										style={[styles.filterChip, active && styles.filterChipActive]}
+										onPress={() => setSelectedTypeFilter(filter.value)}
+									>
+										<Text style={[styles.filterChipText, active && styles.filterChipTextActive]}>{filter.label}</Text>
+									</Pressable>
+								);
+							})}
+						</ScrollView>
+					</View>
 				</>
 			) : null}
 
@@ -755,20 +762,30 @@ const styles = StyleSheet.create({
 		fontFamily: theme.fonts.body,
 	},
 	filterRow: {
-		paddingBottom: 6,
-		paddingTop: 2,
+		paddingBottom: 0,
+		paddingTop: 0,
 		paddingRight: 6,
 		paddingLeft: 2,
 		alignItems: 'center',
 	},
+	filterWrap: {
+		minHeight: 34,
+		justifyContent: 'center',
+		marginBottom: 8,
+		position: 'relative',
+		zIndex: 2,
+	},
+	filterScroll: {
+		maxHeight: 34,
+	},
 	filterChip: {
 		paddingHorizontal: 10,
-		paddingVertical: 5,
+		paddingVertical: 4,
 		borderRadius: 16,
 		borderWidth: 1,
 		borderColor: '#D7CFC4',
 		backgroundColor: '#F7F1E8',
-		minHeight: 28,
+		minHeight: 26,
 		justifyContent: 'center',
 		alignItems: 'center',
 		flexShrink: 0,
@@ -799,13 +816,13 @@ const styles = StyleSheet.create({
 	},
 	list: {
 		backgroundColor: 'transparent',
-		marginTop: 6,
+		marginTop: 0,
 	},
 	listContent: {
 		paddingTop: 8,
 	},
 	listContentProductsEmpty: {
-		paddingTop: 2,
+		paddingTop: 0,
 	},
 	productCard: {
 		backgroundColor: theme.colors.white,
@@ -985,13 +1002,13 @@ const styles = StyleSheet.create({
 	},
 	emptyStateWrap: {
 		alignItems: 'center',
-		justifyContent: 'center',
+		justifyContent: 'flex-start',
 		paddingVertical: theme.spacing.lg,
 		gap: 10,
 	},
 	emptyStateWrapProductsEmpty: {
-		paddingTop: 14,
-		paddingBottom: 16,
+		paddingTop: 10,
+		paddingBottom: 8,
 	},
 	emptyStateText: {
 		color: theme.colors.textMuted,
