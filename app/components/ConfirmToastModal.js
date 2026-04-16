@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { Animated, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 
 export default function ConfirmToastModal({
 	visible,
@@ -35,39 +35,43 @@ export default function ConfirmToastModal({
 		translateY.setValue(24);
 	}, [visible, fadeAnim, translateY]);
 
+	if (!visible) {
+		return null;
+	}
+
 	return (
-		<Modal transparent visible={visible} animationType="none" onRequestClose={onCancel}>
-			<View style={styles.overlay}>
-				<Pressable style={StyleSheet.absoluteFillObject} onPress={onCancel} />
-				<Animated.View
-					style={[
-						styles.toastCard,
-						{ opacity: fadeAnim, transform: [{ translateY }] },
-					]}
-				>
-					<Text style={styles.title}>{title}</Text>
-					{message ? <Text style={styles.message}>{message}</Text> : null}
-					<View style={styles.actionRow}>
-						<Pressable style={styles.cancelButton} onPress={onCancel}>
-							<Text style={styles.cancelText}>{cancelLabel}</Text>
-						</Pressable>
-						<Pressable style={styles.confirmButton} onPress={onConfirm}>
-							<Text style={styles.confirmText}>{confirmLabel}</Text>
-						</Pressable>
-					</View>
-				</Animated.View>
-			</View>
-		</Modal>
+		<View style={styles.overlay} pointerEvents="box-none">
+			<Pressable style={StyleSheet.absoluteFillObject} onPress={onCancel} />
+			<Animated.View
+				style={[
+					styles.toastCard,
+					{ opacity: fadeAnim, transform: [{ translateY }] },
+				]}
+			>
+				<Text style={styles.title}>{title}</Text>
+				{message ? <Text style={styles.message}>{message}</Text> : null}
+				<View style={styles.actionRow}>
+					<Pressable style={styles.cancelButton} onPress={onCancel}>
+						<Text style={styles.cancelText}>{cancelLabel}</Text>
+					</Pressable>
+					<Pressable style={styles.confirmButton} onPress={onConfirm}>
+						<Text style={styles.confirmText}>{confirmLabel}</Text>
+					</Pressable>
+				</View>
+			</Animated.View>
+		</View>
 	);
 }
 
 const styles = StyleSheet.create({
 	overlay: {
-		flex: 1,
+		...StyleSheet.absoluteFillObject,
 		justifyContent: 'flex-end',
 		backgroundColor: 'rgba(0,0,0,0.22)',
 		padding: 14,
 		paddingBottom: 24,
+		zIndex: 100,
+		elevation: 100,
 	},
 	toastCard: {
 		borderRadius: 16,

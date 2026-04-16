@@ -394,26 +394,26 @@ export default function MarketplaceScreen() {
 			return;
 		}
 
+		const product = selectedProduct;
+		const action = modalAction;
+		const selectedQuantity = quantity;
+		const selectedPickupDate = pickupDate;
+		const selectedPickupTime = pickupTime;
+
+		// Close native modal first to avoid stacked modal input deadlocks.
+		setReserveModalOpen(false);
+		setSelectedProduct(null);
+		setShowNativeDatePicker(false);
+		setShowNativeTimePicker(false);
+
 		openConfirm({
-			title: modalAction === 'cart' ? 'Confirm Add to Cart' : 'Confirm Order',
-			message: modalAction === 'cart' ? 'Add this item to your cart?' : 'Place this order now?',
+			title: action === 'cart' ? 'Confirm Add to Cart' : 'Confirm Order',
+			message: action === 'cart' ? 'Add this item to your cart?' : 'Place this order now?',
 			confirmLabel: 'Yes, Confirm',
 			onConfirm: async () => {
-				const product = selectedProduct;
-				const action = modalAction;
-				const selectedQuantity = quantity;
-				const selectedPickupDate = pickupDate;
-				const selectedPickupTime = pickupTime;
-
 				if (!product?.id) {
 					return;
 				}
-
-				// Close the modal immediately to avoid stacked overlays blocking interaction.
-				setReserveModalOpen(false);
-				setSelectedProduct(null);
-				setShowNativeDatePicker(false);
-				setShowNativeTimePicker(false);
 
 				setSubmittingOrder(true);
 				setError('');
