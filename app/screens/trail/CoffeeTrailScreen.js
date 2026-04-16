@@ -776,9 +776,9 @@ export default function CoffeeTrailScreen({ navigation }) {
               disabled={isHistoryRefreshing}
             >
               {isHistoryRefreshing ? (
-                <ActivityIndicator size="small" color={COLORS.primary} />
+                <ActivityIndicator size="small" color="#FFFFFF" />
               ) : (
-                <MaterialIcons name="refresh" size={18} color={COLORS.primary} />
+                <MaterialIcons name="refresh" size={18} color="#FFFFFF" />
               )}
             </Pressable>
           </View>
@@ -1241,8 +1241,8 @@ const styles = StyleSheet.create({
     height: 34,
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: '#D7CFC4',
-    backgroundColor: '#FFFFFF',
+    borderColor: COLORS.primary,
+    backgroundColor: COLORS.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },
