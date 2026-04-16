@@ -26,6 +26,7 @@ const TAB_PRODUCTS = 'products';
 const TAB_TRACKING = 'tracking';
 const TAB_HISTORY = 'history';
 const CART_STORAGE_KEY = 'marketplace_cart_items';
+const MARKETPLACE_ACTION_GREEN = '#2E5A3D';
 
 const PRODUCT_TYPE_FILTERS = [
 	{ value: 'all', label: 'All' },
@@ -641,7 +642,7 @@ export default function MarketplaceScreen() {
 							<Text style={styles.reserveButtonText}>Order Now</Text>
 						</Pressable>
 						<Pressable style={styles.addToCartButton} onPress={() => openReserveModal(item, 'cart')}>
-							<MaterialIcons name="add-shopping-cart" size={16} color={theme.colors.primary} />
+							<MaterialIcons name="add-shopping-cart" size={16} color={theme.colors.white} />
 							<Text style={styles.addToCartButtonText}>Add to Cart</Text>
 						</Pressable>
 					</View>
@@ -685,7 +686,7 @@ export default function MarketplaceScreen() {
 							Pickup: {formatDisplayDateTime(item?.pickup_date, item?.pickup_time)}
 						</Text>
 						<Pressable style={styles.chatSellerButton} onPress={() => {}}>
-							<MaterialIcons name="chat-bubble-outline" size={14} color={theme.colors.primary} />
+							<MaterialIcons name="chat-bubble-outline" size={14} color={theme.colors.white} />
 							<Text style={styles.chatSellerButtonText}>Chat with seller</Text>
 						</Pressable>
 
@@ -951,7 +952,7 @@ const styles = StyleSheet.create({
 		paddingHorizontal: 10,
 		paddingVertical: 6,
 		borderRadius: theme.borderRadius.pill,
-		backgroundColor: theme.colors.primary,
+		backgroundColor: MARKETPLACE_ACTION_GREEN,
 	},
 	backButtonText: {
 		color: theme.colors.white,
@@ -1164,7 +1165,7 @@ const styles = StyleSheet.create({
 	},
 	reserveButton: {
 		flex: 1,
-		backgroundColor: theme.colors.primary,
+		backgroundColor: MARKETPLACE_ACTION_GREEN,
 		borderRadius: theme.borderRadius.md,
 		flexDirection: 'row',
 		alignItems: 'center',
@@ -1176,8 +1177,8 @@ const styles = StyleSheet.create({
 		flex: 1,
 		borderRadius: theme.borderRadius.md,
 		borderWidth: 1,
-		borderColor: theme.colors.primary,
-		backgroundColor: '#EEF4E8',
+		borderColor: MARKETPLACE_ACTION_GREEN,
+		backgroundColor: MARKETPLACE_ACTION_GREEN,
 		flexDirection: 'row',
 		alignItems: 'center',
 		justifyContent: 'center',
@@ -1191,7 +1192,7 @@ const styles = StyleSheet.create({
 		fontFamily: theme.fonts.body,
 	},
 	addToCartButtonText: {
-		color: theme.colors.primary,
+		color: theme.colors.white,
 		fontWeight: '700',
 		fontSize: theme.fontSizes.sm,
 		fontFamily: theme.fonts.body,
@@ -1263,14 +1264,14 @@ const styles = StyleSheet.create({
 		paddingVertical: 6,
 		borderRadius: theme.borderRadius.pill,
 		borderWidth: 1,
-		borderColor: '#2D4A1E',
-		backgroundColor: '#EEF4E8',
+		borderColor: MARKETPLACE_ACTION_GREEN,
+		backgroundColor: MARKETPLACE_ACTION_GREEN,
 		flexDirection: 'row',
 		alignItems: 'center',
 		gap: 6,
 	},
 	chatSellerButtonText: {
-		color: '#2D4A1E',
+		color: theme.colors.white,
 		fontFamily: 'PoppinsMedium',
 		fontSize: theme.fontSizes.xs,
 	},
@@ -1346,7 +1347,7 @@ const styles = StyleSheet.create({
 	},
 	chatSellerButtonModal: {
 		borderRadius: theme.borderRadius.md,
-		backgroundColor: theme.colors.primary,
+		backgroundColor: MARKETPLACE_ACTION_GREEN,
 		paddingVertical: 10,
 		paddingHorizontal: 12,
 		flexDirection: 'row',
@@ -1412,7 +1413,7 @@ const styles = StyleSheet.create({
 	},
 	modalSubmitButton: {
 		flex: 1,
-		backgroundColor: theme.colors.primary,
+		backgroundColor: MARKETPLACE_ACTION_GREEN,
 		borderRadius: theme.borderRadius.md,
 		alignItems: 'center',
 		justifyContent: 'center',
@@ -1429,7 +1430,7 @@ const styles = StyleSheet.create({
 		width: 56,
 		height: 56,
 		borderRadius: 28,
-		backgroundColor: theme.colors.primary,
+		backgroundColor: MARKETPLACE_ACTION_GREEN,
 		alignItems: 'center',
 		justifyContent: 'center',
 		...theme.shadows.sm,

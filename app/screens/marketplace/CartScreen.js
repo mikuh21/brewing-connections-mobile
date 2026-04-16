@@ -17,6 +17,7 @@ import { API_CONFIG, placeOrder } from '../../services';
 import theme from '../../theme';
 
 const CART_STORAGE_KEY = 'marketplace_cart_items';
+const MARKETPLACE_ACTION_GREEN = '#2E5A3D';
 
 function money(value) {
 	return `PHP ${Number(value || 0).toFixed(2)}`;
@@ -374,7 +375,7 @@ const styles = StyleSheet.create({
 		paddingHorizontal: 10,
 		paddingVertical: 6,
 		borderRadius: theme.borderRadius.pill,
-		backgroundColor: theme.colors.primary,
+		backgroundColor: MARKETPLACE_ACTION_GREEN,
 	},
 	backButtonText: {
 		color: '#FFFFFF',
@@ -479,7 +480,7 @@ const styles = StyleSheet.create({
 		paddingVertical: 8,
 		alignItems: 'center',
 		justifyContent: 'center',
-		backgroundColor: theme.colors.primary,
+		backgroundColor: MARKETPLACE_ACTION_GREEN,
 	},
 	orderNowButtonText: {
 		color: '#FFFFFF',
@@ -517,7 +518,7 @@ const styles = StyleSheet.create({
 	closeModalButton: {
 		marginTop: 14,
 		borderRadius: theme.borderRadius.md,
-		backgroundColor: theme.colors.primary,
+		backgroundColor: MARKETPLACE_ACTION_GREEN,
 		alignItems: 'center',
 		justifyContent: 'center',
 		paddingVertical: 10,
