@@ -107,22 +107,52 @@ function formatDisplayDateTime(dateValue, timeValue) {
 	return `${dateText} | ${formatDisplayTime(timeValue)}`;
 }
 
-function getSellerAndEstablishment(source) {
-	const sellerName =
+function normalizeBusinessName(name) {
+	return String(name || '').replace(/Cafe and Restaurant/gi, 'Cafe & Restaurant').trim();
+}
+
+function getSellerDisplayName(source) {
+	const sellerName = normalizeBusinessName(
 		source?.seller_name ||
-		source?.product?.seller_name ||
-		source?.seller?.name ||
-		source?.product?.seller?.name ||
-		'Seller';
+			source?.product?.seller_name ||
+			source?.seller?.name ||
+			source?.product?.seller?.name ||
+			'Seller'
+	);
 
-	const establishmentName =
+	const establishmentName = normalizeBusinessName(
 		source?.establishment_name ||
-		source?.product?.establishment_name ||
-		source?.establishment?.name ||
-		source?.product?.establishment?.name ||
-		'';
+			source?.product?.establishment_name ||
+			source?.establishment?.name ||
+			source?.product?.establishment?.name ||
+			''
+	);
 
-	return { sellerName, establishmentName };
+	const role = String(
+		source?.seller_type ||
+			source?.seller_role ||
+			source?.user_type ||
+			source?.product?.seller_type ||
+			source?.product?.seller_role ||
+			source?.product?.user_type ||
+			source?.seller?.role ||
+			source?.seller?.type ||
+			source?.product?.seller?.role ||
+			source?.product?.seller?.type ||
+			''
+	)
+		.trim()
+		.toLowerCase();
+
+	if (role.includes('cafe')) {
+		return sellerName || establishmentName || 'Seller';
+	}
+
+	if (establishmentName && establishmentName !== sellerName) {
+		return `${sellerName} • ${establishmentName}`;
+	}
+
+	return sellerName || 'Seller';
 }
 
 function normalizeSellerRole(product) {
@@ -557,6 +587,7 @@ export default function MarketplaceScreen() {
 		const grindType = item?.grind_type || item?.grind || null;
 		const sellerRole = normalizeSellerRole(item);
 		const sellerRoleTheme = sellerRole ? ROLE_PILL_THEME[sellerRole] : null;
+		const sellerDisplayName = getSellerDisplayName(item);
 
 		return (
 			<View style={styles.productCard}>
@@ -570,10 +601,7 @@ export default function MarketplaceScreen() {
 
 				<View style={styles.productBody}>
 					<Text style={styles.productName}>{item?.name || 'Product'}</Text>
-					<Text style={styles.productMeta}>
-						{(item?.seller_name || 'Seller')}
-						{item?.establishment_name ? ` • ${item.establishment_name}` : ''}
-					</Text>
+					<Text style={styles.productMeta}>{sellerDisplayName}</Text>
 
 					{sellerRoleTheme ? (
 						<View
@@ -628,7 +656,7 @@ export default function MarketplaceScreen() {
 		const statusStyle = orderStatusStyle(status);
 		const imageUrl = resolveImageUrl(item?.product?.image_url);
 		const cancellable = activeTab === TAB_TRACKING && (normalizedStatus === 'pending' || normalizedStatus === 'confirmed');
-		const { sellerName, establishmentName } = getSellerAndEstablishment(item);
+		const sellerDisplayName = getSellerDisplayName(item);
 
 		return (
 			<View style={styles.orderCard}>
@@ -650,10 +678,7 @@ export default function MarketplaceScreen() {
 
 					<View style={styles.orderBodyTextWrap}>
 						<Text style={styles.orderProductName}>{item?.product?.name || 'Product'}</Text>
-						<Text style={styles.orderSellerMeta}>
-							{sellerName}
-							{establishmentName ? ` • ${establishmentName}` : ''}
-						</Text>
+						<Text style={styles.orderSellerMeta}>{sellerDisplayName}</Text>
 						<Text style={styles.orderDetail}>Qty: {item?.quantity || 0}</Text>
 						<Text style={styles.orderDetail}>Total: {money(item?.total_price)}</Text>
 						<Text style={styles.orderDetail}>

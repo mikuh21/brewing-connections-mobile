@@ -58,22 +58,52 @@ function formatDisplayTime(value) {
 	});
 }
 
-function getSellerAndEstablishment(source) {
-	const sellerName =
+function normalizeBusinessName(name) {
+	return String(name || '').replace(/Cafe and Restaurant/gi, 'Cafe & Restaurant').trim();
+}
+
+function getSellerDisplayName(source) {
+	const sellerName = normalizeBusinessName(
 		source?.seller_name ||
-		source?.product?.seller_name ||
-		source?.seller?.name ||
-		source?.product?.seller?.name ||
-		'Seller';
+			source?.product?.seller_name ||
+			source?.seller?.name ||
+			source?.product?.seller?.name ||
+			'Seller'
+	);
 
-	const establishmentName =
+	const establishmentName = normalizeBusinessName(
 		source?.establishment_name ||
-		source?.product?.establishment_name ||
-		source?.establishment?.name ||
-		source?.product?.establishment?.name ||
-		'';
+			source?.product?.establishment_name ||
+			source?.establishment?.name ||
+			source?.product?.establishment?.name ||
+			''
+	);
 
-	return { sellerName, establishmentName };
+	const role = String(
+		source?.seller_type ||
+			source?.seller_role ||
+			source?.user_type ||
+			source?.product?.seller_type ||
+			source?.product?.seller_role ||
+			source?.product?.user_type ||
+			source?.seller?.role ||
+			source?.seller?.type ||
+			source?.product?.seller?.role ||
+			source?.product?.seller?.type ||
+			''
+	)
+		.trim()
+		.toLowerCase();
+
+	if (role.includes('cafe')) {
+		return sellerName || establishmentName || 'Seller';
+	}
+
+	if (establishmentName && establishmentName !== sellerName) {
+		return `${sellerName} • ${establishmentName}`;
+	}
+
+	return sellerName || 'Seller';
 }
 
 function resolveImageUrl(pathOrUrl) {
@@ -239,7 +269,7 @@ export default function MarketplaceCartScreen() {
 				<ScrollView contentContainerStyle={styles.listWrap} showsVerticalScrollIndicator={false}>
 					{cartItems.map((item) => {
 						const imageUrl = resolveImageUrl(item?.product?.image_url);
-						const { sellerName, establishmentName } = getSellerAndEstablishment(item);
+						const sellerDisplayName = getSellerDisplayName(item);
 
 						return (
 							<View key={item.id} style={styles.cartItemCard}>
@@ -253,10 +283,7 @@ export default function MarketplaceCartScreen() {
 									)}
 									<View style={styles.cartItemTextWrap}>
 										<Text style={styles.cartItemName}>{item?.product?.name || 'Product'}</Text>
-										<Text style={styles.cartItemMeta}>
-											{sellerName}
-											{establishmentName ? ` • ${establishmentName}` : ''}
-										</Text>
+										<Text style={styles.cartItemMeta}>{sellerDisplayName}</Text>
 										<Text style={styles.cartItemMeta}>Qty: {item.quantity}</Text>
 										<Text style={styles.cartItemMeta}>Price: {money(item?.product?.price_per_unit)}</Text>
 									</View>
@@ -294,15 +321,12 @@ export default function MarketplaceCartScreen() {
 				<View style={styles.modalBackdrop}>
 					<View style={styles.modalCard}>
 						{(() => {
-							const { sellerName, establishmentName } = getSellerAndEstablishment(selectedItem);
+							const sellerDisplayName = getSellerDisplayName(selectedItem);
 							return (
 								<>
 						<Text style={styles.modalTitle}>Cart Item Details</Text>
 						<Text style={styles.modalDetailName}>{selectedItem?.product?.name || 'Product'}</Text>
-						<Text style={styles.modalDetailText}>
-							Seller: {sellerName}
-							{establishmentName ? ` • ${establishmentName}` : ''}
-						</Text>
+						<Text style={styles.modalDetailText}>Seller: {sellerDisplayName}</Text>
 						<Text style={styles.modalDetailText}>Quantity: {selectedItem?.quantity || 0}</Text>
 						<Text style={styles.modalDetailText}>Pickup Date: {formatDisplayDate(selectedItem?.pickup_date)}</Text>
 						<Text style={styles.modalDetailText}>Pickup Time: {formatDisplayTime(selectedItem?.pickup_time)}</Text>
