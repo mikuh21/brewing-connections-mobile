@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import {
 	Alert,
 	Image,
+	Modal,
 	Pressable,
 	ScrollView,
 	StyleSheet,
