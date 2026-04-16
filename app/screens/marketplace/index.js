@@ -107,6 +107,24 @@ function formatDisplayDateTime(dateValue, timeValue) {
 	return `${dateText} | ${formatDisplayTime(timeValue)}`;
 }
 
+function getSellerAndEstablishment(source) {
+	const sellerName =
+		source?.seller_name ||
+		source?.product?.seller_name ||
+		source?.seller?.name ||
+		source?.product?.seller?.name ||
+		'Seller';
+
+	const establishmentName =
+		source?.establishment_name ||
+		source?.product?.establishment_name ||
+		source?.establishment?.name ||
+		source?.product?.establishment?.name ||
+		'';
+
+	return { sellerName, establishmentName };
+}
+
 function normalizeSellerRole(product) {
 	const rawRole =
 		product?.seller_type ||
@@ -610,6 +628,7 @@ export default function MarketplaceScreen() {
 		const statusStyle = orderStatusStyle(status);
 		const imageUrl = resolveImageUrl(item?.product?.image_url);
 		const cancellable = activeTab === TAB_TRACKING && (normalizedStatus === 'pending' || normalizedStatus === 'confirmed');
+		const { sellerName, establishmentName } = getSellerAndEstablishment(item);
 
 		return (
 			<View style={styles.orderCard}>
@@ -631,6 +650,10 @@ export default function MarketplaceScreen() {
 
 					<View style={styles.orderBodyTextWrap}>
 						<Text style={styles.orderProductName}>{item?.product?.name || 'Product'}</Text>
+						<Text style={styles.orderSellerMeta}>
+							{sellerName}
+							{establishmentName ? ` • ${establishmentName}` : ''}
+						</Text>
 						<Text style={styles.orderDetail}>Qty: {item?.quantity || 0}</Text>
 						<Text style={styles.orderDetail}>Total: {money(item?.total_price)}</Text>
 						<Text style={styles.orderDetail}>
@@ -1195,6 +1218,12 @@ const styles = StyleSheet.create({
 		color: theme.colors.sidebar,
 		fontWeight: '700',
 		fontFamily: 'PoppinsBold',
+	},
+	orderSellerMeta: {
+		marginTop: 2,
+		color: '#826D54',
+		fontSize: theme.fontSizes.xs,
+		fontFamily: 'PoppinsRegular',
 	},
 	orderDetail: {
 		marginTop: 2,

@@ -58,6 +58,24 @@ function formatDisplayTime(value) {
 	});
 }
 
+function getSellerAndEstablishment(source) {
+	const sellerName =
+		source?.seller_name ||
+		source?.product?.seller_name ||
+		source?.seller?.name ||
+		source?.product?.seller?.name ||
+		'Seller';
+
+	const establishmentName =
+		source?.establishment_name ||
+		source?.product?.establishment_name ||
+		source?.establishment?.name ||
+		source?.product?.establishment?.name ||
+		'';
+
+	return { sellerName, establishmentName };
+}
+
 function resolveImageUrl(pathOrUrl) {
 	if (!pathOrUrl) return null;
 	const raw = String(pathOrUrl).trim();
@@ -221,6 +239,7 @@ export default function MarketplaceCartScreen() {
 				<ScrollView contentContainerStyle={styles.listWrap} showsVerticalScrollIndicator={false}>
 					{cartItems.map((item) => {
 						const imageUrl = resolveImageUrl(item?.product?.image_url);
+						const { sellerName, establishmentName } = getSellerAndEstablishment(item);
 
 						return (
 							<View key={item.id} style={styles.cartItemCard}>
@@ -234,6 +253,10 @@ export default function MarketplaceCartScreen() {
 									)}
 									<View style={styles.cartItemTextWrap}>
 										<Text style={styles.cartItemName}>{item?.product?.name || 'Product'}</Text>
+										<Text style={styles.cartItemMeta}>
+											{sellerName}
+											{establishmentName ? ` • ${establishmentName}` : ''}
+										</Text>
 										<Text style={styles.cartItemMeta}>Qty: {item.quantity}</Text>
 										<Text style={styles.cartItemMeta}>Price: {money(item?.product?.price_per_unit)}</Text>
 									</View>
@@ -270,8 +293,16 @@ export default function MarketplaceCartScreen() {
 			>
 				<View style={styles.modalBackdrop}>
 					<View style={styles.modalCard}>
+						{(() => {
+							const { sellerName, establishmentName } = getSellerAndEstablishment(selectedItem);
+							return (
+								<>
 						<Text style={styles.modalTitle}>Cart Item Details</Text>
 						<Text style={styles.modalDetailName}>{selectedItem?.product?.name || 'Product'}</Text>
+						<Text style={styles.modalDetailText}>
+							Seller: {sellerName}
+							{establishmentName ? ` • ${establishmentName}` : ''}
+						</Text>
 						<Text style={styles.modalDetailText}>Quantity: {selectedItem?.quantity || 0}</Text>
 						<Text style={styles.modalDetailText}>Pickup Date: {formatDisplayDate(selectedItem?.pickup_date)}</Text>
 						<Text style={styles.modalDetailText}>Pickup Time: {formatDisplayTime(selectedItem?.pickup_time)}</Text>
@@ -280,6 +311,9 @@ export default function MarketplaceCartScreen() {
 						<Pressable style={styles.closeModalButton} onPress={() => setSelectedItem(null)}>
 							<Text style={styles.closeModalButtonText}>Close</Text>
 						</Pressable>
+							</>
+							);
+						})()}
 					</View>
 				</View>
 			</Modal>
