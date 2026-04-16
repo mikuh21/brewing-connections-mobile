@@ -720,6 +720,10 @@ export default function RatingScreen({ navigation, route }) {
 	};
 
 	const handlePickFromGallery = async () => {
+		if (!canRateDestination) {
+			return;
+		}
+
 		try {
 			const result = await ImagePicker.launchImageLibraryAsync({
 				mediaTypes: ImagePicker.MediaTypeOptions.Images,
@@ -747,6 +751,10 @@ export default function RatingScreen({ navigation, route }) {
 	};
 
 	const handleTakePhoto = async () => {
+		if (!canRateDestination) {
+			return;
+		}
+
 		try {
 			const permission = await ImagePicker.requestCameraPermissionsAsync();
 			if (!permission?.granted) {
@@ -1004,16 +1012,32 @@ export default function RatingScreen({ navigation, route }) {
 
 				<View style={styles.card}>
 					<Text style={styles.sectionTitle}>Photo (Optional)</Text>
-					<Text style={styles.helperText}>Add a photo from camera or gallery.</Text>
+					<Text style={styles.helperText}>
+						{canRateDestination
+							? 'Add a photo from camera or gallery.'
+							: 'Select a destination first to enable camera and gallery upload.'}
+					</Text>
 
 					<View style={styles.photoActionRow}>
-						<Pressable style={styles.photoActionButton} onPress={handleTakePhoto}>
+						<Pressable
+							style={[styles.photoActionButton, !canRateDestination && styles.photoActionButtonDisabled]}
+							onPress={handleTakePhoto}
+							disabled={!canRateDestination}
+						>
 							<MaterialIcons name="photo-camera" size={16} color="#2D4A1E" />
-							<Text style={styles.photoActionButtonText}>Camera</Text>
+							<Text style={[styles.photoActionButtonText, !canRateDestination && styles.photoActionButtonTextDisabled]}>
+								Camera
+							</Text>
 						</Pressable>
-						<Pressable style={styles.photoActionButton} onPress={handlePickFromGallery}>
+						<Pressable
+							style={[styles.photoActionButton, !canRateDestination && styles.photoActionButtonDisabled]}
+							onPress={handlePickFromGallery}
+							disabled={!canRateDestination}
+						>
 							<MaterialIcons name="photo-library" size={16} color="#2D4A1E" />
-							<Text style={styles.photoActionButtonText}>Gallery</Text>
+							<Text style={[styles.photoActionButtonText, !canRateDestination && styles.photoActionButtonTextDisabled]}>
+								Gallery
+							</Text>
 						</Pressable>
 					</View>
 
@@ -1180,11 +1204,17 @@ const styles = StyleSheet.create({
 		justifyContent: 'center',
 		gap: 6,
 	},
+	photoActionButtonDisabled: {
+		opacity: 0.55,
+	},
 	photoActionButtonText: {
 		color: '#2D4A1E',
 		fontFamily: 'PoppinsMedium',
 		fontSize: 12,
 		lineHeight: 16,
+	},
+	photoActionButtonTextDisabled: {
+		color: '#6B7280',
 	},
 	photoPreviewWrap: {
 		marginTop: 10,
