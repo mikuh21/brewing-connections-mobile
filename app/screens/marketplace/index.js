@@ -95,6 +95,19 @@ function formatDisplayTime(value) {
 	});
 }
 
+function formatDisplayDateTime(dateValue, timeValue) {
+	if (!dateValue) {
+		return 'Not set';
+	}
+
+	const dateText = formatDisplayDate(dateValue);
+	if (!timeValue) {
+		return dateText;
+	}
+
+	return `${dateText} | ${formatDisplayTime(timeValue)}`;
+}
+
 function normalizeSellerRole(product) {
 	const rawRole =
 		product?.seller_type ||
@@ -406,9 +419,24 @@ export default function MarketplaceScreen() {
 		setShowNativeDatePicker(false);
 		setShowNativeTimePicker(false);
 
+		if (action === 'cart') {
+			const cartEntry = {
+				id: `${product.id}-${Date.now()}`,
+				product,
+				quantity: selectedQuantity,
+				pickup_date: selectedPickupDate,
+				pickup_time: selectedPickupTime,
+				added_at: new Date().toISOString(),
+			};
+
+			setCartItems((prev) => [...prev, cartEntry]);
+			setError('Added to cart.');
+			return;
+		}
+
 		openConfirm({
-			title: action === 'cart' ? 'Confirm Add to Cart' : 'Confirm Order',
-			message: action === 'cart' ? 'Add this item to your cart?' : 'Place this order now?',
+			title: 'Confirm Order',
+			message: 'Place this order now?',
 			confirmLabel: 'Yes, Confirm',
 			onConfirm: async () => {
 				if (!product?.id) {
@@ -417,22 +445,6 @@ export default function MarketplaceScreen() {
 
 				setSubmittingOrder(true);
 				setError('');
-
-				if (action === 'cart') {
-					const cartEntry = {
-						id: `${product.id}-${Date.now()}`,
-						product,
-						quantity: selectedQuantity,
-						pickup_date: selectedPickupDate,
-						pickup_time: selectedPickupTime,
-						added_at: new Date().toISOString(),
-					};
-
-					setCartItems((prev) => [...prev, cartEntry]);
-					setSubmittingOrder(false);
-					setError('Added to cart.');
-					return;
-				}
 
 				try {
 					await placeOrder({
@@ -591,7 +603,7 @@ export default function MarketplaceScreen() {
 						<Text style={styles.orderDetail}>Qty: {item?.quantity || 0}</Text>
 						<Text style={styles.orderDetail}>Total: {money(item?.total_price)}</Text>
 						<Text style={styles.orderDetail}>
-							Pickup: {item?.pickup_date || 'Not set'} {item?.pickup_time || ''}
+							Pickup: {formatDisplayDateTime(item?.pickup_date, item?.pickup_time)}
 						</Text>
 						<Pressable style={styles.chatSellerButton} onPress={() => {}}>
 							<MaterialIcons name="chat-bubble-outline" size={14} color={theme.colors.primary} />
