@@ -36,10 +36,25 @@ const COLORS = {
 };
 
 const TRAIL_RESET_SIGNAL_KEY = 'trail_reset_signal_at';
+const SAVED_TRAILS_KEY = 'saved_coffee_trails';
 const TRAIL_TABS = {
   GENERATE: 'generate',
   HISTORY: 'history',
 };
+
+function getTrailSignature({ trailStops, trailOrigin, preferences }) {
+  const stopPart = (Array.isArray(trailStops) ? trailStops : [])
+    .map((stop) => `${stop?.establishment_id ?? stop?.id ?? ''}:${stop?.latitude ?? ''}:${stop?.longitude ?? ''}`)
+    .join('|');
+  const originPart = trailOrigin
+    ? `${trailOrigin.latitude ?? ''},${trailOrigin.longitude ?? ''}`
+    : 'no-origin';
+  const prefPart = `${(preferences?.varieties || []).join(',')}|${(preferences?.types || []).join(',')}|${
+    preferences?.maxStops ?? ''
+  }`;
+
+  return `${originPart}::${prefPart}::${stopPart}`;
+}
 
 const TYPE_BADGE_THEME = {
   farm: { bg: 'rgba(45, 74, 30, 0.14)', border: 'rgba(45, 74, 30, 0.35)', text: '#2D4A1E' },
@@ -278,6 +293,8 @@ export default function CoffeeTrailScreen({ navigation }) {
   const [trailOrigin, setTrailOrigin] = useState(null);
   const [errorMessage, setErrorMessage] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isSavingTrail, setIsSavingTrail] = useState(false);
+  const [isTrailSaved, setIsTrailSaved] = useState(false);
   const [historyTrails, setHistoryTrails] = useState([]);
   const [isHistoryLoading, setIsHistoryLoading] = useState(false);
   const [isHistoryRefreshing, setIsHistoryRefreshing] = useState(false);
@@ -298,6 +315,7 @@ export default function CoffeeTrailScreen({ navigation }) {
     setTrailData([]);
     setTrailOrigin(null);
     setTrailTotals({ totalDistanceKm: 0, totalEtaMinutes: 0 });
+    setIsTrailSaved(false);
     setErrorMessage('');
   };
 
@@ -539,6 +557,39 @@ export default function CoffeeTrailScreen({ navigation }) {
         totalDistanceKm: normalized.totalDistanceKm,
         totalEtaMinutes: normalized.totalEtaMinutes,
       });
+
+      const trailSignature = getTrailSignature({
+        trailStops: stopsWithLegMetrics,
+        trailOrigin: {
+          latitude: current.coords.latitude,
+          longitude: current.coords.longitude,
+        },
+        preferences: {
+          varieties: selectedVarieties,
+          types: selectedTypes,
+          maxStops,
+        },
+      });
+
+      try {
+        const existingRaw = await AsyncStorage.getItem(SAVED_TRAILS_KEY);
+        const existingParsed = JSON.parse(existingRaw || '[]');
+        const existing = Array.isArray(existingParsed) ? existingParsed : [];
+        const alreadySaved = existing.some((item) => {
+          const itemSignature =
+            item?.signature ||
+            getTrailSignature({
+              trailStops: item?.trailStops,
+              trailOrigin: item?.trailOrigin,
+              preferences: item?.preferences,
+            });
+          return itemSignature === trailSignature;
+        });
+        setIsTrailSaved(alreadySaved);
+      } catch {
+        setIsTrailSaved(false);
+      }
+
       const normalizedHistoryEntry = normalizeTrailHistoryResponse({
         history: [
           {
@@ -655,11 +706,82 @@ export default function CoffeeTrailScreen({ navigation }) {
     });
   };
 
+  const handleSaveTrail = async () => {
+    if (!trailData.length || isSavingTrail || isTrailSaved) {
+      return;
+    }
+
+    setIsSavingTrail(true);
+    setErrorMessage('');
+
+    try {
+      const signature = getTrailSignature({
+        trailStops: trailData,
+        trailOrigin,
+        preferences: {
+          varieties: selectedVarieties,
+          types: selectedTypes,
+          maxStops,
+        },
+      });
+
+      const snapshot = {
+        id: Date.now().toString(),
+        savedAt: new Date().toISOString(),
+        signature,
+        trailStops: trailData,
+        trailTotals,
+        trailOrigin,
+        preferences: {
+          varieties: selectedVarieties,
+          types: selectedTypes,
+          maxStops,
+        },
+      };
+
+      const existingRaw = await AsyncStorage.getItem(SAVED_TRAILS_KEY);
+      const parsed = JSON.parse(existingRaw || '[]');
+      const existing = Array.isArray(parsed) ? parsed : [];
+
+      const withoutCurrent = existing.filter((item) => {
+        const itemSignature =
+          item?.signature ||
+          getTrailSignature({
+            trailStops: item?.trailStops,
+            trailOrigin: item?.trailOrigin,
+            preferences: item?.preferences,
+          });
+        return itemSignature !== signature;
+      });
+
+      const next = [snapshot, ...withoutCurrent].slice(0, 20);
+      await AsyncStorage.setItem(SAVED_TRAILS_KEY, JSON.stringify(next));
+      setIsTrailSaved(true);
+    } catch {
+      setErrorMessage('Unable to save trail right now. Please try again.');
+    } finally {
+      setIsSavingTrail(false);
+    }
+  };
+
   if (activeTab === TRAIL_TABS.HISTORY) {
     return (
       <SafeAreaView style={styles.screen}>
         <View style={styles.historyContainer}>
-          <Text style={styles.title}>Your Trail History</Text>
+          <View style={styles.historyTopRow}>
+            <Text style={styles.title}>Your Trail History</Text>
+            <Pressable
+              style={styles.historyRefreshIconButton}
+              onPress={() => loadTrailHistory({ silent: true })}
+              disabled={isHistoryRefreshing}
+            >
+              {isHistoryRefreshing ? (
+                <ActivityIndicator size="small" color={COLORS.primary} />
+              ) : (
+                <MaterialIcons name="refresh" size={18} color={COLORS.primary} />
+              )}
+            </Pressable>
+          </View>
           <Text style={styles.subtitle}>Every generated trail is saved here with recommendations</Text>
           {tabSwitch}
 
@@ -728,16 +850,6 @@ export default function CoffeeTrailScreen({ navigation }) {
                   </Pressable>
                 </View>
               ))}
-
-              <Pressable
-                style={[styles.historyRefreshButton, isHistoryRefreshing && styles.generateButtonDisabled]}
-                onPress={() => loadTrailHistory({ silent: true })}
-                disabled={isHistoryRefreshing}
-              >
-                <Text style={styles.historyRefreshButtonText}>
-                  {isHistoryRefreshing ? 'Refreshing...' : 'Refresh History'}
-                </Text>
-              </Pressable>
             </ScrollView>
           )}
         </View>
@@ -748,7 +860,6 @@ export default function CoffeeTrailScreen({ navigation }) {
   if (step === 2) {
     return (
       <SafeAreaView style={styles.loadingScreen}>
-        <View style={styles.loadingTabWrap}>{tabSwitch}</View>
         <View style={styles.loadingCupWrap}>
           <Animated.View
             style={[
@@ -832,7 +943,6 @@ export default function CoffeeTrailScreen({ navigation }) {
     return (
       <SafeAreaView style={styles.screen}>
         <View style={styles.resultsScreenContainer}>
-          {tabSwitch}
           <View style={styles.summaryCard}>
             <Text style={styles.summaryTop}>{trailSummary.totalStops} Stops</Text>
             <View style={styles.distanceMetaRow}>
@@ -913,9 +1023,15 @@ export default function CoffeeTrailScreen({ navigation }) {
           </ScrollView>
 
           <View style={styles.actionsFooter}>
-            <Pressable style={styles.historyShortcutButton} onPress={() => setActiveTab(TRAIL_TABS.HISTORY)}>
-              <MaterialIcons name="history" size={16} color={COLORS.primary} />
-              <Text style={styles.historyShortcutButtonText}>View Trail History</Text>
+            <Pressable
+              style={[styles.saveTrailButton, (isSavingTrail || isTrailSaved) && styles.saveTrailButtonDisabled]}
+              onPress={handleSaveTrail}
+              disabled={isSavingTrail || isTrailSaved}
+            >
+              <MaterialIcons name={isTrailSaved ? 'bookmark' : 'bookmark-border'} size={16} color={COLORS.primary} />
+              <Text style={styles.saveTrailButtonText}>
+                {isSavingTrail ? 'Saving Trail...' : isTrailSaved ? 'Saved' : 'Save Trail'}
+              </Text>
             </Pressable>
 
             <View style={styles.bottomActions}>
@@ -1114,6 +1230,22 @@ const styles = StyleSheet.create({
     paddingTop: 16,
     paddingBottom: 12,
   },
+  historyTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  historyRefreshIconButton: {
+    width: 34,
+    height: 34,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#D7CFC4',
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   historyLoadingWrap: {
     flex: 1,
     alignItems: 'center',
@@ -1226,20 +1358,6 @@ const styles = StyleSheet.create({
   },
   historyMapButtonText: {
     color: COLORS.primary,
-    fontSize: 13,
-    lineHeight: 16,
-    fontFamily: 'PoppinsBold',
-  },
-  historyRefreshButton: {
-    marginTop: 2,
-    borderRadius: 12,
-    backgroundColor: COLORS.primary,
-    minHeight: 42,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  historyRefreshButtonText: {
-    color: '#FFFFFF',
     fontSize: 13,
     lineHeight: 16,
     fontFamily: 'PoppinsBold',
@@ -1359,12 +1477,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 16,
-  },
-  loadingTabWrap: {
-    position: 'absolute',
-    top: 20,
-    left: 16,
-    right: 16,
   },
   loadingCupWrap: {
     width: 96,
@@ -1526,7 +1638,7 @@ const styles = StyleSheet.create({
     lineHeight: 16,
     fontFamily: 'PoppinsBold',
   },
-  historyShortcutButton: {
+  saveTrailButton: {
     marginTop: 10,
     minHeight: 42,
     borderRadius: 12,
@@ -1538,11 +1650,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 6,
   },
-  historyShortcutButtonText: {
+  saveTrailButtonText: {
     color: COLORS.primary,
     fontSize: 13,
     lineHeight: 16,
     fontFamily: 'PoppinsBold',
+  },
+  saveTrailButtonDisabled: {
+    opacity: 0.7,
   },
   actionsFooter: {
     marginTop: 10,
