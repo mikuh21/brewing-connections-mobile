@@ -7,6 +7,7 @@ export {
 	getEstablishments,
 	getEstablishment,
 	getCoffeeTrail,
+	getCoffeeTrailPreview,
 	getCoffeeTrailHistory,
 	getCouponPromos,
 	verifyCouponPromoQr,

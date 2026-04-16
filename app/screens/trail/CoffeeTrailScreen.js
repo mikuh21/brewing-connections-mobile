@@ -15,7 +15,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { MaterialIcons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import Slider from '@react-native-community/slider';
-import { getCoffeeTrail, getCoffeeTrailHistory } from '../../services';
+import { getCoffeeTrail, getCoffeeTrailHistory, getCoffeeTrailPreview } from '../../services';
 
 const VARIETY_OPTIONS = ['Liberica', 'Excelsa', 'Robusta', 'Arabica'];
 const TYPE_OPTIONS = [
@@ -299,6 +299,7 @@ export default function CoffeeTrailScreen({ navigation }) {
   const [isHistoryLoading, setIsHistoryLoading] = useState(false);
   const [isHistoryRefreshing, setIsHistoryRefreshing] = useState(false);
   const [historyErrorMessage, setHistoryErrorMessage] = useState('');
+  const [serverAiPreview, setServerAiPreview] = useState(null);
 
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const steamAnimA = useRef(new Animated.Value(0)).current;
@@ -497,8 +498,56 @@ export default function CoffeeTrailScreen({ navigation }) {
       routeHint,
       balanceHint,
       confidence: hasVarieties && hasTypes ? 'High confidence' : 'Low confidence',
+      confidenceScore: hasVarieties && hasTypes ? 78 : 38,
+      suggestion: hasVarieties && hasTypes
+        ? 'Your setup looks balanced. You can generate now.'
+        : 'Complete your selections to unlock stronger recommendations.',
     };
   }, [selectedVarieties, selectedTypes, maxStops]);
+
+  useEffect(() => {
+    if (activeTab !== TRAIL_TABS.GENERATE || step !== 1) {
+      return undefined;
+    }
+
+    let isActive = true;
+
+    const timer = setTimeout(async () => {
+      try {
+        const preview = await getCoffeeTrailPreview({
+          varieties: selectedVarieties,
+          types: selectedTypes,
+          max_stops: maxStops,
+        });
+
+        if (!isActive) {
+          return;
+        }
+
+        setServerAiPreview({
+          headline: preview?.headline,
+          summary: preview?.summary,
+          routeHint: preview?.route_hint,
+          balanceHint: preview?.balance_hint,
+          confidence: preview?.confidence_label,
+          confidenceScore: toNumber(preview?.confidence_score, 35),
+          suggestion: preview?.suggestion,
+        });
+      } catch {
+        if (!isActive) {
+          return;
+        }
+        setServerAiPreview(null);
+      }
+    }, 240);
+
+    return () => {
+      isActive = false;
+      clearTimeout(timer);
+    };
+  }, [activeTab, step, selectedVarieties, selectedTypes, maxStops]);
+
+  const displayedAiPreview = serverAiPreview || aiPreview;
 
   const loadTrailHistory = useCallback(
     async ({ silent = false } = {}) => {
@@ -1193,12 +1242,24 @@ export default function CoffeeTrailScreen({ navigation }) {
               <MaterialIcons name="auto-awesome" size={12} color="#FFFFFF" />
               <Text style={styles.aiBadgeText}>AI</Text>
             </View>
-            <Text style={styles.aiConfidenceText}>{aiPreview.confidence}</Text>
+            <Text style={styles.aiConfidenceText}>{displayedAiPreview.confidence}</Text>
           </View>
-          <Text style={styles.aiPreviewTitle}>{aiPreview.headline}</Text>
-          <Text style={styles.aiPreviewBody}>{aiPreview.summary}</Text>
-          <Text style={styles.aiPreviewHint}>{aiPreview.routeHint}</Text>
-          <Text style={styles.aiPreviewHint}>{aiPreview.balanceHint}</Text>
+          <View style={styles.aiConfidenceBarTrack}>
+            <View
+              style={[
+                styles.aiConfidenceBarFill,
+                { width: `${Math.max(8, Math.min(100, toNumber(displayedAiPreview.confidenceScore, 35)))}%` },
+              ]}
+            />
+          </View>
+          <Text style={styles.aiPreviewTitle}>{displayedAiPreview.headline}</Text>
+          <Text style={styles.aiPreviewBody}>{displayedAiPreview.summary}</Text>
+          <Text style={styles.aiPreviewHint}>{displayedAiPreview.routeHint}</Text>
+          <Text style={styles.aiPreviewHint}>{displayedAiPreview.balanceHint}</Text>
+          <View style={styles.aiSuggestionRow}>
+            <MaterialIcons name="tips-and-updates" size={14} color={COLORS.primary} />
+            <Text style={styles.aiSuggestionText}>{displayedAiPreview.suggestion}</Text>
+          </View>
         </View>
 
         <Pressable
@@ -1542,6 +1603,19 @@ const styles = StyleSheet.create({
     lineHeight: 14,
     fontFamily: 'PoppinsMedium',
   },
+  aiConfidenceBarTrack: {
+    marginTop: 2,
+    width: '100%',
+    height: 6,
+    borderRadius: 999,
+    backgroundColor: '#E6DDCF',
+    overflow: 'hidden',
+  },
+  aiConfidenceBarFill: {
+    height: '100%',
+    borderRadius: 999,
+    backgroundColor: COLORS.primary,
+  },
   aiPreviewTitle: {
     marginTop: 2,
     color: COLORS.text,
@@ -1557,6 +1631,19 @@ const styles = StyleSheet.create({
   },
   aiPreviewHint: {
     color: '#6B7280',
+    fontSize: 11,
+    lineHeight: 15,
+    fontFamily: 'PoppinsMedium',
+  },
+  aiSuggestionRow: {
+    marginTop: 2,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 6,
+  },
+  aiSuggestionText: {
+    flex: 1,
+    color: '#4D4338',
     fontSize: 11,
     lineHeight: 15,
     fontFamily: 'PoppinsMedium',
