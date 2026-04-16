@@ -19,7 +19,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { ScreenContainer } from '../../components';
+import { ConfirmToastModal, ScreenContainer } from '../../components';
 import { API_CONFIG, getMyOrders, getProducts, placeOrder, updateOrderStatus } from '../../services';
 import theme from '../../theme';
 
@@ -183,6 +183,35 @@ export default function MarketplaceScreen() {
 	const [cartItems, setCartItems] = useState([]);
 	const [submittingOrder, setSubmittingOrder] = useState(false);
 	const [cancellingOrderId, setCancellingOrderId] = useState(null);
+	const [confirmState, setConfirmState] = useState({
+		visible: false,
+		title: '',
+		message: '',
+		confirmLabel: 'Yes',
+		onConfirm: null,
+	});
+
+	const openConfirm = ({ title, message, confirmLabel = 'Yes', onConfirm }) => {
+		setConfirmState({
+			visible: true,
+			title,
+			message,
+			confirmLabel,
+			onConfirm,
+		});
+	};
+
+	const closeConfirm = () => {
+		setConfirmState((prev) => ({ ...prev, visible: false, onConfirm: null }));
+	};
+
+	const handleConfirm = () => {
+		const action = confirmState.onConfirm;
+		closeConfirm();
+		if (typeof action === 'function') {
+			void action();
+		}
+	};
 
 	useEffect(() => {
 		const loadCart = async () => {
@@ -365,62 +394,55 @@ export default function MarketplaceScreen() {
 			return;
 		}
 
-		Alert.alert(
-			modalAction === 'cart' ? 'Confirm Add to Cart' : 'Confirm Order',
-			modalAction === 'cart'
-				? 'Add this item to your cart?'
-				: 'Place this order now?',
-			[
-				{ text: 'No', style: 'cancel' },
-				{
-					text: 'Yes',
-					onPress: async () => {
-						setSubmittingOrder(true);
-						setError('');
+		openConfirm({
+			title: modalAction === 'cart' ? 'Confirm Add to Cart' : 'Confirm Order',
+			message: modalAction === 'cart' ? 'Add this item to your cart?' : 'Place this order now?',
+			confirmLabel: 'Yes, Confirm',
+			onConfirm: async () => {
+				setSubmittingOrder(true);
+				setError('');
 
-						if (modalAction === 'cart') {
-							const cartEntry = {
-								id: `${selectedProduct.id}-${Date.now()}`,
-								product: selectedProduct,
-								quantity,
-								pickup_date: pickupDate,
-								pickup_time: pickupTime,
-								added_at: new Date().toISOString(),
-							};
+				if (modalAction === 'cart') {
+					const cartEntry = {
+						id: `${selectedProduct.id}-${Date.now()}`,
+						product: selectedProduct,
+						quantity,
+						pickup_date: pickupDate,
+						pickup_time: pickupTime,
+						added_at: new Date().toISOString(),
+					};
 
-							setCartItems((prev) => [...prev, cartEntry]);
-							setReserveModalOpen(false);
-							setSelectedProduct(null);
-							setSubmittingOrder(false);
-							Alert.alert('Added to Cart', 'This item has been saved to your cart.');
-							return;
-						}
+					setCartItems((prev) => [...prev, cartEntry]);
+					setReserveModalOpen(false);
+					setSelectedProduct(null);
+					setSubmittingOrder(false);
+					Alert.alert('Added to Cart', 'This item has been saved to your cart.');
+					return;
+				}
 
-						try {
-							await placeOrder({
-								product_id: selectedProduct.id,
-								quantity,
-								pickup_date: pickupDate || null,
-								pickup_time: pickupTime || null,
-								notes: null,
-							});
+				try {
+					await placeOrder({
+						product_id: selectedProduct.id,
+						quantity,
+						pickup_date: pickupDate || null,
+						pickup_time: pickupTime || null,
+						notes: null,
+					});
 
-							setReserveModalOpen(false);
-							setActiveTab(TAB_TRACKING);
-							await fetchMarketplaceData(false);
-						} catch (submitError) {
-							const message =
-								submitError?.response?.data?.message ||
-								submitError?.message ||
-								'Unable to submit order right now.';
-							setError(message);
-						} finally {
-							setSubmittingOrder(false);
-						}
-					},
-				},
-			]
-		);
+					setReserveModalOpen(false);
+					setActiveTab(TAB_TRACKING);
+					await fetchMarketplaceData(false);
+				} catch (submitError) {
+					const message =
+						submitError?.response?.data?.message ||
+						submitError?.message ||
+						'Unable to submit order right now.';
+					setError(message);
+				} finally {
+					setSubmittingOrder(false);
+				}
+			},
+		});
 	};
 
 	const cancelOrder = async (order) => {
@@ -428,29 +450,28 @@ export default function MarketplaceScreen() {
 			return;
 		}
 
-		Alert.alert('Confirm Cancel', 'Cancel this order?', [
-			{ text: 'No', style: 'cancel' },
-			{
-				text: 'Yes',
-				onPress: async () => {
-					setCancellingOrderId(order.id);
-					setError('');
+		openConfirm({
+			title: 'Confirm Cancel',
+			message: 'Cancel this order?',
+			confirmLabel: 'Yes, Cancel',
+			onConfirm: async () => {
+				setCancellingOrderId(order.id);
+				setError('');
 
-					try {
-						await updateOrderStatus(order.id, 'cancelled');
-						await fetchMarketplaceData(false);
-					} catch (cancelError) {
-						const message =
-							cancelError?.response?.data?.message ||
-							cancelError?.message ||
-							'Unable to cancel order right now.';
-						setError(message);
-					} finally {
-						setCancellingOrderId(null);
-					}
-				},
+				try {
+					await updateOrderStatus(order.id, 'cancelled');
+					await fetchMarketplaceData(false);
+				} catch (cancelError) {
+					const message =
+						cancelError?.response?.data?.message ||
+						cancelError?.message ||
+						'Unable to cancel order right now.';
+					setError(message);
+				} finally {
+					setCancellingOrderId(null);
+				}
 			},
-		]);
+		});
 	};
 
 	const renderProductCard = ({ item }) => {
@@ -785,6 +806,15 @@ export default function MarketplaceScreen() {
 					</View>
 				) : null}
 			</Pressable>
+
+			<ConfirmToastModal
+				visible={confirmState.visible}
+				title={confirmState.title}
+				message={confirmState.message}
+				confirmLabel={confirmState.confirmLabel}
+				onCancel={closeConfirm}
+				onConfirm={handleConfirm}
+			/>
 		</ScreenContainer>
 	);
 }

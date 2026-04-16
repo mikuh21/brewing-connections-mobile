@@ -17,6 +17,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
 import { MaterialIcons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
+import { ConfirmToastModal } from '../../components';
 import { API_CONFIG, getRatingsFeed, submitRating } from '../../services';
 
 const INITIAL_RATINGS = {
@@ -185,6 +186,35 @@ function RatingsFeedView({ navigation, onSwitchToForm }) {
 	const [sortBy, setSortBy] = useState('newest');
 	const [showSortMenu, setShowSortMenu] = useState(false);
 	const [currentPage, setCurrentPage] = useState(0);
+	const [confirmState, setConfirmState] = useState({
+		visible: false,
+		title: '',
+		message: '',
+		confirmLabel: 'Yes',
+		onConfirm: null,
+	});
+
+	const openConfirm = ({ title, message, confirmLabel = 'Yes, Confirm', onConfirm }) => {
+		setConfirmState({
+			visible: true,
+			title,
+			message,
+			confirmLabel,
+			onConfirm,
+		});
+	};
+
+	const closeConfirm = () => {
+		setConfirmState((prev) => ({ ...prev, visible: false, onConfirm: null }));
+	};
+
+	const handleConfirm = () => {
+		const action = confirmState.onConfirm;
+		closeConfirm();
+		if (typeof action === 'function') {
+			action();
+		}
+	};
 
 	const RATINGS_PER_PAGE = 5;
 
@@ -330,10 +360,12 @@ function RatingsFeedView({ navigation, onSwitchToForm }) {
 						<Pressable
 							style={styles.feedActionButton}
 							onPress={() => {
-								Alert.alert('Open Trail', 'Go to Trail screen to rate another destination?', [
-									{ text: 'No', style: 'cancel' },
-									{ text: 'Yes', onPress: () => navigation.navigate('Trail') },
-								]);
+								openConfirm({
+									title: 'Open Trail',
+									message: 'Go to Trail screen to rate another destination?',
+									confirmLabel: 'Yes, Open',
+									onConfirm: () => navigation.navigate('Trail'),
+								});
 							}}
 						>
 							<MaterialIcons name="coffee" size={16} color="#FFFFFF" />
@@ -470,6 +502,14 @@ function RatingsFeedView({ navigation, onSwitchToForm }) {
 					</View>
 				</Pressable>
 			</Modal>
+			<ConfirmToastModal
+				visible={confirmState.visible}
+				title={confirmState.title}
+				message={confirmState.message}
+				confirmLabel={confirmState.confirmLabel}
+				onCancel={closeConfirm}
+				onConfirm={handleConfirm}
+			/>
 		</SafeAreaView>
 	);
 }
@@ -536,6 +576,13 @@ export default function RatingScreen({ navigation, route }) {
 	const [ratedStopIds, setRatedStopIds] = useState([]);
 	const [draftsByStop, setDraftsByStop] = useState({});
 	const [screenView, setScreenView] = useState(hasTrailStops ? 'form' : 'feed');
+	const [confirmState, setConfirmState] = useState({
+		visible: false,
+		title: '',
+		message: '',
+		confirmLabel: 'Yes',
+		onConfirm: null,
+	});
 	const lastHandledResetSignalRef = useRef('');
 	const hasCompleteRatings =
 		ratings.taste > 0 &&
@@ -650,6 +697,28 @@ export default function RatingScreen({ navigation, route }) {
 		hasCompleteRatings;
 	const canRateDestination = selectedStopId !== null && selectedStopId !== undefined;
 
+	const openConfirm = ({ title, message, confirmLabel = 'Yes, Confirm', onConfirm }) => {
+		setConfirmState({
+			visible: true,
+			title,
+			message,
+			confirmLabel,
+			onConfirm,
+		});
+	};
+
+	const closeConfirm = () => {
+		setConfirmState((prev) => ({ ...prev, visible: false, onConfirm: null }));
+	};
+
+	const handleConfirm = () => {
+		const action = confirmState.onConfirm;
+		closeConfirm();
+		if (typeof action === 'function') {
+			void action();
+		}
+	};
+
 	const handlePickFromGallery = async () => {
 		try {
 			const result = await ImagePicker.launchImageLibraryAsync({
@@ -714,11 +783,11 @@ export default function RatingScreen({ navigation, route }) {
 			return;
 		}
 
-		Alert.alert('Confirm Submission', 'Submit this rating now?', [
-			{ text: 'No', style: 'cancel' },
-			{
-				text: 'Yes',
-				onPress: async () => {
+		openConfirm({
+			title: 'Confirm Submission',
+			message: 'Submit this rating now?',
+			confirmLabel: 'Yes, Submit',
+			onConfirm: async () => {
 					setIsSubmitting(true);
 					try {
 						const completeRatingFlow = async () => {
@@ -791,8 +860,7 @@ export default function RatingScreen({ navigation, route }) {
 						setIsSubmitting(false);
 					}
 				},
-			},
-		]);
+		});
 	};
 
 	if (screenView === 'feed') {
@@ -841,21 +909,20 @@ export default function RatingScreen({ navigation, route }) {
 							<Pressable
 								style={styles.inlineClearButton}
 								onPress={() => {
-									Alert.alert('Confirm Clear', 'Clear all current rating values?', [
-										{ text: 'No', style: 'cancel' },
-										{
-											text: 'Yes',
-											onPress: () => {
-												setRatings(INITIAL_RATINGS);
-												if (selectedStopId !== null && selectedStopId !== undefined) {
-													setDraftsByStop((prev) => ({
-														...prev,
-														[toStopKey(selectedStopId)]: buildDraft(INITIAL_RATINGS, selectedPhoto),
-													}));
-												}
-											},
+									openConfirm({
+										title: 'Confirm Clear',
+										message: 'Clear all current rating values?',
+										confirmLabel: 'Yes, Clear',
+										onConfirm: () => {
+											setRatings(INITIAL_RATINGS);
+											if (selectedStopId !== null && selectedStopId !== undefined) {
+												setDraftsByStop((prev) => ({
+													...prev,
+													[toStopKey(selectedStopId)]: buildDraft(INITIAL_RATINGS, selectedPhoto),
+												}));
+											}
 										},
-									]);
+									});
 								}}
 							>
 								<Text style={styles.inlineClearButtonText}>Clear</Text>
@@ -956,21 +1023,20 @@ export default function RatingScreen({ navigation, route }) {
 							<Pressable
 								style={styles.removePhotoButton}
 								onPress={() => {
-									Alert.alert('Remove Photo', 'Remove this selected photo?', [
-										{ text: 'No', style: 'cancel' },
-										{
-											text: 'Yes',
-											onPress: () => {
-												setSelectedPhoto(null);
-												if (selectedStopId !== null && selectedStopId !== undefined) {
-													setDraftsByStop((prev) => ({
-														...prev,
-														[toStopKey(selectedStopId)]: buildDraft(ratings, null),
-													}));
-												}
-											},
+									openConfirm({
+										title: 'Remove Photo',
+										message: 'Remove this selected photo?',
+										confirmLabel: 'Yes, Remove',
+										onConfirm: () => {
+											setSelectedPhoto(null);
+											if (selectedStopId !== null && selectedStopId !== undefined) {
+												setDraftsByStop((prev) => ({
+													...prev,
+													[toStopKey(selectedStopId)]: buildDraft(ratings, null),
+												}));
+											}
 										},
-									]);
+									});
 								}}
 							>
 								<MaterialIcons name="close" size={14} color="#FFFFFF" />
@@ -990,6 +1056,15 @@ export default function RatingScreen({ navigation, route }) {
 						<Text style={styles.submitButtonText}>Submit Rating</Text>
 					)}
 				</Pressable>
+
+				<ConfirmToastModal
+					visible={confirmState.visible}
+					title={confirmState.title}
+					message={confirmState.message}
+					confirmLabel={confirmState.confirmLabel}
+					onCancel={closeConfirm}
+					onConfirm={handleConfirm}
+				/>
 			</ScrollView>
 		</SafeAreaView>
 	);

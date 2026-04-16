@@ -12,7 +12,7 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
-import { ScreenContainer } from '../../components';
+import { ConfirmToastModal, ScreenContainer } from '../../components';
 import { API_CONFIG, placeOrder } from '../../services';
 import theme from '../../theme';
 
@@ -84,6 +84,35 @@ export default function MarketplaceCartScreen() {
 	const [cartItems, setCartItems] = useState([]);
 	const [selectedItem, setSelectedItem] = useState(null);
 	const [submittingId, setSubmittingId] = useState(null);
+	const [confirmState, setConfirmState] = useState({
+		visible: false,
+		title: '',
+		message: '',
+		confirmLabel: 'Yes',
+		onConfirm: null,
+	});
+
+	const openConfirm = ({ title, message, confirmLabel = 'Yes, Confirm', onConfirm }) => {
+		setConfirmState({
+			visible: true,
+			title,
+			message,
+			confirmLabel,
+			onConfirm,
+		});
+	};
+
+	const closeConfirm = () => {
+		setConfirmState((prev) => ({ ...prev, visible: false, onConfirm: null }));
+	};
+
+	const handleConfirm = () => {
+		const action = confirmState.onConfirm;
+		closeConfirm();
+		if (typeof action === 'function') {
+			void action();
+		}
+	};
 
 	useEffect(() => {
 		const loadCart = async () => {
@@ -109,49 +138,47 @@ export default function MarketplaceCartScreen() {
 	const totalItems = useMemo(() => cartItems.length, [cartItems]);
 
 	const removeCartItem = (itemId) => {
-		Alert.alert('Confirm Remove', 'Remove this item from cart?', [
-			{ text: 'No', style: 'cancel' },
-			{
-				text: 'Yes',
-				onPress: () => {
-					setCartItems((prev) => prev.filter((entry) => entry.id !== itemId));
-				},
+		openConfirm({
+			title: 'Confirm Remove',
+			message: 'Remove this item from cart?',
+			confirmLabel: 'Yes, Remove',
+			onConfirm: () => {
+				setCartItems((prev) => prev.filter((entry) => entry.id !== itemId));
 			},
-		]);
+		});
 	};
 
 	const orderNow = (item) => {
 		if (!item?.product?.id) return;
 
-		Alert.alert('Confirm Order', 'Place this cart item as an order now?', [
-			{ text: 'No', style: 'cancel' },
-			{
-				text: 'Yes',
-				onPress: async () => {
-					setSubmittingId(item.id);
-					try {
-						await placeOrder({
-							product_id: item.product.id,
-							quantity: Number(item.quantity || 1),
-							pickup_date: item.pickup_date || null,
-							pickup_time: item.pickup_time || null,
-							notes: null,
-						});
+		openConfirm({
+			title: 'Confirm Order',
+			message: 'Place this cart item as an order now?',
+			confirmLabel: 'Yes, Order',
+			onConfirm: async () => {
+				setSubmittingId(item.id);
+				try {
+					await placeOrder({
+						product_id: item.product.id,
+						quantity: Number(item.quantity || 1),
+						pickup_date: item.pickup_date || null,
+						pickup_time: item.pickup_time || null,
+						notes: null,
+					});
 
-						setCartItems((prev) => prev.filter((entry) => entry.id !== item.id));
-						Alert.alert('Order Placed', 'Your cart item was ordered successfully.');
-					} catch (error) {
-						const message =
-							error?.response?.data?.message ||
-							error?.message ||
-							'Unable to place this order right now.';
-						Alert.alert('Order Failed', message);
-					} finally {
-						setSubmittingId(null);
-					}
-				},
+					setCartItems((prev) => prev.filter((entry) => entry.id !== item.id));
+					Alert.alert('Order Placed', 'Your cart item was ordered successfully.');
+				} catch (error) {
+					const message =
+						error?.response?.data?.message ||
+						error?.message ||
+						'Unable to place this order right now.';
+					Alert.alert('Order Failed', message);
+				} finally {
+					setSubmittingId(null);
+				}
 			},
-		]);
+		});
 	};
 
 	return (
@@ -236,6 +263,15 @@ export default function MarketplaceCartScreen() {
 					</View>
 				</View>
 			</Modal>
+
+			<ConfirmToastModal
+				visible={confirmState.visible}
+				title={confirmState.title}
+				message={confirmState.message}
+				confirmLabel={confirmState.confirmLabel}
+				onCancel={closeConfirm}
+				onConfirm={handleConfirm}
+			/>
 		</ScreenContainer>
 	);
 }
