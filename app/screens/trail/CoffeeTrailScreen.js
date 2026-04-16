@@ -461,6 +461,45 @@ export default function CoffeeTrailScreen({ navigation }) {
     };
   }, [trailData, trailTotals]);
 
+  const aiPreview = useMemo(() => {
+    const selectedVarietyNames = selectedVarieties.slice(0, 2).join(' + ');
+    const selectedTypeLabels = TYPE_OPTIONS
+      .filter((option) => selectedTypes.includes(option.value))
+      .map((option) => option.label)
+      .slice(0, 2)
+      .join(' + ');
+
+    const hasVarieties = selectedVarieties.length > 0;
+    const hasTypes = selectedTypes.length > 0;
+
+    const headline = hasVarieties && hasTypes
+      ? 'AI Recommendation Preview'
+      : 'AI Setup Tip';
+
+    const summary = hasVarieties && hasTypes
+      ? `Your trail will prioritize ${selectedVarietyNames || 'your selected varieties'} across ${selectedTypeLabels || 'your selected stop types'} with ${maxStops} stop${maxStops > 1 ? 's' : ''}.`
+      : 'Select at least one variety and one visit type so AI can personalize your route.';
+
+    const routeHint = maxStops >= 4
+      ? 'Longer trail mode: AI will optimize pacing for more stops.'
+      : 'Compact trail mode: AI will prioritize faster travel time between stops.';
+
+    let balanceHint = 'Balanced trail: includes both sourcing and tasting opportunities.';
+    if (selectedTypes.length === 1 && selectedTypes[0] === 'farm') {
+      balanceHint = 'Farm-focused route: best for bean-origin discovery.';
+    } else if (selectedTypes.length === 1 && selectedTypes[0] === 'cafe') {
+      balanceHint = 'Cafe-focused route: best for tasting and atmosphere variety.';
+    }
+
+    return {
+      headline,
+      summary,
+      routeHint,
+      balanceHint,
+      confidence: hasVarieties && hasTypes ? 'High confidence' : 'Low confidence',
+    };
+  }, [selectedVarieties, selectedTypes, maxStops]);
+
   const loadTrailHistory = useCallback(
     async ({ silent = false } = {}) => {
       if (silent) {
@@ -1148,6 +1187,20 @@ export default function CoffeeTrailScreen({ navigation }) {
           <Text style={styles.maxStopsValue}>{maxStops}</Text>
         </View>
 
+        <View style={styles.aiPreviewCard}>
+          <View style={styles.aiPreviewHeaderRow}>
+            <View style={styles.aiBadge}>
+              <MaterialIcons name="auto-awesome" size={12} color="#FFFFFF" />
+              <Text style={styles.aiBadgeText}>AI</Text>
+            </View>
+            <Text style={styles.aiConfidenceText}>{aiPreview.confidence}</Text>
+          </View>
+          <Text style={styles.aiPreviewTitle}>{aiPreview.headline}</Text>
+          <Text style={styles.aiPreviewBody}>{aiPreview.summary}</Text>
+          <Text style={styles.aiPreviewHint}>{aiPreview.routeHint}</Text>
+          <Text style={styles.aiPreviewHint}>{aiPreview.balanceHint}</Text>
+        </View>
+
         <Pressable
           style={[styles.generateButton, isGenerateDisabled && styles.generateButtonDisabled]}
           onPress={onGeneratePress}
@@ -1453,6 +1506,60 @@ const styles = StyleSheet.create({
     fontSize: 36,
     lineHeight: 42,
     fontFamily: 'PoppinsBold',
+  },
+  aiPreviewCard: {
+    marginTop: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#D7CFC4',
+    backgroundColor: '#F9F4EB',
+    padding: 12,
+    gap: 6,
+  },
+  aiPreviewHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  aiBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: COLORS.primary,
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  aiBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    lineHeight: 12,
+    fontFamily: 'PoppinsBold',
+  },
+  aiConfidenceText: {
+    color: '#7A6A57',
+    fontSize: 11,
+    lineHeight: 14,
+    fontFamily: 'PoppinsMedium',
+  },
+  aiPreviewTitle: {
+    marginTop: 2,
+    color: COLORS.text,
+    fontSize: 14,
+    lineHeight: 18,
+    fontFamily: 'PoppinsBold',
+  },
+  aiPreviewBody: {
+    color: '#5E5243',
+    fontSize: 12,
+    lineHeight: 17,
+    fontFamily: 'PoppinsRegular',
+  },
+  aiPreviewHint: {
+    color: '#6B7280',
+    fontSize: 11,
+    lineHeight: 15,
+    fontFamily: 'PoppinsMedium',
   },
   generateButton: {
     marginTop: 24,
