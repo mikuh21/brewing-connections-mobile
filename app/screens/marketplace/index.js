@@ -1,6 +1,7 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
 	ActivityIndicator,
+	Alert,
 	FlatList,
 	Image,
 	Modal,
@@ -17,6 +18,7 @@ import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { MaterialIcons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ScreenContainer } from '../../components';
 import { API_CONFIG, getMyOrders, getProducts, placeOrder, updateOrderStatus } from '../../services';
 import theme from '../../theme';
@@ -24,6 +26,7 @@ import theme from '../../theme';
 const TAB_PRODUCTS = 'products';
 const TAB_TRACKING = 'tracking';
 const TAB_HISTORY = 'history';
+const CART_STORAGE_KEY = 'marketplace_cart_items';
 
 const PRODUCT_TYPE_FILTERS = [
 	{ value: 'all', label: 'All' },
@@ -72,6 +75,24 @@ function parseTimeValue(value) {
 		date.setHours(Number.isFinite(h) ? h : 8, Number.isFinite(m) ? m : 0, 0, 0);
 	}
 	return date;
+}
+
+function formatDisplayDate(value) {
+	const date = parseDateValue(value);
+	return date.toLocaleDateString('en-US', {
+		month: 'long',
+		day: 'numeric',
+		year: 'numeric',
+	});
+}
+
+function formatDisplayTime(value) {
+	const date = parseTimeValue(value);
+	return date.toLocaleTimeString('en-US', {
+		hour: 'numeric',
+		minute: '2-digit',
+		hour12: true,
+	});
 }
 
 function normalizeSellerRole(product) {
@@ -158,8 +179,32 @@ export default function MarketplaceScreen() {
 	const [pickupTime, setPickupTime] = useState('');
 	const [showNativeDatePicker, setShowNativeDatePicker] = useState(false);
 	const [showNativeTimePicker, setShowNativeTimePicker] = useState(false);
+	const [modalAction, setModalAction] = useState('order');
+	const [cartItems, setCartItems] = useState([]);
+	const [cartModalOpen, setCartModalOpen] = useState(false);
 	const [submittingOrder, setSubmittingOrder] = useState(false);
 	const [cancellingOrderId, setCancellingOrderId] = useState(null);
+
+	useEffect(() => {
+		const loadCart = async () => {
+			try {
+				const raw = await AsyncStorage.getItem(CART_STORAGE_KEY);
+				if (!raw) return;
+				const parsed = JSON.parse(raw);
+				if (Array.isArray(parsed)) {
+					setCartItems(parsed);
+				}
+			} catch {
+				setCartItems([]);
+			}
+		};
+
+		void loadCart();
+	}, []);
+
+	useEffect(() => {
+		void AsyncStorage.setItem(CART_STORAGE_KEY, JSON.stringify(cartItems));
+	}, [cartItems]);
 
 	const fetchMarketplaceData = async (isRefresh = false) => {
 		if (isRefresh) {
@@ -247,8 +292,9 @@ export default function MarketplaceScreen() {
 		[orders]
 	);
 
-	const openReserveModal = (product) => {
+	const openReserveModal = (product, action = 'order') => {
 		setSelectedProduct(product);
+		setModalAction(action);
 		setOrderQuantity(Math.max(1, Number(product?.moq || 1)));
 		const now = new Date();
 		setPickupDate(formatDateValue(now));
@@ -323,6 +369,24 @@ export default function MarketplaceScreen() {
 		setSubmittingOrder(true);
 		setError('');
 
+		if (modalAction === 'cart') {
+			const cartEntry = {
+				id: `${selectedProduct.id}-${Date.now()}`,
+				product: selectedProduct,
+				quantity,
+				pickup_date: pickupDate,
+				pickup_time: pickupTime,
+				added_at: new Date().toISOString(),
+			};
+
+			setCartItems((prev) => [...prev, cartEntry]);
+			setReserveModalOpen(false);
+			setSelectedProduct(null);
+			setSubmittingOrder(false);
+			Alert.alert('Added to Cart', 'This item has been saved to your cart.');
+			return;
+		}
+
 		try {
 			await placeOrder({
 				product_id: selectedProduct.id,
@@ -343,6 +407,31 @@ export default function MarketplaceScreen() {
 			setError(message);
 		} finally {
 			setSubmittingOrder(false);
+		}
+	};
+
+	const submitCartItemAsOrder = async (item) => {
+		if (!item?.product?.id) return;
+
+		try {
+			await placeOrder({
+				product_id: item.product.id,
+				quantity: Number(item.quantity || 1),
+				pickup_date: item.pickup_date || null,
+				pickup_time: item.pickup_time || null,
+				notes: null,
+			});
+
+			setCartItems((prev) => prev.filter((entry) => entry.id !== item.id));
+			setCartModalOpen(false);
+			setActiveTab(TAB_TRACKING);
+			await fetchMarketplaceData(false);
+		} catch (submitError) {
+			const message =
+				submitError?.response?.data?.message ||
+				submitError?.message ||
+				'Unable to submit cart item right now.';
+			setError(message);
 		}
 	};
 
@@ -427,10 +516,16 @@ export default function MarketplaceScreen() {
 
 					<Text style={styles.productHint}>MOQ: {minimum} {item?.unit || 'kg'}</Text>
 
-					<Pressable style={styles.reserveButton} onPress={() => openReserveModal(item)}>
-						<MaterialIcons name="event-available" size={16} color={theme.colors.white} />
-						<Text style={styles.reserveButtonText}>Order</Text>
-					</Pressable>
+					<View style={styles.productActionsRow}>
+						<Pressable style={styles.reserveButton} onPress={() => openReserveModal(item, 'order')}>
+							<MaterialIcons name="bolt" size={16} color={theme.colors.white} />
+							<Text style={styles.reserveButtonText}>Order Now</Text>
+						</Pressable>
+						<Pressable style={styles.addToCartButton} onPress={() => openReserveModal(item, 'cart')}>
+							<MaterialIcons name="add-shopping-cart" size={16} color={theme.colors.primary} />
+							<Text style={styles.addToCartButtonText}>Add to Cart</Text>
+						</Pressable>
+					</View>
 				</View>
 			</View>
 		);
@@ -605,7 +700,7 @@ export default function MarketplaceScreen() {
 			<Modal visible={reserveModalOpen} transparent animationType="fade" onRequestClose={closeReserveModal}>
 				<View style={styles.modalBackdrop}>
 					<View style={styles.modalCard}>
-						<Text style={styles.modalTitle}>Order Product</Text>
+						<Text style={styles.modalTitle}>{modalAction === 'cart' ? 'Add to Cart' : 'Order Product'}</Text>
 
 						<Text style={styles.modalProductName}>{selectedProduct?.name || ''}</Text>
 						<Text style={styles.modalDetail}>{money(selectedProduct?.price_per_unit)} / {selectedProduct?.unit || 'kg'}</Text>
@@ -625,7 +720,7 @@ export default function MarketplaceScreen() {
 							<Text style={styles.modalLabel}>Pickup Date</Text>
 							<Pressable style={styles.pickerTrigger} onPress={() => setShowNativeDatePicker(true)}>
 								<MaterialIcons name="calendar-today" size={16} color={theme.colors.primary} />
-								<Text style={styles.pickerTriggerText}>{pickupDate || 'Select date'}</Text>
+								<Text style={styles.pickerTriggerText}>{pickupDate ? formatDisplayDate(pickupDate) : 'Select date'}</Text>
 							</Pressable>
 							{showNativeDatePicker ? (
 								<DateTimePicker
@@ -641,7 +736,7 @@ export default function MarketplaceScreen() {
 							<Text style={styles.modalLabel}>Estimated Pickup Time</Text>
 							<Pressable style={styles.pickerTrigger} onPress={() => setShowNativeTimePicker(true)}>
 								<MaterialIcons name="access-time" size={16} color={theme.colors.primary} />
-								<Text style={styles.pickerTriggerText}>{pickupTime || 'Select time'}</Text>
+								<Text style={styles.pickerTriggerText}>{pickupTime ? formatDisplayTime(pickupTime) : 'Select time'}</Text>
 							</Pressable>
 							{showNativeTimePicker ? (
 								<DateTimePicker
@@ -668,9 +763,64 @@ export default function MarketplaceScreen() {
 							</Pressable>
 
 							<Pressable style={styles.modalSubmitButton} onPress={submitOrder} disabled={submittingOrder}>
-								<Text style={styles.modalSubmitText}>{submittingOrder ? 'Submitting...' : 'Submit Order'}</Text>
+								<Text style={styles.modalSubmitText}>
+									{submittingOrder
+										? modalAction === 'cart'
+											? 'Adding...'
+											: 'Ordering...'
+										: modalAction === 'cart'
+											? 'Add to Cart'
+											: 'Order Now'}
+								</Text>
 							</Pressable>
 						</View>
+					</View>
+				</View>
+			</Modal>
+
+			<Pressable
+				style={[styles.floatingCartButton, { bottom: Math.max(insets.bottom + 18, 26) }]}
+				onPress={() => setCartModalOpen(true)}
+			>
+				<MaterialIcons name="shopping-cart" size={22} color={theme.colors.white} />
+				{cartItems.length > 0 ? (
+					<View style={styles.floatingCartBadge}>
+						<Text style={styles.floatingCartBadgeText}>{cartItems.length}</Text>
+					</View>
+				) : null}
+			</Pressable>
+
+			<Modal visible={cartModalOpen} transparent animationType="fade" onRequestClose={() => setCartModalOpen(false)}>
+				<View style={styles.modalBackdrop}>
+					<View style={styles.modalCard}>
+						<Text style={styles.modalTitle}>Cart</Text>
+						{cartItems.length === 0 ? (
+							<Text style={styles.emptyCartText}>Your cart is empty.</Text>
+						) : (
+							<ScrollView style={styles.cartItemsList}>
+								{cartItems.map((item) => (
+									<View key={item.id} style={styles.cartItemRow}>
+										<Text style={styles.cartItemName}>{item?.product?.name || 'Product'}</Text>
+										<Text style={styles.cartItemMeta}>Qty: {item.quantity}</Text>
+										<Text style={styles.cartItemMeta}>Pickup: {formatDisplayDate(item.pickup_date)} at {formatDisplayTime(item.pickup_time)}</Text>
+										<View style={styles.cartItemActions}>
+											<Pressable
+												style={styles.cartItemRemoveButton}
+												onPress={() => setCartItems((prev) => prev.filter((entry) => entry.id !== item.id))}
+											>
+												<Text style={styles.cartItemRemoveButtonText}>Remove</Text>
+											</Pressable>
+											<Pressable style={styles.cartItemOrderButton} onPress={() => submitCartItemAsOrder(item)}>
+												<Text style={styles.cartItemOrderButtonText}>Order Now</Text>
+											</Pressable>
+										</View>
+									</View>
+								))}
+							</ScrollView>
+						)}
+						<Pressable style={styles.modalCancelButton} onPress={() => setCartModalOpen(false)}>
+							<Text style={styles.modalCancelText}>Close</Text>
+						</Pressable>
 					</View>
 				</View>
 			</Modal>
@@ -906,8 +1056,13 @@ const styles = StyleSheet.create({
 		fontSize: theme.fontSizes.xs,
 		fontFamily: theme.fonts.body,
 	},
-	reserveButton: {
+	productActionsRow: {
 		marginTop: 12,
+		flexDirection: 'row',
+		gap: 8,
+	},
+	reserveButton: {
+		flex: 1,
 		backgroundColor: theme.colors.primary,
 		borderRadius: theme.borderRadius.md,
 		flexDirection: 'row',
@@ -916,8 +1071,26 @@ const styles = StyleSheet.create({
 		paddingVertical: 10,
 		gap: 6,
 	},
+	addToCartButton: {
+		flex: 1,
+		borderRadius: theme.borderRadius.md,
+		borderWidth: 1,
+		borderColor: theme.colors.primary,
+		backgroundColor: '#EEF4E8',
+		flexDirection: 'row',
+		alignItems: 'center',
+		justifyContent: 'center',
+		paddingVertical: 10,
+		gap: 6,
+	},
 	reserveButtonText: {
 		color: theme.colors.white,
+		fontWeight: '700',
+		fontSize: theme.fontSizes.sm,
+		fontFamily: theme.fonts.body,
+	},
+	addToCartButtonText: {
+		color: theme.colors.primary,
 		fontWeight: '700',
 		fontSize: theme.fontSizes.sm,
 		fontFamily: theme.fonts.body,
@@ -1142,5 +1315,97 @@ const styles = StyleSheet.create({
 		color: theme.colors.white,
 		fontWeight: '700',
 		fontFamily: theme.fonts.body,
+	},
+	floatingCartButton: {
+		position: 'absolute',
+		right: theme.spacing.md,
+		width: 56,
+		height: 56,
+		borderRadius: 28,
+		backgroundColor: theme.colors.primary,
+		alignItems: 'center',
+		justifyContent: 'center',
+		...theme.shadows.sm,
+		zIndex: 20,
+	},
+	floatingCartBadge: {
+		position: 'absolute',
+		top: -3,
+		right: -3,
+		minWidth: 20,
+		height: 20,
+		borderRadius: 10,
+		backgroundColor: '#C62828',
+		alignItems: 'center',
+		justifyContent: 'center',
+		paddingHorizontal: 4,
+	},
+	floatingCartBadgeText: {
+		color: '#FFFFFF',
+		fontSize: 11,
+		fontFamily: 'PoppinsBold',
+	},
+	emptyCartText: {
+		marginTop: 8,
+		marginBottom: 14,
+		color: theme.colors.textMuted,
+		fontFamily: 'PoppinsRegular',
+		fontSize: theme.fontSizes.sm,
+	},
+	cartItemsList: {
+		maxHeight: 280,
+		marginTop: 8,
+		marginBottom: 12,
+	},
+	cartItemRow: {
+		borderWidth: 1,
+		borderColor: theme.colors.border,
+		borderRadius: theme.borderRadius.md,
+		padding: 10,
+		marginBottom: 8,
+	},
+	cartItemName: {
+		color: theme.colors.sidebar,
+		fontFamily: 'PoppinsBold',
+		fontSize: theme.fontSizes.sm,
+	},
+	cartItemMeta: {
+		marginTop: 2,
+		color: theme.colors.textMuted,
+		fontFamily: 'PoppinsRegular',
+		fontSize: theme.fontSizes.xs,
+	},
+	cartItemActions: {
+		marginTop: 8,
+		flexDirection: 'row',
+		gap: 8,
+	},
+	cartItemRemoveButton: {
+		flex: 1,
+		borderWidth: 1,
+		borderColor: '#C62828',
+		borderRadius: theme.borderRadius.sm,
+		alignItems: 'center',
+		justifyContent: 'center',
+		paddingVertical: 8,
+		backgroundColor: '#FFF5F5',
+	},
+	cartItemRemoveButtonText: {
+		color: '#C62828',
+		fontFamily: 'PoppinsMedium',
+		fontSize: theme.fontSizes.xs,
+	},
+	cartItemOrderButton: {
+		flex: 1,
+		borderRadius: theme.borderRadius.sm,
+		alignItems: 'center',
+		justifyContent: 'center',
+		paddingVertical: 8,
+		backgroundColor: theme.colors.primary,
+	},
+	cartItemOrderButtonText: {
+		color: theme.colors.white,
+		fontFamily: 'PoppinsMedium',
+		fontSize: theme.fontSizes.xs,
 	},
 });
