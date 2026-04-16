@@ -873,7 +873,7 @@ export default function MarketplaceScreen() {
 			/>
 
 			{toastState.visible ? (
-				<View style={styles.toastWrap} pointerEvents="none">
+				<View style={[styles.toastWrap, { top: Math.max(insets.top + 10, 18) }]} pointerEvents="none">
 					<Text style={styles.toastText}>{toastState.message}</Text>
 				</View>
 			) : null}
@@ -1402,7 +1402,6 @@ const styles = StyleSheet.create({
 		position: 'absolute',
 		left: theme.spacing.md,
 		right: theme.spacing.md,
-		bottom: Math.max(94, theme.spacing.xl + 56),
 		backgroundColor: 'rgba(45, 74, 30, 0.96)',
 		borderRadius: theme.borderRadius.md,
 		paddingVertical: 10,
