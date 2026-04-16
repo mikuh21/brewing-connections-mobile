@@ -1856,8 +1856,9 @@ const styles = StyleSheet.create({
   actionsFooter: {
     marginTop: 10,
     paddingTop: 10,
-    paddingHorizontal: 2,
-    paddingBottom: 4,
+    marginHorizontal: -16,
+    paddingHorizontal: 16,
+    paddingBottom: 2,
     borderTopWidth: 1,
     borderTopColor: '#D7CFC4',
     backgroundColor: COLORS.bg,
@@ -1870,11 +1871,10 @@ const styles = StyleSheet.create({
   bottomActions: {
     marginTop: 12,
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    gap: 10,
   },
   bottomButton: {
-    width: '48.5%',
-    minWidth: 0,
+    flex: 1,
     minHeight: 46,
     borderRadius: 12,
     alignItems: 'center',
