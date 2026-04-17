@@ -83,6 +83,18 @@ function getUniqueSavedEstablishments(savedTrails) {
   return Array.from(mapById.values());
 }
 
+function generateTemporaryPassword(fullName) {
+  const nameParts = String(fullName || '').trim().split(/\s+/).filter(Boolean);
+  const firstInitial = (nameParts[0]?.[0] || 'U').toUpperCase();
+  const surnameInitial = (nameParts[nameParts.length - 1]?.[0] || 'X').toUpperCase();
+  const numbers = String(Math.floor(1000 + Math.random() * 9000));
+  const specials = ['!', '@', '#', '$', '%', '&'];
+  const specialA = specials[Math.floor(Math.random() * specials.length)];
+  const specialB = specials[Math.floor(Math.random() * specials.length)];
+
+  return `${firstInitial}${surnameInitial}${numbers}${specialA}${specialB}`;
+}
+
 export default function ProfileScreen({ navigation }) {
   const { user, signOut, updateUser } = useAuth();
   const [savedTrails, setSavedTrails] = useState([]);
@@ -93,9 +105,6 @@ export default function ProfileScreen({ navigation }) {
   const [settingsError, setSettingsError] = useState('');
   const [accountName, setAccountName] = useState(user?.name || '');
   const [accountEmail, setAccountEmail] = useState(user?.email || '');
-  const [currentPassword, setCurrentPassword] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
   const [securityMessage, setSecurityMessage] = useState('');
   const [securityError, setSecurityError] = useState('');
   const [isRequestingReset, setIsRequestingReset] = useState(false);
@@ -190,11 +199,6 @@ export default function ProfileScreen({ navigation }) {
       return;
     }
 
-    if (newPassword && newPassword !== confirmPassword) {
-      setSettingsError('New password and confirmation do not match.');
-      return;
-    }
-
     setIsSavingSettings(true);
 
     try {
@@ -202,12 +206,6 @@ export default function ProfileScreen({ navigation }) {
         name: trimmedName,
         email: trimmedEmail,
       };
-
-      if (newPassword) {
-        payload.current_password = currentPassword;
-        payload.password = newPassword;
-        payload.password_confirmation = confirmPassword;
-      }
 
       try {
         const response = await updateProfile(payload);
@@ -226,9 +224,6 @@ export default function ProfileScreen({ navigation }) {
         });
       }
 
-      setCurrentPassword('');
-      setNewPassword('');
-      setConfirmPassword('');
       setSettingsMessage('Account settings updated.');
     } catch {
       setSettingsError('Unable to save account settings right now.');
@@ -270,8 +265,13 @@ export default function ProfileScreen({ navigation }) {
 
     setIsRequestingReset(true);
     try {
-      await requestPasswordReset(registeredEmail);
-      setSecurityMessage(`Password reset instructions were sent to ${registeredEmail}.`);
+      const generatedPassword = generateTemporaryPassword(user?.name || accountName);
+      await requestPasswordReset(registeredEmail, {
+        generatedPassword,
+      });
+      setSecurityMessage(
+        `Password reset email sent to ${registeredEmail}. A temporary generated password was included.`
+      );
     } catch (error) {
       setSecurityError(
         error?.response?.data?.message || 'Unable to request password reset right now.'
@@ -436,36 +436,6 @@ export default function ProfileScreen({ navigation }) {
             keyboardType="email-address"
           />
 
-          <Text style={styles.inputLabel}>Current Password</Text>
-          <TextInput
-            style={styles.input}
-            value={currentPassword}
-            onChangeText={setCurrentPassword}
-            secureTextEntry
-            placeholder="Required when changing password"
-            placeholderTextColor="#9E8C78"
-          />
-
-          <Text style={styles.inputLabel}>New Password</Text>
-          <TextInput
-            style={styles.input}
-            value={newPassword}
-            onChangeText={setNewPassword}
-            secureTextEntry
-            placeholder="Enter a new password"
-            placeholderTextColor="#9E8C78"
-          />
-
-          <Text style={styles.inputLabel}>Confirm New Password</Text>
-          <TextInput
-            style={styles.input}
-            value={confirmPassword}
-            onChangeText={setConfirmPassword}
-            secureTextEntry
-            placeholder="Repeat new password"
-            placeholderTextColor="#9E8C78"
-          />
-
           {settingsError ? <Text style={styles.errorText}>{settingsError}</Text> : null}
           {settingsMessage ? <Text style={styles.successText}>{settingsMessage}</Text> : null}
 
@@ -479,17 +449,6 @@ export default function ProfileScreen({ navigation }) {
             </Text>
           </Pressable>
 
-          <Text style={styles.subSectionTitle}>Design Email (Verification Email)</Text>
-          <View style={styles.readonlyEmailWrap}>
-            <MaterialIcons name="email" size={15} color="#6E6254" />
-            <Text style={styles.readonlyEmailText} numberOfLines={1}>
-              {registeredEmail || 'No registered email found'}
-            </Text>
-          </View>
-          <Text style={styles.helperText}>
-            This is the same registered email used in reseller-side verification.
-          </Text>
-
           <Text style={styles.subSectionTitle}>Request Password Reset</Text>
           <View style={styles.readonlyEmailWrap}>
             <MaterialIcons name="mark-email-read" size={15} color="#6E6254" />
@@ -498,7 +457,7 @@ export default function ProfileScreen({ navigation }) {
             </Text>
           </View>
           <Text style={styles.helperText}>
-            Reset instructions will be sent only to your registered verification email.
+            Clicking reset will email a generated temporary password to your registered account email.
           </Text>
           <Pressable
             style={[styles.secondaryButton, isRequestingReset && styles.secondaryButtonDisabled]}

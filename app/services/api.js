@@ -228,10 +228,15 @@ export const updateProfile = async (data) => {
   return unwrap(response);
 };
 
-export const requestPasswordReset = async (email) => {
+export const requestPasswordReset = async (email, options = {}) => {
+  const generatedPassword = options?.generatedPassword || null;
+
   return postWithFallback(
     ['/api/forgot-password', '/forgot-password', '/api/password/email', '/password/email'],
-    { email }
+    {
+      email,
+      generated_password: generatedPassword,
+    }
   );
 };
 
