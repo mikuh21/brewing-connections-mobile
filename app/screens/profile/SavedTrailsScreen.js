@@ -3,7 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { ScreenContainer } from '../../components';
+import { ConfirmToastModal, ScreenContainer } from '../../components';
 import theme from '../../theme';
 
 const SAVED_TRAILS_KEY = 'saved_coffee_trails';
@@ -71,8 +71,15 @@ function getTypeLabel(type) {
 
 export default function SavedTrailsScreen({ navigation }) {
   const [savedTrails, setSavedTrails] = useState([]);
+  const [confirmState, setConfirmState] = useState({
+    visible: false,
+    title: '',
+    message: '',
+    confirmLabel: 'Unsave',
+    onConfirm: null,
+  });
 
-  const handleUnsaveTrail = async (trailIndex) => {
+  const performUnsaveTrail = async (trailIndex) => {
     const next = savedTrails.filter((_, index) => index !== trailIndex);
     setSavedTrails(next);
 
@@ -83,17 +90,26 @@ export default function SavedTrailsScreen({ navigation }) {
     }
   };
 
-  const handleNavigateAgain = (trail) => {
-    const trailStops = Array.isArray(trail?.trailStops) ? trail.trailStops : [];
-    if (!trailStops.length) {
-      return;
-    }
-
-    navigation.navigate('Map', {
-      trailStops,
-      trailOrigin: trail?.trailOrigin || trail?.origin || null,
-      isTrailMode: true,
+  const openConfirm = ({ title, message, confirmLabel = 'Unsave', onConfirm }) => {
+    setConfirmState({
+      visible: true,
+      title,
+      message,
+      confirmLabel,
+      onConfirm,
     });
+  };
+
+  const closeConfirm = () => {
+    setConfirmState((prev) => ({ ...prev, visible: false, onConfirm: null }));
+  };
+
+  const handleConfirm = () => {
+    const action = confirmState.onConfirm;
+    closeConfirm();
+    if (typeof action === 'function') {
+      void action();
+    }
   };
 
   useFocusEffect(
@@ -197,18 +213,19 @@ export default function SavedTrailsScreen({ navigation }) {
                 </View>
 
                 <View style={styles.cardActionsRow}>
-                  <Pressable style={[styles.cardActionButton, styles.unsaveButton]} onPress={() => handleUnsaveTrail(index)}>
+                  <Pressable
+                    style={[styles.cardActionButton, styles.unsaveButton]}
+                    onPress={() =>
+                      openConfirm({
+                        title: 'Unsave Trail',
+                        message: 'Remove this trail from your saved list?',
+                        confirmLabel: 'Unsave',
+                        onConfirm: () => performUnsaveTrail(index),
+                      })
+                    }
+                  >
                     <MaterialIcons name="bookmark-remove" size={14} color="#A33939" />
                     <Text style={styles.unsaveButtonText}>Unsave</Text>
-                  </Pressable>
-
-                  <Pressable
-                    style={[styles.cardActionButton, styles.navigateAgainButton]}
-                    onPress={() => handleNavigateAgain(trail)}
-                    disabled={!trailStops.length}
-                  >
-                    <MaterialIcons name="navigation" size={14} color="#FFFFFF" />
-                    <Text style={styles.navigateAgainButtonText}>Navigate Again</Text>
                   </Pressable>
                 </View>
               </View>
@@ -222,6 +239,15 @@ export default function SavedTrailsScreen({ navigation }) {
           </View>
         )}
       </ScrollView>
+
+      <ConfirmToastModal
+        visible={confirmState.visible}
+        title={confirmState.title}
+        message={confirmState.message}
+        confirmLabel={confirmState.confirmLabel}
+        onCancel={closeConfirm}
+        onConfirm={handleConfirm}
+      />
     </ScreenContainer>
   );
 }
@@ -384,7 +410,7 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   cardActionButton: {
-    flex: 1,
+    width: '100%',
     minHeight: 38,
     borderRadius: 10,
     borderWidth: 1,
@@ -399,15 +425,6 @@ const styles = StyleSheet.create({
   },
   unsaveButtonText: {
     color: '#A33939',
-    fontFamily: 'PoppinsBold',
-    fontSize: 12,
-  },
-  navigateAgainButton: {
-    borderColor: '#2D4A1E',
-    backgroundColor: '#2D4A1E',
-  },
-  navigateAgainButtonText: {
-    color: '#FFFFFF',
     fontFamily: 'PoppinsBold',
     fontSize: 12,
   },
