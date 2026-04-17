@@ -4,6 +4,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { MaterialIcons } from '@expo/vector-icons';
 import {
   Image,
+  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -92,6 +93,7 @@ export default function ProfileScreen({ navigation }) {
   const [isSendingVerification, setIsSendingVerification] = useState(false);
   const [verificationOtp, setVerificationOtp] = useState('');
   const [isVerifyingOtp, setIsVerifyingOtp] = useState(false);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   const isEmailVerified = Boolean(user?.email_verified || user?.email_verified_at);
   const registeredEmail = String(user?.email || '').trim();
@@ -413,10 +415,44 @@ export default function ProfileScreen({ navigation }) {
           </Text>
         </View>
 
-        <Pressable style={styles.signOutButton} onPress={signOut}>
+        <Pressable style={styles.signOutButton} onPress={() => setShowLogoutModal(true)}>
           <Text style={styles.signOutText}>Log Out</Text>
         </Pressable>
       </ScrollView>
+
+      <Modal
+        visible={showLogoutModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowLogoutModal(false)}
+      >
+        <View style={styles.logoutModalBackdrop}>
+          <View style={styles.logoutModalCard}>
+            <Text style={styles.logoutModalTitle}>Log out from account?</Text>
+            <Text style={styles.logoutModalSubtitle}>
+              You will need to log in again to access your BrewHub account.
+            </Text>
+
+            <View style={styles.logoutModalActions}>
+              <Pressable
+                style={styles.logoutModalCancelButton}
+                onPress={() => setShowLogoutModal(false)}
+              >
+                <Text style={styles.logoutModalCancelText}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                style={styles.logoutModalConfirmButton}
+                onPress={() => {
+                  setShowLogoutModal(false);
+                  signOut();
+                }}
+              >
+                <Text style={styles.logoutModalConfirmText}>Log Out</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </ScreenContainer>
   );
 }
@@ -746,5 +782,74 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     fontSize: theme.fontSizes.md,
     fontFamily: theme.fonts.body,
+  },
+  logoutModalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(27, 21, 14, 0.32)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+  },
+  logoutModalCard: {
+    width: '100%',
+    maxWidth: 320,
+    borderRadius: 18,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#D9D2C8',
+    paddingHorizontal: 18,
+    paddingVertical: 20,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.16,
+    shadowRadius: 18,
+    elevation: 8,
+  },
+  logoutModalTitle: {
+    color: '#3A2E22',
+    fontFamily: 'PoppinsBold',
+    fontSize: 18,
+    textAlign: 'center',
+  },
+  logoutModalSubtitle: {
+    marginTop: 8,
+    color: '#6B7280',
+    fontFamily: 'PoppinsMedium',
+    fontSize: 13,
+    lineHeight: 18,
+    textAlign: 'center',
+  },
+  logoutModalActions: {
+    marginTop: 16,
+    flexDirection: 'row',
+    gap: 10,
+  },
+  logoutModalCancelButton: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: '#D8CCBE',
+    borderRadius: theme.borderRadius.md,
+    alignItems: 'center',
+    paddingVertical: 10,
+    backgroundColor: '#F9F4EC',
+  },
+  logoutModalCancelText: {
+    color: '#6E6254',
+    fontFamily: 'PoppinsMedium',
+    fontSize: 13,
+  },
+  logoutModalConfirmButton: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: '#A33939',
+    borderRadius: theme.borderRadius.md,
+    alignItems: 'center',
+    paddingVertical: 10,
+    backgroundColor: '#A33939',
+  },
+  logoutModalConfirmText: {
+    color: '#FFFFFF',
+    fontFamily: 'PoppinsBold',
+    fontSize: 13,
   },
 });
