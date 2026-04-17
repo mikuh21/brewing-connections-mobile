@@ -14,6 +14,7 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  Vibration,
   View,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -575,14 +576,18 @@ export default function MapScreen({ navigation, route }) {
   const [activeSheetImageUri, setActiveSheetImageUri] = useState(null);
   const [activeSheetImageIndex, setActiveSheetImageIndex] = useState(0);
   const [savedEstablishments, setSavedEstablishments] = useState([]);
+  const [showSavedToast, setShowSavedToast] = useState(false);
   const lastRerouteRef = useRef({
     point: null,
     at: 0,
   });
+  const savedToastTimeoutRef = useRef(null);
 
   const locationWatchRef = useRef(null);
   const trailPulseAnim = useRef(new Animated.Value(1)).current;
   const destinationPulseAnim = useRef(new Animated.Value(1)).current;
+  const heartTapAnim = useRef(new Animated.Value(1)).current;
+  const savedToastOpacity = useRef(new Animated.Value(0)).current;
 
   const rawTrailStops = route?.params?.trailStops;
   const rawTrailOrigin = route?.params?.trailOrigin;
@@ -750,6 +755,14 @@ export default function MapScreen({ navigation, route }) {
 
     return () => {
       isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (savedToastTimeoutRef.current) {
+        clearTimeout(savedToastTimeoutRef.current);
+      }
     };
   }, []);
 
@@ -1196,12 +1209,55 @@ export default function MapScreen({ navigation, route }) {
     handleDismissSheet();
   };
 
+  const animateHeartTap = () => {
+    heartTapAnim.setValue(0.9);
+    Animated.sequence([
+      Animated.timing(heartTapAnim, {
+        toValue: 1.18,
+        duration: 120,
+        useNativeDriver: true,
+      }),
+      Animated.spring(heartTapAnim, {
+        toValue: 1,
+        speed: 16,
+        bounciness: 8,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  };
+
+  const showSavedToFavoritesToast = () => {
+    if (savedToastTimeoutRef.current) {
+      clearTimeout(savedToastTimeoutRef.current);
+    }
+
+    setShowSavedToast(true);
+    savedToastOpacity.setValue(0);
+    Animated.timing(savedToastOpacity, {
+      toValue: 1,
+      duration: 160,
+      useNativeDriver: true,
+    }).start();
+
+    savedToastTimeoutRef.current = setTimeout(() => {
+      Animated.timing(savedToastOpacity, {
+        toValue: 0,
+        duration: 180,
+        useNativeDriver: true,
+      }).start(() => setShowSavedToast(false));
+    }, 1300);
+  };
+
   const handleToggleSaveEstablishment = async (item) => {
     if (!item?.id) {
       return;
     }
 
+    animateHeartTap();
+    Vibration.vibrate(14);
+
     const establishmentId = String(item.id);
+    const willSave = !savedEstablishments.some((entry) => String(entry?.id) === establishmentId);
 
     setSavedEstablishments((prev) => {
       const exists = prev.some((entry) => String(entry?.id) === establishmentId);
@@ -1221,6 +1277,13 @@ export default function MapScreen({ navigation, route }) {
       AsyncStorage.setItem(SAVED_ESTABLISHMENTS_KEY, JSON.stringify(next)).catch(() => {});
       return next;
     });
+
+    if (willSave) {
+      showSavedToFavoritesToast();
+    } else {
+      setShowSavedToast(false);
+      savedToastOpacity.setValue(0);
+    }
   };
 
   const handleClearRoute = () => {
@@ -1922,16 +1985,26 @@ export default function MapScreen({ navigation, route }) {
             >
               <View style={styles.sheetTitleRow}>
                 <Text style={styles.sheetTitle}>{selectedEstablishment.name}</Text>
-                <Pressable
-                  style={styles.sheetSaveButtonInline}
-                  onPress={() => handleToggleSaveEstablishment(selectedEstablishment)}
-                >
-                  <MaterialIcons
-                    name={isSelectedEstablishmentSaved ? 'favorite' : 'favorite-border'}
-                    size={18}
-                    color={isSelectedEstablishmentSaved ? '#A33939' : '#6E6254'}
-                  />
-                </Pressable>
+                <View style={styles.sheetSaveWrap}>
+                  <Pressable
+                    style={styles.sheetSaveButtonInline}
+                    onPress={() => handleToggleSaveEstablishment(selectedEstablishment)}
+                  >
+                    <Animated.View style={{ transform: [{ scale: heartTapAnim }] }}>
+                      <MaterialIcons
+                        name={isSelectedEstablishmentSaved ? 'favorite' : 'favorite-border'}
+                        size={18}
+                        color={isSelectedEstablishmentSaved ? '#A33939' : '#6E6254'}
+                      />
+                    </Animated.View>
+                  </Pressable>
+
+                  {showSavedToast ? (
+                    <Animated.View style={[styles.savedToastWrap, { opacity: savedToastOpacity }]}>
+                      <Text style={styles.savedToastText}>Saved to Favorites</Text>
+                    </Animated.View>
+                  ) : null}
+                </View>
               </View>
               <Text style={styles.sheetAddress}>{selectedEstablishment.address}</Text>
               {selectedEstablishment.type === 'cafe' ? (
@@ -2945,6 +3018,10 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: 10,
   },
+  sheetSaveWrap: {
+    alignItems: 'flex-end',
+    gap: 4,
+  },
   sheetSaveButtonInline: {
     width: 30,
     height: 30,
@@ -2955,6 +3032,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 1,
+  },
+  savedToastWrap: {
+    borderWidth: 1,
+    borderColor: '#D8CCBE',
+    backgroundColor: '#FFFCF8',
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  savedToastText: {
+    color: '#6E6254',
+    fontFamily: 'PoppinsMedium',
+    fontSize: 10,
+    lineHeight: 12,
   },
   sheetAddress: {
     marginTop: 4,
