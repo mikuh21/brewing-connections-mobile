@@ -1,8 +1,11 @@
 import { useState } from 'react';
 import {
   ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
   Pressable,
   SafeAreaView,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -132,131 +135,142 @@ export default function RegisterScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <View style={styles.container}>
-        <View style={styles.titleWrap}>
-          <Text style={styles.titleTop}>Join the</Text>
-          <Text style={styles.titleBottom}>Brew!</Text>
-        </View>
-
-        <Text style={styles.subtitle}>
-          Create your account to explore coffee establishments, coffee trails, and coupon promos.
-        </Text>
-
-        <View style={styles.fieldBlock}>
-          <TextInput
-            style={styles.input}
-            placeholder="Full Name"
-            placeholderTextColor="#808080"
-            value={name}
-            onChangeText={(value) => {
-              setName(value);
-              if (fieldErrors.name) {
-                updateFieldError('name', validateName(value));
-              }
-            }}
-            onBlur={() => updateFieldError('name', validateName(name))}
-          />
-          <View style={styles.errorSlot}>
-            <Text style={styles.inlineError}>{fieldErrors.name || ' '}</Text>
-          </View>
-        </View>
-
-        <View style={styles.fieldBlock}>
-          <TextInput
-            style={styles.input}
-            placeholder="Email"
-            placeholderTextColor="#808080"
-            autoCapitalize="none"
-            keyboardType="email-address"
-            value={email}
-            onChangeText={(value) => {
-              setEmail(value);
-              if (fieldErrors.email) {
-                updateFieldError('email', validateEmail(value));
-              }
-            }}
-            onBlur={() => updateFieldError('email', validateEmail(email))}
-          />
-          <View style={styles.errorSlot}>
-            <Text style={styles.inlineError}>{fieldErrors.email || ' '}</Text>
-          </View>
-        </View>
-
-        <View style={styles.fieldBlock}>
-          <TextInput
-            style={styles.input}
-            placeholder="Password"
-            placeholderTextColor="#808080"
-            secureTextEntry
-            value={password}
-            onChangeText={(value) => {
-              setPassword(value);
-
-              if (fieldErrors.password) {
-                updateFieldError('password', validatePassword(value));
-              }
-
-              if (confirmPassword) {
-                updateFieldError(
-                  'confirmPassword',
-                  validateConfirmPassword(confirmPassword, value)
-                );
-              }
-            }}
-            onBlur={() => updateFieldError('password', validatePassword(password))}
-          />
-          <View style={styles.errorSlot}>
-            <Text style={styles.inlineError}>{fieldErrors.password || ' '}</Text>
-          </View>
-        </View>
-
-        <View style={styles.fieldBlock}>
-          <TextInput
-            style={styles.input}
-            placeholder="Confirm Password"
-            placeholderTextColor="#808080"
-            secureTextEntry
-            value={confirmPassword}
-            onChangeText={(value) => {
-              setConfirmPassword(value);
-              if (fieldErrors.confirmPassword) {
-                updateFieldError('confirmPassword', validateConfirmPassword(value, password));
-              }
-            }}
-            onBlur={() =>
-              updateFieldError('confirmPassword', validateConfirmPassword(confirmPassword, password))
-            }
-          />
-          <View style={styles.errorSlot}>
-            <Text style={styles.inlineError}>{fieldErrors.confirmPassword || ' '}</Text>
-          </View>
-        </View>
-
-        {formError ? <Text style={styles.error}>{formError}</Text> : null}
-        {successMessage ? <Text style={styles.success}>{successMessage}</Text> : null}
-
-        <Pressable
-          disabled={isSubmitting}
-          onPress={onSubmit}
-          style={({ pressed }) => [
-            styles.button,
-            isSubmitting && styles.buttonDisabled,
-            pressed && styles.buttonPressed,
-          ]}
+      <KeyboardAvoidingView
+        style={styles.keyboardWrapper}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
         >
-          {isSubmitting ? (
-            <ActivityIndicator color={theme.colors.white} />
-          ) : (
-            <Text style={styles.buttonText}>Sign Up</Text>
-          )}
-        </Pressable>
+          <View style={styles.container}>
+            <View style={styles.titleWrap}>
+              <Text style={styles.titleTop}>Join the</Text>
+              <Text style={styles.titleBottom}>Brew!</Text>
+            </View>
 
-        <Pressable onPress={() => navigation.navigate('Login')} style={styles.linkWrap}>
-          <Text style={styles.linkText}>
-            Already have an account? <Text style={styles.linkTextBold}>Log In</Text>
-          </Text>
-        </Pressable>
-      </View>
+            <Text style={styles.subtitle}>
+              Create your account to explore coffee establishments, coffee trails, and coupon promos.
+            </Text>
+
+            <View style={styles.fieldBlock}>
+              <TextInput
+                style={styles.input}
+                placeholder="Full Name"
+                placeholderTextColor="#808080"
+                value={name}
+                onChangeText={(value) => {
+                  setName(value);
+                  if (fieldErrors.name) {
+                    updateFieldError('name', validateName(value));
+                  }
+                }}
+                onBlur={() => updateFieldError('name', validateName(name))}
+              />
+              <View style={styles.errorSlot}>
+                <Text style={styles.inlineError}>{fieldErrors.name || ' '}</Text>
+              </View>
+            </View>
+
+            <View style={styles.fieldBlock}>
+              <TextInput
+                style={styles.input}
+                placeholder="Email"
+                placeholderTextColor="#808080"
+                autoCapitalize="none"
+                keyboardType="email-address"
+                value={email}
+                onChangeText={(value) => {
+                  setEmail(value);
+                  if (fieldErrors.email) {
+                    updateFieldError('email', validateEmail(value));
+                  }
+                }}
+                onBlur={() => updateFieldError('email', validateEmail(email))}
+              />
+              <View style={styles.errorSlot}>
+                <Text style={styles.inlineError}>{fieldErrors.email || ' '}</Text>
+              </View>
+            </View>
+
+            <View style={styles.fieldBlock}>
+              <TextInput
+                style={styles.input}
+                placeholder="Password"
+                placeholderTextColor="#808080"
+                secureTextEntry
+                value={password}
+                onChangeText={(value) => {
+                  setPassword(value);
+
+                  if (fieldErrors.password) {
+                    updateFieldError('password', validatePassword(value));
+                  }
+
+                  if (confirmPassword) {
+                    updateFieldError(
+                      'confirmPassword',
+                      validateConfirmPassword(confirmPassword, value)
+                    );
+                  }
+                }}
+                onBlur={() => updateFieldError('password', validatePassword(password))}
+              />
+              <View style={styles.errorSlot}>
+                <Text style={styles.inlineError}>{fieldErrors.password || ' '}</Text>
+              </View>
+            </View>
+
+            <View style={styles.fieldBlock}>
+              <TextInput
+                style={styles.input}
+                placeholder="Confirm Password"
+                placeholderTextColor="#808080"
+                secureTextEntry
+                value={confirmPassword}
+                onChangeText={(value) => {
+                  setConfirmPassword(value);
+                  if (fieldErrors.confirmPassword) {
+                    updateFieldError('confirmPassword', validateConfirmPassword(value, password));
+                  }
+                }}
+                onBlur={() =>
+                  updateFieldError('confirmPassword', validateConfirmPassword(confirmPassword, password))
+                }
+              />
+              <View style={styles.errorSlot}>
+                <Text style={styles.inlineError}>{fieldErrors.confirmPassword || ' '}</Text>
+              </View>
+            </View>
+
+            {formError ? <Text style={styles.error}>{formError}</Text> : null}
+            {successMessage ? <Text style={styles.success}>{successMessage}</Text> : null}
+
+            <Pressable
+              disabled={isSubmitting}
+              onPress={onSubmit}
+              style={({ pressed }) => [
+                styles.button,
+                isSubmitting && styles.buttonDisabled,
+                pressed && styles.buttonPressed,
+              ]}
+            >
+              {isSubmitting ? (
+                <ActivityIndicator color={theme.colors.white} />
+              ) : (
+                <Text style={styles.buttonText}>Sign Up</Text>
+              )}
+            </Pressable>
+
+            <Pressable onPress={() => navigation.navigate('Login')} style={styles.linkWrap}>
+              <Text style={styles.linkText}>
+                Already have an account? <Text style={styles.linkTextBold}>Log In</Text>
+              </Text>
+            </Pressable>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
@@ -266,13 +280,19 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F3E9D7',
   },
-  container: {
+  keyboardWrapper: {
     flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
+  },
+  container: {
+    flexGrow: 1,
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 24,
     paddingTop: 20,
-    paddingBottom: 20,
+    paddingBottom: 30,
   },
   titleWrap: {
     width: '100%',

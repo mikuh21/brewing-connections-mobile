@@ -2,8 +2,11 @@ import { useState } from 'react';
 import {
   ActivityIndicator,
   Image,
+  KeyboardAvoidingView,
+  Platform,
   Pressable,
   SafeAreaView,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -46,69 +49,80 @@ export default function LoginScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <View style={styles.container}>
-        <Image source={logoImage} style={styles.logo} resizeMode="contain" />
+      <KeyboardAvoidingView
+        style={styles.keyboardWrapper}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.container}>
+            <Image source={logoImage} style={styles.logo} resizeMode="contain" />
 
-        <View style={styles.formArea}>
-          <TextInput
-            style={styles.input}
-            placeholder="Email"
-            placeholderTextColor="#808080"
-            autoCapitalize="none"
-            keyboardType="email-address"
-            value={email}
-            onChangeText={setEmail}
-          />
+            <View style={styles.formArea}>
+              <TextInput
+                style={styles.input}
+                placeholder="Email"
+                placeholderTextColor="#808080"
+                autoCapitalize="none"
+                keyboardType="email-address"
+                value={email}
+                onChangeText={setEmail}
+              />
 
-          <TextInput
-            style={styles.input}
-            placeholder="Password"
-            placeholderTextColor="#808080"
-            secureTextEntry
-            value={password}
-            onChangeText={setPassword}
-          />
+              <TextInput
+                style={styles.input}
+                placeholder="Password"
+                placeholderTextColor="#808080"
+                secureTextEntry
+                value={password}
+                onChangeText={setPassword}
+              />
 
-          {error ? <Text style={styles.error}>{error}</Text> : null}
+              {error ? <Text style={styles.error}>{error}</Text> : null}
 
-          <Pressable style={styles.forgotWrap} onPress={() => navigation.navigate('ForgotPassword')}>
-            <Text style={styles.forgotText}>Forgot Password?</Text>
-          </Pressable>
+              <Pressable style={styles.forgotWrap} onPress={() => navigation.navigate('ForgotPassword')}>
+                <Text style={styles.forgotText}>Forgot Password?</Text>
+              </Pressable>
 
-          <Pressable
-            disabled={isSubmitting || !email || !password}
-            onPress={onSubmit}
-            style={({ pressed }) => [
-              styles.button,
-              (isSubmitting || !email || !password) && styles.buttonDisabled,
-              pressed && styles.buttonPressed,
-            ]}
-          >
-            {isSubmitting ? (
-              <ActivityIndicator color={theme.colors.white} />
-            ) : (
-              <Text style={styles.buttonText}>Log In</Text>
-            )}
-          </Pressable>
+              <Pressable
+                disabled={isSubmitting || !email || !password}
+                onPress={onSubmit}
+                style={({ pressed }) => [
+                  styles.button,
+                  (isSubmitting || !email || !password) && styles.buttonDisabled,
+                  pressed && styles.buttonPressed,
+                ]}
+              >
+                {isSubmitting ? (
+                  <ActivityIndicator color={theme.colors.white} />
+                ) : (
+                  <Text style={styles.buttonText}>Log In</Text>
+                )}
+              </Pressable>
 
-          <View style={styles.dividerRow}>
-            <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>or continue with</Text>
-            <View style={styles.dividerLine} />
+              <View style={styles.dividerRow}>
+                <View style={styles.dividerLine} />
+                <Text style={styles.dividerText}>or continue with</Text>
+                <View style={styles.dividerLine} />
+              </View>
+
+              <Pressable style={styles.googleButton}>
+                <Image source={googleIcon} style={styles.googleIcon} resizeMode="contain" />
+                <Text style={styles.googleText}>Google</Text>
+              </Pressable>
+
+              <Pressable onPress={() => navigation.navigate('Register')} style={styles.signupWrap}>
+                <Text style={styles.signupText}>
+                  Don’t have an account? <Text style={styles.signupTextBold}>Sign Up</Text>
+                </Text>
+              </Pressable>
+            </View>
           </View>
-
-          <Pressable style={styles.googleButton}>
-            <Image source={googleIcon} style={styles.googleIcon} resizeMode="contain" />
-            <Text style={styles.googleText}>Google</Text>
-          </Pressable>
-
-          <Pressable onPress={() => navigation.navigate('Register')} style={styles.signupWrap}>
-            <Text style={styles.signupText}>
-              Don’t have an account? <Text style={styles.signupTextBold}>Sign Up</Text>
-            </Text>
-          </Pressable>
-        </View>
-      </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
@@ -118,12 +132,18 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F3E9D7',
   },
-  container: {
+  keyboardWrapper: {
     flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
+  },
+  container: {
+    flexGrow: 1,
     alignItems: 'center',
     paddingHorizontal: 24,
     paddingTop: 22,
-    paddingBottom: 18,
+    paddingBottom: 26,
     justifyContent: 'center',
   },
   logo: {
