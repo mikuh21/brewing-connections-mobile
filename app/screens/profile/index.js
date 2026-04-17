@@ -15,9 +15,7 @@ import { ScreenContainer } from '../../components';
 import { useAuth } from '../../context';
 import {
   getProfile,
-  requestPasswordReset,
   sendEmailVerification,
-  updateProfile,
 } from '../../services';
 import theme from '../../theme';
 
@@ -88,18 +86,14 @@ export default function ProfileScreen({ navigation }) {
   const [savedTrails, setSavedTrails] = useState([]);
   const [downloadedVarieties, setDownloadedVarieties] = useState([]);
   const [downloadedEstablishments, setDownloadedEstablishments] = useState([]);
-  const [isSavingSettings, setIsSavingSettings] = useState(false);
-  const [settingsMessage, setSettingsMessage] = useState('');
-  const [settingsError, setSettingsError] = useState('');
-  const [accountName, setAccountName] = useState(user?.name || '');
-  const [accountEmail, setAccountEmail] = useState(user?.email || '');
   const [securityMessage, setSecurityMessage] = useState('');
   const [securityError, setSecurityError] = useState('');
-  const [isRequestingReset, setIsRequestingReset] = useState(false);
   const [isSendingVerification, setIsSendingVerification] = useState(false);
 
   const isEmailVerified = Boolean(user?.email_verified || user?.email_verified_at);
   const registeredEmail = String(user?.email || '').trim();
+  const accountName = user?.name || '';
+  const accountEmail = user?.email || '';
 
   const savedVarieties = useMemo(() => getUniqueSavedVarieties(savedTrails), [savedTrails]);
   const savedEstablishments = useMemo(() => getUniqueSavedEstablishments(savedTrails), [savedTrails]);
@@ -131,13 +125,8 @@ export default function ProfileScreen({ navigation }) {
       const profileResponse = await getProfile();
       const normalized = normalizeProfilePayload(profileResponse);
       await updateUser(normalized);
-      setAccountName(normalized?.name || '');
-      setAccountEmail(normalized?.email || '');
-    } catch {
-      setAccountName(user?.name || '');
-      setAccountEmail(user?.email || '');
-    }
-  }, [updateUser, user?.email, user?.name]);
+    } catch {}
+  }, [updateUser]);
 
   useFocusEffect(
     useCallback(() => {
@@ -173,53 +162,6 @@ export default function ProfileScreen({ navigation }) {
     await AsyncStorage.setItem(DOWNLOADED_ESTABLISHMENTS_KEY, JSON.stringify(next));
   };
 
-  const handleSaveAccountSettings = async () => {
-    setSettingsMessage('');
-    setSettingsError('');
-    setSecurityMessage('');
-    setSecurityError('');
-
-    const trimmedName = accountName.trim();
-    const trimmedEmail = accountEmail.trim();
-
-    if (!trimmedName || !trimmedEmail) {
-      setSettingsError('Name and email are required.');
-      return;
-    }
-
-    setIsSavingSettings(true);
-
-    try {
-      const payload = {
-        name: trimmedName,
-        email: trimmedEmail,
-      };
-
-      try {
-        const response = await updateProfile(payload);
-        const normalized = normalizeProfilePayload(response);
-        await updateUser({
-          ...user,
-          ...normalized,
-          name: normalized?.name || trimmedName,
-          email: normalized?.email || trimmedEmail,
-        });
-      } catch {
-        await updateUser({
-          ...user,
-          name: trimmedName,
-          email: trimmedEmail,
-        });
-      }
-
-      setSettingsMessage('Account settings updated.');
-    } catch {
-      setSettingsError('Unable to save account settings right now.');
-    } finally {
-      setIsSavingSettings(false);
-    }
-  };
-
   const handleSendVerificationEmail = async () => {
     setSecurityMessage('');
     setSecurityError('');
@@ -239,28 +181,6 @@ export default function ProfileScreen({ navigation }) {
       );
     } finally {
       setIsSendingVerification(false);
-    }
-  };
-
-  const handleRequestResetPassword = async () => {
-    setSecurityMessage('');
-    setSecurityError('');
-
-    if (!registeredEmail) {
-      setSecurityError('No registered email is available for this account.');
-      return;
-    }
-
-    setIsRequestingReset(true);
-    try {
-      await requestPasswordReset(registeredEmail);
-      setSecurityMessage(`Password reset code sent to ${registeredEmail}.`);
-    } catch (error) {
-      setSecurityError(
-        error?.response?.data?.message || 'Unable to request password reset right now.'
-      );
-    } finally {
-      setIsRequestingReset(false);
     }
   };
 
@@ -314,6 +234,9 @@ export default function ProfileScreen({ navigation }) {
                   {isSendingVerification ? 'Sending...' : `Verify ${registeredEmail || 'Email'}`}
                 </Text>
               </Pressable>
+
+              {securityError ? <Text style={styles.errorText}>{securityError}</Text> : null}
+              {securityMessage ? <Text style={styles.successText}>{securityMessage}</Text> : null}
             </View>
           </View>
         ) : null}
@@ -408,52 +331,25 @@ export default function ProfileScreen({ navigation }) {
         <Text style={styles.sectionTitle}>Account Settings</Text>
         <View style={styles.settingsCard}>
           <Text style={styles.inputLabel}>Name</Text>
-          <TextInput style={styles.input} value={accountName} onChangeText={setAccountName} />
+          <TextInput
+            style={[styles.input, styles.inputDisabled]}
+            value={accountName}
+            editable={false}
+            selectTextOnFocus={false}
+          />
 
           <Text style={styles.inputLabel}>Email</Text>
           <TextInput
-            style={styles.input}
+            style={[styles.input, styles.inputDisabled]}
             value={accountEmail}
-            onChangeText={setAccountEmail}
+            editable={false}
+            selectTextOnFocus={false}
             autoCapitalize="none"
             keyboardType="email-address"
           />
-
-          {settingsError ? <Text style={styles.errorText}>{settingsError}</Text> : null}
-          {settingsMessage ? <Text style={styles.successText}>{settingsMessage}</Text> : null}
-
-          <Pressable
-            style={[styles.primaryButton, isSavingSettings && styles.primaryButtonDisabled]}
-            onPress={handleSaveAccountSettings}
-            disabled={isSavingSettings}
-          >
-            <Text style={styles.primaryButtonText}>
-              {isSavingSettings ? 'Saving...' : 'Save Account Settings'}
-            </Text>
-          </Pressable>
-
-          <Text style={styles.subSectionTitle}>Request Password Reset</Text>
-          <View style={styles.readonlyEmailWrap}>
-            <MaterialIcons name="mark-email-read" size={15} color="#6E6254" />
-            <Text style={styles.readonlyEmailText} numberOfLines={1}>
-              {registeredEmail || 'No registered email found'}
-            </Text>
-          </View>
           <Text style={styles.helperText}>
-            Clicking reset will send a 6-digit password reset code to your registered account email.
+            Name and email are linked to your registered account and cannot be edited here.
           </Text>
-          <Pressable
-            style={[styles.secondaryButton, isRequestingReset && styles.secondaryButtonDisabled]}
-            onPress={handleRequestResetPassword}
-            disabled={isRequestingReset}
-          >
-            <Text style={styles.secondaryButtonText}>
-              {isRequestingReset ? 'Requesting...' : 'Request Reset Password'}
-            </Text>
-          </Pressable>
-
-          {securityError ? <Text style={styles.errorText}>{securityError}</Text> : null}
-          {securityMessage ? <Text style={styles.successText}>{securityMessage}</Text> : null}
         </View>
 
         <Pressable style={styles.signOutButton} onPress={signOut}>
@@ -728,6 +624,10 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     backgroundColor: '#FFFCF8',
   },
+  inputDisabled: {
+    backgroundColor: '#F3EEE6',
+    color: '#6E6254',
+  },
   errorText: {
     fontFamily: theme.fonts.body,
     color: '#A33939',
@@ -741,68 +641,8 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
   },
-  primaryButton: {
-    marginTop: 4,
-    backgroundColor: '#2D4A1E',
-    borderRadius: theme.borderRadius.md,
-    alignItems: 'center',
-    paddingVertical: 11,
-  },
-  primaryButtonDisabled: {
-    opacity: 0.65,
-  },
-  primaryButtonText: {
-    color: theme.colors.white,
-    fontFamily: theme.fonts.body,
-    fontWeight: '700',
-    fontSize: 14,
-  },
-  secondaryButton: {
-    marginTop: 8,
-    borderWidth: 1,
-    borderColor: '#D8CCBE',
-    borderRadius: theme.borderRadius.md,
-    alignItems: 'center',
-    paddingVertical: 10,
-    backgroundColor: '#F9F4EC',
-  },
-  secondaryButtonDisabled: {
-    opacity: 0.65,
-  },
-  secondaryButtonText: {
-    color: '#6E6254',
-    fontFamily: theme.fonts.body,
-    fontWeight: '600',
-    fontSize: 13,
-  },
-  subSectionTitle: {
-    marginTop: 14,
-    marginBottom: 4,
-    fontFamily: theme.fonts.body,
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#3A2E22',
-  },
-  readonlyEmailWrap: {
-    borderWidth: 1,
-    borderColor: '#D8CCBE',
-    borderRadius: theme.borderRadius.sm,
-    paddingHorizontal: 10,
-    paddingVertical: 10,
-    backgroundColor: '#F7F2EA',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  readonlyEmailText: {
-    flex: 1,
-    fontFamily: theme.fonts.body,
-    color: '#3A2E22',
-    fontSize: 13,
-    fontWeight: '600',
-  },
   helperText: {
-    marginTop: 6,
+    marginTop: 2,
     fontFamily: theme.fonts.body,
     color: '#7A6B59',
     fontSize: 12,
