@@ -1909,17 +1909,6 @@ export default function MapScreen({ navigation, route }) {
               <Pressable style={styles.sheetCloseButton} onPress={handleDismissSheet}>
                 <Text style={styles.sheetCloseText}>×</Text>
               </Pressable>
-
-              <Pressable
-                style={styles.sheetSaveButton}
-                onPress={() => handleToggleSaveEstablishment(selectedEstablishment)}
-              >
-                <MaterialIcons
-                  name={isSelectedEstablishmentSaved ? 'favorite' : 'favorite-border'}
-                  size={18}
-                  color={isSelectedEstablishmentSaved ? '#A33939' : '#FFFFFF'}
-                />
-              </Pressable>
             </View>
 
             <ScrollView
@@ -1931,7 +1920,19 @@ export default function MapScreen({ navigation, route }) {
               ]}
               showsVerticalScrollIndicator={false}
             >
-              <Text style={styles.sheetTitle}>{selectedEstablishment.name}</Text>
+              <View style={styles.sheetTitleRow}>
+                <Text style={styles.sheetTitle}>{selectedEstablishment.name}</Text>
+                <Pressable
+                  style={styles.sheetSaveButtonInline}
+                  onPress={() => handleToggleSaveEstablishment(selectedEstablishment)}
+                >
+                  <MaterialIcons
+                    name={isSelectedEstablishmentSaved ? 'favorite' : 'favorite-border'}
+                    size={18}
+                    color={isSelectedEstablishmentSaved ? '#A33939' : '#6E6254'}
+                  />
+                </Pressable>
+              </View>
               <Text style={styles.sheetAddress}>{selectedEstablishment.address}</Text>
               {selectedEstablishment.type === 'cafe' ? (
                 <Text style={styles.sheetRating}>{formatStars(selectedEstablishment.rating)}</Text>
@@ -2904,19 +2905,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  sheetSaveButton: {
-    position: 'absolute',
-    top: 10,
-    right: 42,
-    width: 28,
-    height: 28,
-    borderRadius: 999,
-    backgroundColor: 'rgba(58, 46, 34, 0.52)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.62)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   sheetCloseText: {
     color: '#FFFFFF',
     fontFamily: 'PoppinsBold',
@@ -2945,10 +2933,28 @@ const styles = StyleSheet.create({
     maxHeight: 520,
   },
   sheetTitle: {
+    flex: 1,
     color: BRAND.text,
     fontFamily: 'PoppinsBold',
     fontSize: 19,
     lineHeight: 24,
+  },
+  sheetTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  sheetSaveButtonInline: {
+    width: 30,
+    height: 30,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#D8CCBE',
+    backgroundColor: '#F9F4EC',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 1,
   },
   sheetAddress: {
     marginTop: 4,
