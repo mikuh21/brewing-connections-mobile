@@ -72,6 +72,30 @@ function getTypeLabel(type) {
 export default function SavedTrailsScreen({ navigation }) {
   const [savedTrails, setSavedTrails] = useState([]);
 
+  const handleUnsaveTrail = async (trailIndex) => {
+    const next = savedTrails.filter((_, index) => index !== trailIndex);
+    setSavedTrails(next);
+
+    try {
+      await AsyncStorage.setItem(SAVED_TRAILS_KEY, JSON.stringify(next));
+    } catch {
+      // Keep UI responsive even when local save fails.
+    }
+  };
+
+  const handleNavigateAgain = (trail) => {
+    const trailStops = Array.isArray(trail?.trailStops) ? trail.trailStops : [];
+    if (!trailStops.length) {
+      return;
+    }
+
+    navigation.navigate('Map', {
+      trailStops,
+      trailOrigin: trail?.trailOrigin || trail?.origin || null,
+      isTrailMode: true,
+    });
+  };
+
   useFocusEffect(
     useCallback(() => {
       let isMounted = true;
@@ -111,7 +135,7 @@ export default function SavedTrailsScreen({ navigation }) {
           <Text style={styles.backText}>Profile</Text>
         </Pressable>
       </View>
-      <Text style={styles.headerSubtitle}>Review your saved routes, stops, and recommendations.</Text>
+      <Text style={styles.headerSubtitle}>Review your saved routes</Text>
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {savedTrails.length ? (
@@ -170,6 +194,22 @@ export default function SavedTrailsScreen({ navigation }) {
                       </View>
                     </View>
                   ))}
+                </View>
+
+                <View style={styles.cardActionsRow}>
+                  <Pressable style={[styles.cardActionButton, styles.unsaveButton]} onPress={() => handleUnsaveTrail(index)}>
+                    <MaterialIcons name="bookmark-remove" size={14} color="#A33939" />
+                    <Text style={styles.unsaveButtonText}>Unsave</Text>
+                  </Pressable>
+
+                  <Pressable
+                    style={[styles.cardActionButton, styles.navigateAgainButton]}
+                    onPress={() => handleNavigateAgain(trail)}
+                    disabled={!trailStops.length}
+                  >
+                    <MaterialIcons name="navigation" size={14} color="#FFFFFF" />
+                    <Text style={styles.navigateAgainButtonText}>Navigate Again</Text>
+                  </Pressable>
                 </View>
               </View>
             );
@@ -337,6 +377,39 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontStyle: 'italic',
     lineHeight: 16,
+  },
+  cardActionsRow: {
+    marginTop: 12,
+    flexDirection: 'row',
+    gap: 10,
+  },
+  cardActionButton: {
+    flex: 1,
+    minHeight: 38,
+    borderRadius: 10,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 6,
+  },
+  unsaveButton: {
+    borderColor: 'rgba(163, 57, 57, 0.35)',
+    backgroundColor: 'rgba(163, 57, 57, 0.10)',
+  },
+  unsaveButtonText: {
+    color: '#A33939',
+    fontFamily: 'PoppinsBold',
+    fontSize: 12,
+  },
+  navigateAgainButton: {
+    borderColor: '#2D4A1E',
+    backgroundColor: '#2D4A1E',
+  },
+  navigateAgainButtonText: {
+    color: '#FFFFFF',
+    fontFamily: 'PoppinsBold',
+    fontSize: 12,
   },
   emptyCard: {
     marginTop: theme.spacing.sm,
