@@ -14,8 +14,11 @@ function normalizeUser(userData) {
     id: userData.id ?? null,
     name: userData.name ?? '',
     email: userData.email ?? '',
-    profile_photo_url: userData.profile_photo_url ?? null,
+    profile_photo_url: userData.profile_photo_url ?? userData.profile_photo ?? userData.avatar ?? null,
     role: userData.role ?? null,
+    email_verified_at: userData.email_verified_at ?? null,
+    email_verified:
+      userData.email_verified ?? userData.verified ?? Boolean(userData.email_verified_at),
   };
 }
 

@@ -72,6 +72,29 @@ api.interceptors.response.use(
 
 const unwrap = (response) => response.data;
 
+async function postWithFallback(paths, payload, config) {
+  let lastError = null;
+
+  for (const path of paths) {
+    try {
+      const response = await api.post(path, payload, config);
+      return unwrap(response);
+    } catch (error) {
+      const status = error?.response?.status;
+      if (status !== 404 && status !== 405) {
+        throw error;
+      }
+      lastError = error;
+    }
+  }
+
+  if (lastError) {
+    throw lastError;
+  }
+
+  throw new Error('Unable to process request right now.');
+}
+
 export const login = async (email, password) => {
   const response = await api.post('/api/login', { email, password });
   return unwrap(response);
@@ -203,6 +226,20 @@ export const getProfile = async () => {
 export const updateProfile = async (data) => {
   const response = await api.put('/api/profile', data);
   return unwrap(response);
+};
+
+export const requestPasswordReset = async (email) => {
+  return postWithFallback(
+    ['/api/forgot-password', '/forgot-password', '/api/password/email', '/password/email'],
+    { email }
+  );
+};
+
+export const sendEmailVerification = async (email) => {
+  return postWithFallback(
+    ['/api/email/verification-notification', '/email/verification-notification'],
+    { email }
+  );
 };
 
 // Compatibility export for existing auth context usage.

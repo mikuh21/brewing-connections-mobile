@@ -1,151 +1,882 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
-import { Pressable, ScrollView, StyleSheet, Text } from 'react-native';
-import { ScreenContainer, SectionCard } from '../../components';
+import { MaterialIcons } from '@expo/vector-icons';
+import {
+  Image,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
+import { ScreenContainer } from '../../components';
 import { useAuth } from '../../context';
+import {
+  getProfile,
+  requestPasswordReset,
+  sendEmailVerification,
+  updateProfile,
+} from '../../services';
 import theme from '../../theme';
 
 const SAVED_TRAILS_KEY = 'saved_coffee_trails';
+const DOWNLOADED_VARIETIES_KEY = 'offline_saved_varieties';
+const DOWNLOADED_ESTABLISHMENTS_KEY = 'offline_saved_establishments';
 
-function formatDateLabel(isoDate) {
-  if (!isoDate) {
-    return 'Saved recently';
+function getInitials(name, email) {
+  const source = String(name || '').trim();
+  if (source) {
+    const chunks = source.split(/\s+/).filter(Boolean);
+    if (chunks.length === 1) {
+      return chunks[0].slice(0, 2).toUpperCase();
+    }
+    return `${chunks[0][0] || ''}${chunks[1][0] || ''}`.toUpperCase();
   }
 
-  const parsed = new Date(isoDate);
-  if (Number.isNaN(parsed.getTime())) {
-    return 'Saved recently';
-  }
+  return String(email || 'CE').slice(0, 2).toUpperCase();
+}
 
-  return parsed.toLocaleString(undefined, {
-    month: 'short',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
+function normalizeProfilePayload(rawData) {
+  const source = rawData?.user || rawData?.data || rawData || {};
+  return {
+    id: source?.id ?? null,
+    name: source?.name ?? '',
+    email: source?.email ?? '',
+    profile_photo_url: source?.profile_photo_url || source?.profile_photo || source?.avatar || null,
+    role: source?.role || null,
+    email_verified_at: source?.email_verified_at || null,
+    email_verified:
+      source?.email_verified ?? source?.verified ?? Boolean(source?.email_verified_at),
+  };
+}
+
+function getUniqueSavedVarieties(savedTrails) {
+  const fromPreferences = savedTrails.flatMap((trail) => {
+    const list = trail?.preferences?.varieties;
+    return Array.isArray(list) ? list : [];
   });
+
+  return Array.from(new Set(fromPreferences.map((item) => String(item || '').trim()).filter(Boolean)));
 }
 
-function formatEta(minutesValue) {
-  const totalMinutes = Math.max(0, Math.round(Number(minutesValue) || 0));
-  if (totalMinutes < 60) {
-    return `${totalMinutes} mins`;
-  }
+function getUniqueSavedEstablishments(savedTrails) {
+  const mapById = new Map();
 
-  const hours = Math.floor(totalMinutes / 60);
-  const minutes = totalMinutes % 60;
-  if (!minutes) {
-    return `${hours} hr${hours > 1 ? 's' : ''}`;
-  }
+  savedTrails.forEach((trail, trailIndex) => {
+    const stops = Array.isArray(trail?.trailStops) ? trail.trailStops : [];
+    stops.forEach((stop, stopIndex) => {
+      const id = String(stop?.establishment_id ?? stop?.id ?? `${trailIndex}-${stopIndex}`);
+      if (mapById.has(id)) {
+        return;
+      }
 
-  return `${hours} hr${hours > 1 ? 's' : ''} ${minutes} mins`;
+      mapById.set(id, {
+        id,
+        name: stop?.name || 'Coffee Stop',
+        address: stop?.address || stop?.barangay || 'Address not available',
+      });
+    });
+  });
+
+  return Array.from(mapById.values());
 }
 
-export default function ProfileScreen() {
-	const { user, signOut } = useAuth();
-	const [savedTrails, setSavedTrails] = useState([]);
+export default function ProfileScreen({ navigation }) {
+  const { user, signOut, updateUser } = useAuth();
+  const [savedTrails, setSavedTrails] = useState([]);
+  const [downloadedVarieties, setDownloadedVarieties] = useState([]);
+  const [downloadedEstablishments, setDownloadedEstablishments] = useState([]);
+  const [isSavingSettings, setIsSavingSettings] = useState(false);
+  const [settingsMessage, setSettingsMessage] = useState('');
+  const [settingsError, setSettingsError] = useState('');
+  const [accountName, setAccountName] = useState(user?.name || '');
+  const [accountEmail, setAccountEmail] = useState(user?.email || '');
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [securityMessage, setSecurityMessage] = useState('');
+  const [securityError, setSecurityError] = useState('');
+  const [isRequestingReset, setIsRequestingReset] = useState(false);
+  const [isSendingVerification, setIsSendingVerification] = useState(false);
 
-	useFocusEffect(
-		useCallback(() => {
-			let isMounted = true;
+  const isEmailVerified = Boolean(user?.email_verified || user?.email_verified_at);
+  const registeredEmail = String(user?.email || '').trim();
 
-			const loadSavedTrails = async () => {
-				try {
-					const raw = await AsyncStorage.getItem(SAVED_TRAILS_KEY);
-					const parsed = JSON.parse(raw || '[]');
+  const savedVarieties = useMemo(() => getUniqueSavedVarieties(savedTrails), [savedTrails]);
+  const savedEstablishments = useMemo(() => getUniqueSavedEstablishments(savedTrails), [savedTrails]);
 
-					if (!isMounted) {
-						return;
-					}
+  const initials = getInitials(user?.name, user?.email);
 
-					setSavedTrails(Array.isArray(parsed) ? parsed : []);
-				} catch {
-					if (!isMounted) {
-						return;
-					}
-					setSavedTrails([]);
-				}
-			};
+  const restoreProfileAndStorage = useCallback(async () => {
+    try {
+      const [savedTrailsRaw, varietiesRaw, establishmentsRaw] = await Promise.all([
+        AsyncStorage.getItem(SAVED_TRAILS_KEY),
+        AsyncStorage.getItem(DOWNLOADED_VARIETIES_KEY),
+        AsyncStorage.getItem(DOWNLOADED_ESTABLISHMENTS_KEY),
+      ]);
 
-			loadSavedTrails();
+      const parsedTrails = JSON.parse(savedTrailsRaw || '[]');
+      const parsedVarieties = JSON.parse(varietiesRaw || '[]');
+      const parsedEstablishments = JSON.parse(establishmentsRaw || '[]');
 
-			return () => {
-				isMounted = false;
-			};
-		}, [])
-	);
+      setSavedTrails(Array.isArray(parsedTrails) ? parsedTrails : []);
+      setDownloadedVarieties(Array.isArray(parsedVarieties) ? parsedVarieties : []);
+      setDownloadedEstablishments(Array.isArray(parsedEstablishments) ? parsedEstablishments : []);
+    } catch {
+      setSavedTrails([]);
+      setDownloadedVarieties([]);
+      setDownloadedEstablishments([]);
+    }
 
-	return (
-		<ScreenContainer>
-			<ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-				<Text style={styles.title}>Profile</Text>
-				<SectionCard
-					title={user?.name || 'Coffee Explorer'}
-					description={user?.email || 'No email available'}
-					footer="Lipa City, Batangas"
-				/>
+    try {
+      const profileResponse = await getProfile();
+      const normalized = normalizeProfilePayload(profileResponse);
+      await updateUser(normalized);
+      setAccountName(normalized?.name || '');
+      setAccountEmail(normalized?.email || '');
+    } catch {
+      setAccountName(user?.name || '');
+      setAccountEmail(user?.email || '');
+    }
+  }, [updateUser, user?.email, user?.name]);
 
-				<Text style={styles.sectionTitle}>Saved Trails</Text>
-				{savedTrails.length ? (
-					savedTrails.map((trail, index) => {
-						const stopCount = Array.isArray(trail?.trailStops) ? trail.trailStops.length : 0;
-						const distance = Number(trail?.trailTotals?.totalDistanceKm || 0);
-						const eta = Number(trail?.trailTotals?.totalEtaMinutes || 0);
+  useFocusEffect(
+    useCallback(() => {
+      restoreProfileAndStorage();
+    }, [restoreProfileAndStorage])
+  );
 
-						return (
-							<SectionCard
-								key={`${trail?.id || 'saved-trail'}-${index}`}
-								title={`Trail ${index + 1}: ${stopCount} stop${stopCount === 1 ? '' : 's'}`}
-								description={`${distance.toFixed(1)} km • ${formatEta(eta)}`}
-								footer={formatDateLabel(trail?.savedAt)}
-							/>
-						);
-					})
-				) : (
-					<SectionCard
-						title="No saved trails yet"
-						description="Generate a trail and tap Save Trail to keep it here."
-					/>
-				)}
+  const toggleVarietyOffline = async (varietyName) => {
+    const key = String(varietyName || '').trim();
+    if (!key) {
+      return;
+    }
 
-				<Pressable style={styles.signOutButton} onPress={signOut}>
-					<Text style={styles.signOutText}>Sign Out</Text>
-				</Pressable>
-			</ScrollView>
-		</ScreenContainer>
-	);
+    const next = downloadedVarieties.includes(key)
+      ? downloadedVarieties.filter((item) => item !== key)
+      : [...downloadedVarieties, key];
+
+    setDownloadedVarieties(next);
+    await AsyncStorage.setItem(DOWNLOADED_VARIETIES_KEY, JSON.stringify(next));
+  };
+
+  const toggleEstablishmentOffline = async (establishmentId) => {
+    const key = String(establishmentId || '');
+    if (!key) {
+      return;
+    }
+
+    const next = downloadedEstablishments.includes(key)
+      ? downloadedEstablishments.filter((item) => item !== key)
+      : [...downloadedEstablishments, key];
+
+    setDownloadedEstablishments(next);
+    await AsyncStorage.setItem(DOWNLOADED_ESTABLISHMENTS_KEY, JSON.stringify(next));
+  };
+
+  const handleSaveAccountSettings = async () => {
+    setSettingsMessage('');
+    setSettingsError('');
+    setSecurityMessage('');
+    setSecurityError('');
+
+    const trimmedName = accountName.trim();
+    const trimmedEmail = accountEmail.trim();
+
+    if (!trimmedName || !trimmedEmail) {
+      setSettingsError('Name and email are required.');
+      return;
+    }
+
+    if (newPassword && newPassword !== confirmPassword) {
+      setSettingsError('New password and confirmation do not match.');
+      return;
+    }
+
+    setIsSavingSettings(true);
+
+    try {
+      const payload = {
+        name: trimmedName,
+        email: trimmedEmail,
+      };
+
+      if (newPassword) {
+        payload.current_password = currentPassword;
+        payload.password = newPassword;
+        payload.password_confirmation = confirmPassword;
+      }
+
+      try {
+        const response = await updateProfile(payload);
+        const normalized = normalizeProfilePayload(response);
+        await updateUser({
+          ...user,
+          ...normalized,
+          name: normalized?.name || trimmedName,
+          email: normalized?.email || trimmedEmail,
+        });
+      } catch {
+        await updateUser({
+          ...user,
+          name: trimmedName,
+          email: trimmedEmail,
+        });
+      }
+
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+      setSettingsMessage('Account settings updated.');
+    } catch {
+      setSettingsError('Unable to save account settings right now.');
+    } finally {
+      setIsSavingSettings(false);
+    }
+  };
+
+  const handleSendVerificationEmail = async () => {
+    setSecurityMessage('');
+    setSecurityError('');
+
+    if (!registeredEmail) {
+      setSecurityError('No registered email is available for this account.');
+      return;
+    }
+
+    setIsSendingVerification(true);
+    try {
+      await sendEmailVerification(registeredEmail);
+      setSecurityMessage(`Verification email sent to ${registeredEmail}.`);
+    } catch (error) {
+      setSecurityError(
+        error?.response?.data?.message || 'Unable to send verification email right now.'
+      );
+    } finally {
+      setIsSendingVerification(false);
+    }
+  };
+
+  const handleRequestResetPassword = async () => {
+    setSecurityMessage('');
+    setSecurityError('');
+
+    if (!registeredEmail) {
+      setSecurityError('No registered email is available for this account.');
+      return;
+    }
+
+    setIsRequestingReset(true);
+    try {
+      await requestPasswordReset(registeredEmail);
+      setSecurityMessage(`Password reset instructions were sent to ${registeredEmail}.`);
+    } catch (error) {
+      setSecurityError(
+        error?.response?.data?.message || 'Unable to request password reset right now.'
+      );
+    } finally {
+      setIsRequestingReset(false);
+    }
+  };
+
+  return (
+    <ScreenContainer>
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        <Text style={styles.title}>Profile</Text>
+
+        <View style={styles.heroCard}>
+          <View style={styles.avatarWrap}>
+            {user?.profile_photo_url ? (
+              <Image source={{ uri: user.profile_photo_url }} style={styles.avatarImage} />
+            ) : (
+              <Text style={styles.avatarText}>{initials}</Text>
+            )}
+          </View>
+
+          <View style={styles.heroMeta}>
+            <Text style={styles.heroName} numberOfLines={1}>
+              {user?.name || 'Coffee Explorer'}
+            </Text>
+            <Text style={styles.heroEmail} numberOfLines={1}>
+              {user?.email || 'No email available'}
+            </Text>
+            <View style={styles.rolePill}>
+              <MaterialIcons
+                name={isEmailVerified ? 'verified' : 'report-gmailerrorred'}
+                size={14}
+                color={isEmailVerified ? '#24563B' : '#8A5A11'}
+              />
+              <Text style={styles.rolePillText}>
+                {isEmailVerified ? 'Email verified' : 'Email unverified'}
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        {!isEmailVerified ? (
+          <View style={styles.warningCard}>
+            <MaterialIcons name="warning-amber" size={18} color="#8A5A11" />
+            <View style={styles.warningBody}>
+              <Text style={styles.warningText}>
+                Your email is not verified yet. Verify your registered email to secure your account and restore access faster.
+              </Text>
+              <Pressable
+                style={[styles.warningActionButton, isSendingVerification && styles.warningActionButtonDisabled]}
+                onPress={handleSendVerificationEmail}
+                disabled={isSendingVerification}
+              >
+                <Text style={styles.warningActionText}>
+                  {isSendingVerification ? 'Sending...' : `Verify ${registeredEmail || 'Email'}`}
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        ) : null}
+
+        <Text style={styles.sectionTitle}>Saved Content</Text>
+        <Pressable style={styles.actionRow} onPress={() => navigation.navigate('SavedTrails')}>
+          <View style={styles.actionLeft}>
+            <MaterialIcons name="route" size={18} color="#2D4A1E" />
+            <Text style={styles.actionLabel}>Saved Trails</Text>
+          </View>
+          <View style={styles.actionRight}>
+            <Text style={styles.actionCount}>{savedTrails.length}</Text>
+            <MaterialIcons name="chevron-right" size={20} color="#6E6254" />
+          </View>
+        </Pressable>
+
+        <View style={styles.offlineBlock}>
+          <View style={styles.offlineHeader}>
+            <Text style={styles.offlineTitle}>Saved Coffee Varieties</Text>
+            <Text style={styles.offlineMeta}>{savedVarieties.length} saved</Text>
+          </View>
+
+          {savedVarieties.length ? (
+            savedVarieties.map((variety) => {
+              const downloaded = downloadedVarieties.includes(variety);
+              return (
+                <Pressable
+                  key={variety}
+                  style={styles.offlineItem}
+                  onPress={() => toggleVarietyOffline(variety)}
+                >
+                  <Text style={styles.offlineItemLabel}>{variety}</Text>
+                  <View style={[styles.offlineBadge, downloaded && styles.offlineBadgeActive]}>
+                    <MaterialIcons
+                      name={downloaded ? 'check-circle' : 'download'}
+                      size={14}
+                      color={downloaded ? '#24563B' : '#6E6254'}
+                    />
+                    <Text style={[styles.offlineBadgeText, downloaded && styles.offlineBadgeTextActive]}>
+                      {downloaded ? 'Offline' : 'Download'}
+                    </Text>
+                  </View>
+                </Pressable>
+              );
+            })
+          ) : (
+            <Text style={styles.emptyText}>No saved varieties yet. Save trails to populate this list.</Text>
+          )}
+        </View>
+
+        <View style={styles.offlineBlock}>
+          <View style={styles.offlineHeader}>
+            <Text style={styles.offlineTitle}>Saved Establishments</Text>
+            <Text style={styles.offlineMeta}>{savedEstablishments.length} saved</Text>
+          </View>
+
+          {savedEstablishments.length ? (
+            savedEstablishments.map((item) => {
+              const downloaded = downloadedEstablishments.includes(item.id);
+              return (
+                <Pressable
+                  key={item.id}
+                  style={styles.offlineItem}
+                  onPress={() => toggleEstablishmentOffline(item.id)}
+                >
+                  <View style={styles.establishmentMeta}>
+                    <Text style={styles.offlineItemLabel} numberOfLines={1}>
+                      {item.name}
+                    </Text>
+                    <Text style={styles.establishmentAddress} numberOfLines={1}>
+                      {item.address}
+                    </Text>
+                  </View>
+                  <View style={[styles.offlineBadge, downloaded && styles.offlineBadgeActive]}>
+                    <MaterialIcons
+                      name={downloaded ? 'check-circle' : 'download'}
+                      size={14}
+                      color={downloaded ? '#24563B' : '#6E6254'}
+                    />
+                    <Text style={[styles.offlineBadgeText, downloaded && styles.offlineBadgeTextActive]}>
+                      {downloaded ? 'Offline' : 'Download'}
+                    </Text>
+                  </View>
+                </Pressable>
+              );
+            })
+          ) : (
+            <Text style={styles.emptyText}>No saved establishments yet. Save trails to populate this list.</Text>
+          )}
+        </View>
+
+        <Text style={styles.sectionTitle}>Account Settings</Text>
+        <View style={styles.settingsCard}>
+          <Text style={styles.inputLabel}>Name</Text>
+          <TextInput style={styles.input} value={accountName} onChangeText={setAccountName} />
+
+          <Text style={styles.inputLabel}>Email</Text>
+          <TextInput
+            style={styles.input}
+            value={accountEmail}
+            onChangeText={setAccountEmail}
+            autoCapitalize="none"
+            keyboardType="email-address"
+          />
+
+          <Text style={styles.inputLabel}>Current Password</Text>
+          <TextInput
+            style={styles.input}
+            value={currentPassword}
+            onChangeText={setCurrentPassword}
+            secureTextEntry
+            placeholder="Required when changing password"
+            placeholderTextColor="#9E8C78"
+          />
+
+          <Text style={styles.inputLabel}>New Password</Text>
+          <TextInput
+            style={styles.input}
+            value={newPassword}
+            onChangeText={setNewPassword}
+            secureTextEntry
+            placeholder="Enter a new password"
+            placeholderTextColor="#9E8C78"
+          />
+
+          <Text style={styles.inputLabel}>Confirm New Password</Text>
+          <TextInput
+            style={styles.input}
+            value={confirmPassword}
+            onChangeText={setConfirmPassword}
+            secureTextEntry
+            placeholder="Repeat new password"
+            placeholderTextColor="#9E8C78"
+          />
+
+          {settingsError ? <Text style={styles.errorText}>{settingsError}</Text> : null}
+          {settingsMessage ? <Text style={styles.successText}>{settingsMessage}</Text> : null}
+
+          <Pressable
+            style={[styles.primaryButton, isSavingSettings && styles.primaryButtonDisabled]}
+            onPress={handleSaveAccountSettings}
+            disabled={isSavingSettings}
+          >
+            <Text style={styles.primaryButtonText}>
+              {isSavingSettings ? 'Saving...' : 'Save Account Settings'}
+            </Text>
+          </Pressable>
+
+          <Text style={styles.subSectionTitle}>Design Email (Verification Email)</Text>
+          <View style={styles.readonlyEmailWrap}>
+            <MaterialIcons name="email" size={15} color="#6E6254" />
+            <Text style={styles.readonlyEmailText} numberOfLines={1}>
+              {registeredEmail || 'No registered email found'}
+            </Text>
+          </View>
+          <Text style={styles.helperText}>
+            This is the same registered email used in reseller-side verification.
+          </Text>
+
+          <Text style={styles.subSectionTitle}>Request Password Reset</Text>
+          <View style={styles.readonlyEmailWrap}>
+            <MaterialIcons name="mark-email-read" size={15} color="#6E6254" />
+            <Text style={styles.readonlyEmailText} numberOfLines={1}>
+              {registeredEmail || 'No registered email found'}
+            </Text>
+          </View>
+          <Text style={styles.helperText}>
+            Reset instructions will be sent only to your registered verification email.
+          </Text>
+          <Pressable
+            style={[styles.secondaryButton, isRequestingReset && styles.secondaryButtonDisabled]}
+            onPress={handleRequestResetPassword}
+            disabled={isRequestingReset}
+          >
+            <Text style={styles.secondaryButtonText}>
+              {isRequestingReset ? 'Requesting...' : 'Request Reset Password'}
+            </Text>
+          </Pressable>
+
+          {securityError ? <Text style={styles.errorText}>{securityError}</Text> : null}
+          {securityMessage ? <Text style={styles.successText}>{securityMessage}</Text> : null}
+        </View>
+
+        <Pressable style={styles.signOutButton} onPress={signOut}>
+          <Text style={styles.signOutText}>Sign Out</Text>
+        </Pressable>
+      </ScrollView>
+    </ScreenContainer>
+  );
 }
 
 const styles = StyleSheet.create({
-	scrollContent: {
-		paddingBottom: theme.spacing.lg,
-	},
-	title: {
-		fontSize: theme.fontSizes.xl,
-		fontWeight: '700',
-		color: theme.colors.sidebar,
-		marginBottom: theme.spacing.md,
-		fontFamily: theme.fonts.display,
-	},
-	sectionTitle: {
-		marginTop: theme.spacing.sm,
-		marginBottom: theme.spacing.sm,
-		fontSize: theme.fontSizes.lg,
-		fontWeight: '700',
-		color: theme.colors.sidebar,
-		fontFamily: theme.fonts.display,
-	},
-	signOutButton: {
-		marginTop: theme.spacing.md,
-		backgroundColor: theme.colors.accentGold,
-		borderRadius: theme.borderRadius.md,
-		alignItems: 'center',
-		paddingVertical: theme.spacing.sm,
-	},
-	signOutText: {
-		color: theme.colors.white,
-		fontWeight: '700',
-		fontSize: theme.fontSizes.md,
-		fontFamily: theme.fonts.body,
-	},
+  scrollContent: {
+    paddingBottom: theme.spacing.lg,
+  },
+  title: {
+    fontSize: theme.fontSizes.xl,
+    fontWeight: '700',
+    color: theme.colors.sidebar,
+    marginBottom: theme.spacing.md,
+    fontFamily: theme.fonts.display,
+  },
+  heroCard: {
+    backgroundColor: theme.colors.white,
+    borderRadius: theme.borderRadius.lg,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    padding: theme.spacing.md,
+    flexDirection: 'row',
+    gap: theme.spacing.md,
+    alignItems: 'center',
+  },
+  avatarWrap: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: '#E8DDCF',
+    borderWidth: 1,
+    borderColor: '#D0C2B2',
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  avatarImage: {
+    width: '100%',
+    height: '100%',
+  },
+  avatarText: {
+    fontFamily: theme.fonts.display,
+    fontSize: 22,
+    color: '#6E4E2D',
+    fontWeight: '700',
+  },
+  heroMeta: {
+    flex: 1,
+    gap: 4,
+  },
+  heroName: {
+    fontFamily: theme.fonts.display,
+    fontSize: 22,
+    color: theme.colors.sidebar,
+    fontWeight: '700',
+  },
+  heroEmail: {
+    fontFamily: theme.fonts.body,
+    color: '#6E6254',
+    fontSize: 14,
+  },
+  rolePill: {
+    marginTop: 4,
+    borderWidth: 1,
+    borderColor: '#D5CABD',
+    borderRadius: theme.borderRadius.pill,
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    backgroundColor: '#F8F3EB',
+  },
+  rolePillText: {
+    fontFamily: theme.fonts.body,
+    fontSize: 12,
+    color: '#6E6254',
+    fontWeight: '600',
+  },
+  warningCard: {
+    marginTop: theme.spacing.sm,
+    borderRadius: theme.borderRadius.md,
+    borderWidth: 1,
+    borderColor: '#E4C998',
+    backgroundColor: '#FFF7E7',
+    padding: theme.spacing.sm,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  warningText: {
+    color: '#8A5A11',
+    fontFamily: theme.fonts.body,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  warningBody: {
+    flex: 1,
+    gap: 8,
+  },
+  warningActionButton: {
+    alignSelf: 'flex-start',
+    borderRadius: theme.borderRadius.pill,
+    borderWidth: 1,
+    borderColor: '#C8A86F',
+    backgroundColor: '#FFF1D7',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  warningActionButtonDisabled: {
+    opacity: 0.65,
+  },
+  warningActionText: {
+    color: '#7D5215',
+    fontFamily: theme.fonts.body,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  sectionTitle: {
+    marginTop: theme.spacing.md,
+    marginBottom: theme.spacing.sm,
+    fontSize: theme.fontSizes.lg,
+    fontWeight: '700',
+    color: theme.colors.sidebar,
+    fontFamily: theme.fonts.display,
+  },
+  actionRow: {
+    backgroundColor: theme.colors.white,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    borderRadius: theme.borderRadius.md,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.sm,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  actionLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  actionRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+  },
+  actionLabel: {
+    fontFamily: theme.fonts.body,
+    fontWeight: '600',
+    fontSize: 14,
+    color: '#3A2E22',
+  },
+  actionCount: {
+    fontFamily: theme.fonts.body,
+    color: '#6E6254',
+    fontWeight: '700',
+  },
+  offlineBlock: {
+    marginTop: theme.spacing.sm,
+    backgroundColor: theme.colors.white,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    borderRadius: theme.borderRadius.md,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.sm,
+    gap: 8,
+  },
+  offlineHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  offlineTitle: {
+    fontFamily: theme.fonts.body,
+    color: '#3A2E22',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  offlineMeta: {
+    fontFamily: theme.fonts.body,
+    color: '#9E8C78',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  offlineItem: {
+    borderWidth: 1,
+    borderColor: '#E7DED3',
+    borderRadius: theme.borderRadius.sm,
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  offlineItemLabel: {
+    fontFamily: theme.fonts.body,
+    color: '#3A2E22',
+    fontWeight: '600',
+    fontSize: 14,
+    flexShrink: 1,
+  },
+  offlineBadge: {
+    borderWidth: 1,
+    borderColor: '#D8CCBE',
+    borderRadius: theme.borderRadius.pill,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#FCFAF6',
+  },
+  offlineBadgeActive: {
+    borderColor: '#8EB296',
+    backgroundColor: '#EEF7F0',
+  },
+  offlineBadgeText: {
+    fontFamily: theme.fonts.body,
+    fontSize: 12,
+    color: '#6E6254',
+    fontWeight: '600',
+  },
+  offlineBadgeTextActive: {
+    color: '#24563B',
+  },
+  establishmentMeta: {
+    flex: 1,
+    gap: 2,
+  },
+  establishmentAddress: {
+    fontFamily: theme.fonts.body,
+    color: '#9E8C78',
+    fontSize: 12,
+  },
+  emptyText: {
+    fontFamily: theme.fonts.body,
+    color: '#9E8C78',
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  settingsCard: {
+    backgroundColor: theme.colors.white,
+    borderRadius: theme.borderRadius.md,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    padding: theme.spacing.md,
+  },
+  inputLabel: {
+    fontFamily: theme.fonts.body,
+    color: '#6E6254',
+    fontSize: 12,
+    marginBottom: 4,
+    fontWeight: '600',
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: '#D8CCBE',
+    borderRadius: theme.borderRadius.sm,
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+    fontFamily: theme.fonts.body,
+    color: '#3A2E22',
+    marginBottom: 10,
+    backgroundColor: '#FFFCF8',
+  },
+  errorText: {
+    fontFamily: theme.fonts.body,
+    color: '#A33939',
+    marginBottom: 8,
+    fontSize: 12,
+  },
+  successText: {
+    fontFamily: theme.fonts.body,
+    color: '#24563B',
+    marginBottom: 8,
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  primaryButton: {
+    marginTop: 4,
+    backgroundColor: '#2D4A1E',
+    borderRadius: theme.borderRadius.md,
+    alignItems: 'center',
+    paddingVertical: 11,
+  },
+  primaryButtonDisabled: {
+    opacity: 0.65,
+  },
+  primaryButtonText: {
+    color: theme.colors.white,
+    fontFamily: theme.fonts.body,
+    fontWeight: '700',
+    fontSize: 14,
+  },
+  secondaryButton: {
+    marginTop: 8,
+    borderWidth: 1,
+    borderColor: '#D8CCBE',
+    borderRadius: theme.borderRadius.md,
+    alignItems: 'center',
+    paddingVertical: 10,
+    backgroundColor: '#F9F4EC',
+  },
+  secondaryButtonDisabled: {
+    opacity: 0.65,
+  },
+  secondaryButtonText: {
+    color: '#6E6254',
+    fontFamily: theme.fonts.body,
+    fontWeight: '600',
+    fontSize: 13,
+  },
+  subSectionTitle: {
+    marginTop: 14,
+    marginBottom: 4,
+    fontFamily: theme.fonts.body,
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#3A2E22',
+  },
+  readonlyEmailWrap: {
+    borderWidth: 1,
+    borderColor: '#D8CCBE',
+    borderRadius: theme.borderRadius.sm,
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+    backgroundColor: '#F7F2EA',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  readonlyEmailText: {
+    flex: 1,
+    fontFamily: theme.fonts.body,
+    color: '#3A2E22',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  helperText: {
+    marginTop: 6,
+    fontFamily: theme.fonts.body,
+    color: '#7A6B59',
+    fontSize: 12,
+    lineHeight: 17,
+  },
+  signOutButton: {
+    marginTop: theme.spacing.md,
+    backgroundColor: theme.colors.accentGold,
+    borderRadius: theme.borderRadius.md,
+    alignItems: 'center',
+    paddingVertical: theme.spacing.sm,
+  },
+  signOutText: {
+    color: theme.colors.white,
+    fontWeight: '700',
+    fontSize: theme.fontSizes.md,
+    fontFamily: theme.fonts.body,
+  },
 });

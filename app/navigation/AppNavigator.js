@@ -10,6 +10,7 @@ import PromosScreen from '../screens/promos';
 import MarketplaceScreen from '../screens/marketplace';
 import MarketplaceCartScreen from '../screens/marketplace/CartScreen';
 import ProfileScreen from '../screens/profile';
+import SavedTrailsScreen from '../screens/profile/SavedTrailsScreen';
 import RatingScreen from '../screens/ratings';
 
 const Tab = createBottomTabNavigator();
@@ -165,6 +166,14 @@ export default function AppNavigator() {
         }}
       />
       <Stack.Screen name="Profile" component={ProfileScreen} />
+      <Stack.Screen
+        name="SavedTrails"
+        component={SavedTrailsScreen}
+        options={{
+          gestureDirection: 'horizontal',
+          cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
+        }}
+      />
     </Stack.Navigator>
   );
 }
