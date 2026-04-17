@@ -24,5 +24,6 @@ export {
 	requestPasswordReset,
 	resetPasswordWithOtp,
 	sendEmailVerification,
+	verifyEmailOtp,
 	authService,
 } from './api';

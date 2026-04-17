@@ -16,6 +16,7 @@ import { useAuth } from '../../context';
 import {
   getProfile,
   sendEmailVerification,
+  verifyEmailOtp,
 } from '../../services';
 import theme from '../../theme';
 
@@ -89,6 +90,8 @@ export default function ProfileScreen({ navigation }) {
   const [securityMessage, setSecurityMessage] = useState('');
   const [securityError, setSecurityError] = useState('');
   const [isSendingVerification, setIsSendingVerification] = useState(false);
+  const [verificationOtp, setVerificationOtp] = useState('');
+  const [isVerifyingOtp, setIsVerifyingOtp] = useState(false);
 
   const isEmailVerified = Boolean(user?.email_verified || user?.email_verified_at);
   const registeredEmail = String(user?.email || '').trim();
@@ -174,13 +177,52 @@ export default function ProfileScreen({ navigation }) {
     setIsSendingVerification(true);
     try {
       await sendEmailVerification(registeredEmail);
-      setSecurityMessage(`Verification email sent to ${registeredEmail}.`);
+      setSecurityMessage(`Verification code sent to ${registeredEmail}.`);
     } catch (error) {
       setSecurityError(
         error?.response?.data?.message || 'Unable to send verification email right now.'
       );
     } finally {
       setIsSendingVerification(false);
+    }
+  };
+
+  const handleVerifyOtp = async () => {
+    setSecurityMessage('');
+    setSecurityError('');
+
+    if (!registeredEmail) {
+      setSecurityError('No registered email is available for this account.');
+      return;
+    }
+
+    if (verificationOtp.trim().length !== 6) {
+      setSecurityError('Enter the 6-digit verification code from your email.');
+      return;
+    }
+
+    setIsVerifyingOtp(true);
+    try {
+      const response = await verifyEmailOtp({
+        email: registeredEmail,
+        otp: verificationOtp.trim(),
+      });
+
+      const verifiedAt = new Date().toISOString();
+      await updateUser({
+        ...user,
+        email_verified: true,
+        email_verified_at: verifiedAt,
+      });
+
+      setVerificationOtp('');
+      setSecurityMessage(response?.message || 'Email verified successfully.');
+    } catch (error) {
+      setSecurityError(
+        error?.response?.data?.message || 'Unable to verify code right now.'
+      );
+    } finally {
+      setIsVerifyingOtp(false);
     }
   };
 
@@ -231,7 +273,26 @@ export default function ProfileScreen({ navigation }) {
                 disabled={isSendingVerification}
               >
                 <Text style={styles.warningActionText}>
-                  {isSendingVerification ? 'Sending...' : `Verify ${registeredEmail || 'Email'}`}
+                  {isSendingVerification ? 'Sending...' : `Send Code to ${registeredEmail || 'Email'}`}
+                </Text>
+              </Pressable>
+
+              <TextInput
+                style={styles.verificationOtpInput}
+                placeholder="Enter 6-digit code"
+                placeholderTextColor="#8A7B66"
+                keyboardType="number-pad"
+                maxLength={6}
+                value={verificationOtp}
+                onChangeText={(value) => setVerificationOtp(value.replace(/[^0-9]/g, ''))}
+              />
+              <Pressable
+                style={[styles.warningVerifyButton, isVerifyingOtp && styles.warningActionButtonDisabled]}
+                onPress={handleVerifyOtp}
+                disabled={isVerifyingOtp}
+              >
+                <Text style={styles.warningVerifyButtonText}>
+                  {isVerifyingOtp ? 'Verifying...' : 'Verify Code'}
                 </Text>
               </Pressable>
 
@@ -471,6 +532,31 @@ const styles = StyleSheet.create({
   },
   warningActionText: {
     color: '#7D5215',
+    fontFamily: theme.fonts.body,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  verificationOtpInput: {
+    borderWidth: 1,
+    borderColor: '#D8CCBE',
+    borderRadius: theme.borderRadius.sm,
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+    fontFamily: theme.fonts.body,
+    color: '#3A2E22',
+    backgroundColor: '#FFFCF8',
+  },
+  warningVerifyButton: {
+    alignSelf: 'flex-start',
+    borderRadius: theme.borderRadius.pill,
+    borderWidth: 1,
+    borderColor: '#8EB296',
+    backgroundColor: '#EEF7F0',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  warningVerifyButtonText: {
+    color: '#24563B',
     fontFamily: theme.fonts.body,
     fontSize: 12,
     fontWeight: '700',

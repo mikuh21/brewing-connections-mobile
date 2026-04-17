@@ -250,6 +250,14 @@ export const sendEmailVerification = async (email) => {
   );
 };
 
+export const verifyEmailOtp = async ({ email, otp }) => {
+  const response = await api.post('/api/email/verify-otp', {
+    email,
+    otp,
+  });
+  return unwrap(response);
+};
+
 // Compatibility export for existing auth context usage.
 export const authService = {
   login: async ({ email, password }) => login(email, password),
