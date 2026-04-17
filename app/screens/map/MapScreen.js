@@ -482,6 +482,7 @@ function estimateEtaFromDistance(distanceKm) {
 const TRAIL_REROUTE_MIN_DISTANCE_KM = 0.05;
 const TRAIL_REROUTE_MIN_INTERVAL_MS = 10000;
 const TRAIL_RESET_SIGNAL_KEY = 'trail_reset_signal_at';
+const SAVED_ESTABLISHMENTS_KEY = 'saved_establishments';
 
 function shouldRefreshTrailLeg(previousPoint, nextPoint, lastRefreshAt) {
   if (!previousPoint || !lastRefreshAt) {
@@ -573,6 +574,7 @@ export default function MapScreen({ navigation, route }) {
   const [showDestinationReachedModal, setShowDestinationReachedModal] = useState(false);
   const [activeSheetImageUri, setActiveSheetImageUri] = useState(null);
   const [activeSheetImageIndex, setActiveSheetImageIndex] = useState(0);
+  const [savedEstablishments, setSavedEstablishments] = useState([]);
   const lastRerouteRef = useRef({
     point: null,
     at: 0,
@@ -716,6 +718,40 @@ export default function MapScreen({ navigation, route }) {
       return activeVarieties.some((variety) => varieties.includes(variety));
     });
   }, [establishments, filter, selectedVarieties, searchQuery]);
+
+  const isSelectedEstablishmentSaved = useMemo(() => {
+    if (!selectedEstablishment) {
+      return false;
+    }
+
+    return savedEstablishments.some((item) => item?.id === selectedEstablishment.id);
+  }, [savedEstablishments, selectedEstablishment]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadSavedEstablishments = async () => {
+      try {
+        const raw = await AsyncStorage.getItem(SAVED_ESTABLISHMENTS_KEY);
+        if (!isMounted) {
+          return;
+        }
+
+        const parsed = JSON.parse(raw || '[]');
+        setSavedEstablishments(Array.isArray(parsed) ? parsed : []);
+      } catch {
+        if (isMounted) {
+          setSavedEstablishments([]);
+        }
+      }
+    };
+
+    loadSavedEstablishments();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -1158,6 +1194,33 @@ export default function MapScreen({ navigation, route }) {
     }
 
     handleDismissSheet();
+  };
+
+  const handleToggleSaveEstablishment = async (item) => {
+    if (!item?.id) {
+      return;
+    }
+
+    const establishmentId = String(item.id);
+
+    setSavedEstablishments((prev) => {
+      const exists = prev.some((entry) => String(entry?.id) === establishmentId);
+      const next = exists
+        ? prev.filter((entry) => String(entry?.id) !== establishmentId)
+        : [
+            ...prev,
+            {
+              id: establishmentId,
+              name: item.name || 'Coffee Stop',
+              address: item.address || 'Address not available',
+              type: item.type || '',
+              savedAt: new Date().toISOString(),
+            },
+          ];
+
+      AsyncStorage.setItem(SAVED_ESTABLISHMENTS_KEY, JSON.stringify(next)).catch(() => {});
+      return next;
+    });
   };
 
   const handleClearRoute = () => {
@@ -1845,6 +1908,17 @@ export default function MapScreen({ navigation, route }) {
 
               <Pressable style={styles.sheetCloseButton} onPress={handleDismissSheet}>
                 <Text style={styles.sheetCloseText}>×</Text>
+              </Pressable>
+
+              <Pressable
+                style={styles.sheetSaveButton}
+                onPress={() => handleToggleSaveEstablishment(selectedEstablishment)}
+              >
+                <MaterialIcons
+                  name={isSelectedEstablishmentSaved ? 'favorite' : 'favorite-border'}
+                  size={18}
+                  color={isSelectedEstablishmentSaved ? '#A33939' : '#FFFFFF'}
+                />
               </Pressable>
             </View>
 
@@ -2827,6 +2901,19 @@ const styles = StyleSheet.create({
     right: 10,
     paddingHorizontal: 6,
     paddingVertical: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sheetSaveButton: {
+    position: 'absolute',
+    top: 10,
+    right: 42,
+    width: 28,
+    height: 28,
+    borderRadius: 999,
+    backgroundColor: 'rgba(58, 46, 34, 0.52)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.62)',
     alignItems: 'center',
     justifyContent: 'center',
   },

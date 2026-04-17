@@ -22,6 +22,7 @@ import {
 import theme from '../../theme';
 
 const SAVED_TRAILS_KEY = 'saved_coffee_trails';
+const SAVED_ESTABLISHMENTS_KEY = 'saved_establishments';
 const DOWNLOADED_VARIETIES_KEY = 'offline_saved_varieties';
 const DOWNLOADED_ESTABLISHMENTS_KEY = 'offline_saved_establishments';
 
@@ -52,41 +53,11 @@ function normalizeProfilePayload(rawData) {
   };
 }
 
-function getUniqueSavedVarieties(savedTrails) {
-  const fromPreferences = savedTrails.flatMap((trail) => {
-    const list = trail?.preferences?.varieties;
-    return Array.isArray(list) ? list : [];
-  });
-
-  return Array.from(new Set(fromPreferences.map((item) => String(item || '').trim()).filter(Boolean)));
-}
-
-function getUniqueSavedEstablishments(savedTrails) {
-  const mapById = new Map();
-
-  savedTrails.forEach((trail, trailIndex) => {
-    const stops = Array.isArray(trail?.trailStops) ? trail.trailStops : [];
-    stops.forEach((stop, stopIndex) => {
-      const id = String(stop?.establishment_id ?? stop?.id ?? `${trailIndex}-${stopIndex}`);
-      if (mapById.has(id)) {
-        return;
-      }
-
-      mapById.set(id, {
-        id,
-        name: stop?.name || 'Coffee Stop',
-        address: stop?.address || stop?.barangay || 'Address not available',
-      });
-    });
-  });
-
-  return Array.from(mapById.values());
-}
-
 export default function ProfileScreen({ navigation }) {
   const { user, signOut, updateUser } = useAuth();
   const [savedTrails, setSavedTrails] = useState([]);
   const [downloadedVarieties, setDownloadedVarieties] = useState([]);
+  const [savedEstablishments, setSavedEstablishments] = useState([]);
   const [downloadedEstablishments, setDownloadedEstablishments] = useState([]);
   const [securityMessage, setSecurityMessage] = useState('');
   const [securityError, setSecurityError] = useState('');
@@ -100,29 +71,32 @@ export default function ProfileScreen({ navigation }) {
   const accountName = user?.name || '';
   const accountEmail = user?.email || '';
 
-  const savedVarieties = useMemo(() => getUniqueSavedVarieties(savedTrails), [savedTrails]);
-  const savedEstablishments = useMemo(() => getUniqueSavedEstablishments(savedTrails), [savedTrails]);
+  const savedVarieties = useMemo(() => [], []);
 
   const initials = getInitials(user?.name, user?.email);
 
   const restoreProfileAndStorage = useCallback(async () => {
     try {
-      const [savedTrailsRaw, varietiesRaw, establishmentsRaw] = await Promise.all([
+      const [savedTrailsRaw, varietiesRaw, savedEstablishmentsRaw, establishmentsRaw] = await Promise.all([
         AsyncStorage.getItem(SAVED_TRAILS_KEY),
         AsyncStorage.getItem(DOWNLOADED_VARIETIES_KEY),
+        AsyncStorage.getItem(SAVED_ESTABLISHMENTS_KEY),
         AsyncStorage.getItem(DOWNLOADED_ESTABLISHMENTS_KEY),
       ]);
 
       const parsedTrails = JSON.parse(savedTrailsRaw || '[]');
       const parsedVarieties = JSON.parse(varietiesRaw || '[]');
+      const parsedSavedEstablishments = JSON.parse(savedEstablishmentsRaw || '[]');
       const parsedEstablishments = JSON.parse(establishmentsRaw || '[]');
 
       setSavedTrails(Array.isArray(parsedTrails) ? parsedTrails : []);
       setDownloadedVarieties(Array.isArray(parsedVarieties) ? parsedVarieties : []);
+      setSavedEstablishments(Array.isArray(parsedSavedEstablishments) ? parsedSavedEstablishments : []);
       setDownloadedEstablishments(Array.isArray(parsedEstablishments) ? parsedEstablishments : []);
     } catch {
       setSavedTrails([]);
       setDownloadedVarieties([]);
+      setSavedEstablishments([]);
       setDownloadedEstablishments([]);
     }
 
@@ -346,7 +320,7 @@ export default function ProfileScreen({ navigation }) {
               );
             })
           ) : (
-            <Text style={styles.emptyText}>No saved varieties yet. Save trails to populate this list.</Text>
+            <Text style={styles.emptyText}>No saved varieties yet. This will be available in Coffee Variety About soon.</Text>
           )}
         </View>
 
@@ -387,7 +361,7 @@ export default function ProfileScreen({ navigation }) {
               );
             })
           ) : (
-            <Text style={styles.emptyText}>No saved establishments yet. Save trails to populate this list.</Text>
+            <Text style={styles.emptyText}>No saved establishments yet. Tap the heart icon in map details to save.</Text>
           )}
         </View>
 
