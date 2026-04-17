@@ -414,7 +414,7 @@ export default function ProfileScreen({ navigation }) {
         </View>
 
         <Pressable style={styles.signOutButton} onPress={signOut}>
-          <Text style={styles.signOutText}>Sign Out</Text>
+          <Text style={styles.signOutText}>Log Out</Text>
         </Pressable>
       </ScrollView>
     </ScreenContainer>
@@ -430,7 +430,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: theme.colors.sidebar,
     marginBottom: theme.spacing.md,
-    fontFamily: theme.fonts.display,
+    fontFamily: 'PoppinsBold',
   },
   heroCard: {
     backgroundColor: theme.colors.white,
@@ -567,7 +567,7 @@ const styles = StyleSheet.create({
     fontSize: theme.fontSizes.lg,
     fontWeight: '700',
     color: theme.colors.sidebar,
-    fontFamily: theme.fonts.display,
+    fontFamily: 'PoppinsBold',
   },
   actionRow: {
     backgroundColor: theme.colors.white,
@@ -736,7 +736,7 @@ const styles = StyleSheet.create({
   },
   signOutButton: {
     marginTop: theme.spacing.md,
-    backgroundColor: theme.colors.accentGold,
+    backgroundColor: '#A33939',
     borderRadius: theme.borderRadius.md,
     alignItems: 'center',
     paddingVertical: theme.spacing.sm,
