@@ -83,18 +83,6 @@ function getUniqueSavedEstablishments(savedTrails) {
   return Array.from(mapById.values());
 }
 
-function generateTemporaryPassword(fullName) {
-  const nameParts = String(fullName || '').trim().split(/\s+/).filter(Boolean);
-  const firstInitial = (nameParts[0]?.[0] || 'U').toUpperCase();
-  const surnameInitial = (nameParts[nameParts.length - 1]?.[0] || 'X').toUpperCase();
-  const numbers = String(Math.floor(1000 + Math.random() * 9000));
-  const specials = ['!', '@', '#', '$', '%', '&'];
-  const specialA = specials[Math.floor(Math.random() * specials.length)];
-  const specialB = specials[Math.floor(Math.random() * specials.length)];
-
-  return `${firstInitial}${surnameInitial}${numbers}${specialA}${specialB}`;
-}
-
 export default function ProfileScreen({ navigation }) {
   const { user, signOut, updateUser } = useAuth();
   const [savedTrails, setSavedTrails] = useState([]);
@@ -265,13 +253,8 @@ export default function ProfileScreen({ navigation }) {
 
     setIsRequestingReset(true);
     try {
-      const generatedPassword = generateTemporaryPassword(user?.name || accountName);
-      await requestPasswordReset(registeredEmail, {
-        generatedPassword,
-      });
-      setSecurityMessage(
-        `Password reset email sent to ${registeredEmail}. A temporary generated password was included.`
-      );
+      await requestPasswordReset(registeredEmail);
+      setSecurityMessage(`Password reset link sent to ${registeredEmail}.`);
     } catch (error) {
       setSecurityError(
         error?.response?.data?.message || 'Unable to request password reset right now.'
@@ -457,7 +440,7 @@ export default function ProfileScreen({ navigation }) {
             </Text>
           </View>
           <Text style={styles.helperText}>
-            Clicking reset will email a generated temporary password to your registered account email.
+            Clicking reset will send a password reset link to your registered account email.
           </Text>
           <Pressable
             style={[styles.secondaryButton, isRequestingReset && styles.secondaryButtonDisabled]}
