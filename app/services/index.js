@@ -22,6 +22,7 @@ export {
 	getProfile,
 	updateProfile,
 	requestPasswordReset,
+	resetPasswordWithOtp,
 	sendEmailVerification,
 	authService,
 } from './api';

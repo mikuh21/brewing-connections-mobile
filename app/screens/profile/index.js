@@ -254,7 +254,7 @@ export default function ProfileScreen({ navigation }) {
     setIsRequestingReset(true);
     try {
       await requestPasswordReset(registeredEmail);
-      setSecurityMessage(`Password reset link sent to ${registeredEmail}.`);
+      setSecurityMessage(`Password reset code sent to ${registeredEmail}.`);
     } catch (error) {
       setSecurityError(
         error?.response?.data?.message || 'Unable to request password reset right now.'
@@ -440,7 +440,7 @@ export default function ProfileScreen({ navigation }) {
             </Text>
           </View>
           <Text style={styles.helperText}>
-            Clicking reset will send a password reset link to your registered account email.
+            Clicking reset will send a 6-digit password reset code to your registered account email.
           </Text>
           <Pressable
             style={[styles.secondaryButton, isRequestingReset && styles.secondaryButtonDisabled]}

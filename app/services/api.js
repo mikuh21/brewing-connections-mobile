@@ -230,10 +230,17 @@ export const updateProfile = async (data) => {
 };
 
 export const requestPasswordReset = async (email) => {
-  return postWithFallback(
-    ['/api/forgot-password', '/forgot-password', '/api/password/email', '/password/email'],
-    { email }
-  );
+  return api.post('/api/password/forgot', { email }).then(unwrap);
+};
+
+export const resetPasswordWithOtp = async ({ email, otp, password, password_confirmation }) => {
+  const response = await api.post('/api/password/reset', {
+    email,
+    otp,
+    password,
+    password_confirmation,
+  });
+  return unwrap(response);
 };
 
 export const sendEmailVerification = async (email) => {
