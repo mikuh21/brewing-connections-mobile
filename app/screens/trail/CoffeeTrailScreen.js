@@ -795,7 +795,7 @@ export default function CoffeeTrailScreen({ navigation }) {
   };
 
   const handleSaveTrail = async () => {
-    if (!trailData.length || isSavingTrail || isTrailSaved) {
+    if (!trailData.length || isSavingTrail) {
       return;
     }
 
@@ -813,20 +813,6 @@ export default function CoffeeTrailScreen({ navigation }) {
         },
       });
 
-      const snapshot = {
-        id: Date.now().toString(),
-        savedAt: new Date().toISOString(),
-        signature,
-        trailStops: trailData,
-        trailTotals,
-        trailOrigin,
-        preferences: {
-          varieties: selectedVarieties,
-          types: selectedTypes,
-          maxStops,
-        },
-      };
-
       const existingRaw = await AsyncStorage.getItem(SAVED_TRAILS_KEY);
       const parsed = JSON.parse(existingRaw || '[]');
       const existing = Array.isArray(parsed) ? parsed : [];
@@ -842,11 +828,28 @@ export default function CoffeeTrailScreen({ navigation }) {
         return itemSignature !== signature;
       });
 
-      const next = [snapshot, ...withoutCurrent].slice(0, 20);
+      const isCurrentlySaved = withoutCurrent.length !== existing.length;
+
+      const snapshot = {
+        id: Date.now().toString(),
+        savedAt: new Date().toISOString(),
+        signature,
+        trailStops: trailData,
+        trailTotals,
+        trailOrigin,
+        preferences: {
+          varieties: selectedVarieties,
+          types: selectedTypes,
+          maxStops,
+        },
+      };
+
+      const next = isCurrentlySaved ? withoutCurrent : [snapshot, ...withoutCurrent].slice(0, 20);
       await AsyncStorage.setItem(SAVED_TRAILS_KEY, JSON.stringify(next));
-      setIsTrailSaved(true);
+
+      setIsTrailSaved(!isCurrentlySaved);
     } catch {
-      setErrorMessage('Unable to save trail right now. Please try again.');
+      setErrorMessage('Unable to update saved trail right now. Please try again.');
     } finally {
       setIsSavingTrail(false);
     }
@@ -1112,13 +1115,21 @@ export default function CoffeeTrailScreen({ navigation }) {
 
           <View style={styles.actionsFooter}>
             <Pressable
-              style={[styles.saveTrailButton, (isSavingTrail || isTrailSaved) && styles.saveTrailButtonDisabled]}
+              style={[
+                styles.saveTrailButton,
+                isTrailSaved && styles.unsaveTrailButton,
+                isSavingTrail && styles.saveTrailButtonDisabled,
+              ]}
               onPress={handleSaveTrail}
-              disabled={isSavingTrail || isTrailSaved}
+              disabled={isSavingTrail}
             >
-              <MaterialIcons name={isTrailSaved ? 'bookmark' : 'bookmark-border'} size={16} color={COLORS.primary} />
-              <Text style={styles.saveTrailButtonText}>
-                {isSavingTrail ? 'Saving Trail...' : isTrailSaved ? 'Saved' : 'Save Trail'}
+              <MaterialIcons
+                name={isTrailSaved ? 'bookmark' : 'bookmark-border'}
+                size={16}
+                color={isTrailSaved ? '#A33939' : COLORS.primary}
+              />
+              <Text style={[styles.saveTrailButtonText, isTrailSaved && styles.unsaveTrailButtonText]}>
+                {isSavingTrail ? (isTrailSaved ? 'Unsaving Trail...' : 'Saving Trail...') : isTrailSaved ? 'Unsave Trail' : 'Save Trail'}
               </Text>
             </Pressable>
 
@@ -1849,6 +1860,13 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 16,
     fontFamily: 'PoppinsBold',
+  },
+  unsaveTrailButton: {
+    backgroundColor: 'rgba(163, 57, 57, 0.12)',
+    borderColor: 'rgba(163, 57, 57, 0.45)',
+  },
+  unsaveTrailButtonText: {
+    color: '#A33939',
   },
   saveTrailButtonDisabled: {
     opacity: 0.7,
