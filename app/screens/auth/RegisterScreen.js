@@ -11,6 +11,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { MaterialIcons } from '@expo/vector-icons';
 import { register as registerRequest } from '../../services';
 import theme from '../../theme';
 
@@ -19,6 +20,8 @@ export default function RegisterScreen({ navigation }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [fieldErrors, setFieldErrors] = useState({});
   const [formError, setFormError] = useState('');
@@ -54,21 +57,18 @@ export default function RegisterScreen({ navigation }) {
   };
 
   const validatePassword = (value) => {
-    const hasUppercase = /[A-Z]/.test(value);
-    const hasLowercase = /[a-z]/.test(value);
-    const hasNumber = /\d/.test(value);
-    const hasSpecial = /[^A-Za-z0-9]/.test(value);
+    const hasSpecialCharacter = /[@$!%*#?&]/.test(value);
 
     if (!value) {
       return 'Password is required.';
     }
 
-    if (value.length < 8) {
-      return 'Password must be at least 8 characters.';
+    if (value.length < 8 || value.length > 16) {
+      return 'Password must be between 8 and 16 characters.';
     }
 
-    if (!hasUppercase || !hasLowercase || !hasNumber || !hasSpecial) {
-      return 'Use uppercase, lowercase, number, and special character.';
+    if (!hasSpecialCharacter) {
+      return 'Password must include at least one special character.';
     }
 
     return '';
@@ -195,50 +195,76 @@ export default function RegisterScreen({ navigation }) {
             </View>
 
             <View style={styles.fieldBlock}>
-              <TextInput
-                style={styles.input}
-                placeholder="Password"
-                placeholderTextColor="#808080"
-                secureTextEntry
-                value={password}
-                onChangeText={(value) => {
-                  setPassword(value);
+              <View style={styles.inputWrapper}>
+                <TextInput
+                  style={[styles.input, styles.inputWithIcon]}
+                  placeholder="Password"
+                  placeholderTextColor="#808080"
+                  secureTextEntry={!showPassword}
+                  value={password}
+                  onChangeText={(value) => {
+                    setPassword(value);
 
-                  if (fieldErrors.password) {
-                    updateFieldError('password', validatePassword(value));
-                  }
+                    if (fieldErrors.password) {
+                      updateFieldError('password', validatePassword(value));
+                    }
 
-                  if (confirmPassword) {
-                    updateFieldError(
-                      'confirmPassword',
-                      validateConfirmPassword(confirmPassword, value)
-                    );
-                  }
-                }}
-                onBlur={() => updateFieldError('password', validatePassword(password))}
-              />
+                    if (confirmPassword) {
+                      updateFieldError(
+                        'confirmPassword',
+                        validateConfirmPassword(confirmPassword, value)
+                      );
+                    }
+                  }}
+                  onBlur={() => updateFieldError('password', validatePassword(password))}
+                />
+                <Pressable
+                  style={styles.eyeButton}
+                  onPress={() => setShowPassword((prev) => !prev)}
+                  hitSlop={10}
+                >
+                  <MaterialIcons
+                    name={showPassword ? 'visibility-off' : 'visibility'}
+                    size={20}
+                    color="#6F5948"
+                  />
+                </Pressable>
+              </View>
               <View style={styles.errorSlot}>
                 <Text style={styles.inlineError}>{fieldErrors.password || ' '}</Text>
               </View>
             </View>
 
             <View style={styles.fieldBlock}>
-              <TextInput
-                style={styles.input}
-                placeholder="Confirm Password"
-                placeholderTextColor="#808080"
-                secureTextEntry
-                value={confirmPassword}
-                onChangeText={(value) => {
-                  setConfirmPassword(value);
-                  if (fieldErrors.confirmPassword) {
-                    updateFieldError('confirmPassword', validateConfirmPassword(value, password));
+              <View style={styles.inputWrapper}>
+                <TextInput
+                  style={[styles.input, styles.inputWithIcon]}
+                  placeholder="Confirm Password"
+                  placeholderTextColor="#808080"
+                  secureTextEntry={!showConfirmPassword}
+                  value={confirmPassword}
+                  onChangeText={(value) => {
+                    setConfirmPassword(value);
+                    if (fieldErrors.confirmPassword) {
+                      updateFieldError('confirmPassword', validateConfirmPassword(value, password));
+                    }
+                  }}
+                  onBlur={() =>
+                    updateFieldError('confirmPassword', validateConfirmPassword(confirmPassword, password))
                   }
-                }}
-                onBlur={() =>
-                  updateFieldError('confirmPassword', validateConfirmPassword(confirmPassword, password))
-                }
-              />
+                />
+                <Pressable
+                  style={styles.eyeButton}
+                  onPress={() => setShowConfirmPassword((prev) => !prev)}
+                  hitSlop={10}
+                >
+                  <MaterialIcons
+                    name={showConfirmPassword ? 'visibility-off' : 'visibility'}
+                    size={20}
+                    color="#6F5948"
+                  />
+                </Pressable>
+              </View>
               <View style={styles.errorSlot}>
                 <Text style={styles.inlineError}>{fieldErrors.confirmPassword || ' '}</Text>
               </View>
@@ -344,6 +370,18 @@ const styles = StyleSheet.create({
     color: '#3A2E22',
     letterSpacing: -0.8,
     fontFamily: 'PoppinsRegular',
+  },
+  inputWrapper: {
+    width: '100%',
+    position: 'relative',
+  },
+  inputWithIcon: {
+    paddingRight: 44,
+  },
+  eyeButton: {
+    position: 'absolute',
+    right: 12,
+    top: 15,
   },
   errorSlot: {
     minHeight: 20,

@@ -12,6 +12,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { MaterialIcons } from '@expo/vector-icons';
 import { useAuth } from '../../context';
 import { login as loginRequest } from '../../services';
 import theme from '../../theme';
@@ -23,6 +24,7 @@ export default function LoginScreen({ navigation }) {
   const { login } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
 
@@ -72,14 +74,27 @@ export default function LoginScreen({ navigation }) {
                 onChangeText={setEmail}
               />
 
-              <TextInput
-                style={styles.input}
-                placeholder="Password"
-                placeholderTextColor="#808080"
-                secureTextEntry
-                value={password}
-                onChangeText={setPassword}
-              />
+              <View style={styles.inputWrapper}>
+                <TextInput
+                  style={[styles.input, styles.inputWithIcon]}
+                  placeholder="Password"
+                  placeholderTextColor="#808080"
+                  secureTextEntry={!showPassword}
+                  value={password}
+                  onChangeText={setPassword}
+                />
+                <Pressable
+                  style={styles.eyeButton}
+                  onPress={() => setShowPassword((prev) => !prev)}
+                  hitSlop={10}
+                >
+                  <MaterialIcons
+                    name={showPassword ? 'visibility-off' : 'visibility'}
+                    size={20}
+                    color="#6F5948"
+                  />
+                </Pressable>
+              </View>
 
               {error ? <Text style={styles.error}>{error}</Text> : null}
 
@@ -169,6 +184,18 @@ const styles = StyleSheet.create({
     color: '#3A2E22',
     fontFamily: 'PoppinsRegular',
     marginBottom: 12,
+  },
+  inputWrapper: {
+    width: '100%',
+    position: 'relative',
+  },
+  inputWithIcon: {
+    paddingRight: 44,
+  },
+  eyeButton: {
+    position: 'absolute',
+    right: 12,
+    top: 11,
   },
   forgotWrap: {
     marginTop: 2,

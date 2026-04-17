@@ -10,6 +10,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { MaterialIcons } from '@expo/vector-icons';
 import { resetPasswordWithOtp } from '../../services';
 
 export default function ResetPasswordScreen({ navigation, route }) {
@@ -18,17 +19,63 @@ export default function ResetPasswordScreen({ navigation, route }) {
   const [otp, setOtp] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState({ password: '', confirmPassword: '' });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
+  const validatePassword = (value) => {
+    const hasSpecialCharacter = /[@$!%*#?&]/.test(value);
+
+    if (!value) {
+      return 'Password is required.';
+    }
+
+    if (value.length < 8 || value.length > 16) {
+      return 'Password must be between 8 and 16 characters.';
+    }
+
+    if (!hasSpecialCharacter) {
+      return 'Password must include at least one special character.';
+    }
+
+    return '';
+  };
+
+  const validateConfirmPassword = (value, currentPassword) => {
+    if (!value) {
+      return 'Confirm Password is required.';
+    }
+
+    if (value !== currentPassword) {
+      return 'Password confirmation does not match.';
+    }
+
+    return '';
+  };
+
+  const validatePasswordFields = () => {
+    const nextErrors = {
+      password: validatePassword(password),
+      confirmPassword: validateConfirmPassword(confirmPassword, password),
+    };
+
+    setFieldErrors(nextErrors);
+    return !Object.values(nextErrors).some(Boolean);
+  };
+
   const isDisabled = useMemo(() => {
+    const passwordError = validatePassword(password);
+    const confirmPasswordError = validateConfirmPassword(confirmPassword, password);
+
     return (
       isSubmitting ||
       !email.trim() ||
       otp.trim().length !== 6 ||
-      password.length < 8 ||
-      !confirmPassword
+      Boolean(passwordError) ||
+      Boolean(confirmPasswordError)
     );
   }, [confirmPassword, email, isSubmitting, otp, password]);
 
@@ -39,8 +86,9 @@ export default function ResetPasswordScreen({ navigation, route }) {
     setError('');
     setSuccess('');
 
-    if (password !== confirmPassword) {
-      setError('Passwords do not match.');
+    const isPasswordValid = validatePasswordFields();
+
+    if (!isPasswordValid) {
       setIsSubmitting(false);
       return;
     }
@@ -92,23 +140,83 @@ export default function ResetPasswordScreen({ navigation, route }) {
             onChangeText={(value) => setOtp(value.replace(/[^0-9]/g, ''))}
           />
 
-          <TextInput
-            style={styles.input}
-            placeholder="New Password"
-            placeholderTextColor="#808080"
-            secureTextEntry
-            value={password}
-            onChangeText={setPassword}
-          />
+          <View style={styles.inputWrapper}>
+            <TextInput
+              style={[styles.input, styles.inputWithIcon]}
+              placeholder="New Password"
+              placeholderTextColor="#808080"
+              secureTextEntry={!showPassword}
+              value={password}
+              onChangeText={(value) => {
+                setPassword(value);
 
-          <TextInput
-            style={styles.input}
-            placeholder="Confirm New Password"
-            placeholderTextColor="#808080"
-            secureTextEntry
-            value={confirmPassword}
-            onChangeText={setConfirmPassword}
-          />
+                setFieldErrors((prev) => ({
+                  ...prev,
+                  password: prev.password ? validatePassword(value) : prev.password,
+                  confirmPassword:
+                    confirmPassword && prev.confirmPassword
+                      ? validateConfirmPassword(confirmPassword, value)
+                      : prev.confirmPassword,
+                }));
+              }}
+              onBlur={() =>
+                setFieldErrors((prev) => ({
+                  ...prev,
+                  password: validatePassword(password),
+                }))
+              }
+            />
+            <Pressable
+              style={styles.eyeButton}
+              onPress={() => setShowPassword((prev) => !prev)}
+              hitSlop={10}
+            >
+              <MaterialIcons
+                name={showPassword ? 'visibility-off' : 'visibility'}
+                size={20}
+                color="#6F5948"
+              />
+            </Pressable>
+          </View>
+          {fieldErrors.password ? <Text style={styles.inlineError}>{fieldErrors.password}</Text> : null}
+
+          <View style={styles.inputWrapper}>
+            <TextInput
+              style={[styles.input, styles.inputWithIcon]}
+              placeholder="Confirm New Password"
+              placeholderTextColor="#808080"
+              secureTextEntry={!showConfirmPassword}
+              value={confirmPassword}
+              onChangeText={(value) => {
+                setConfirmPassword(value);
+
+                setFieldErrors((prev) => ({
+                  ...prev,
+                  confirmPassword: prev.confirmPassword
+                    ? validateConfirmPassword(value, password)
+                    : prev.confirmPassword,
+                }));
+              }}
+              onBlur={() =>
+                setFieldErrors((prev) => ({
+                  ...prev,
+                  confirmPassword: validateConfirmPassword(confirmPassword, password),
+                }))
+              }
+            />
+            <Pressable
+              style={styles.eyeButton}
+              onPress={() => setShowConfirmPassword((prev) => !prev)}
+              hitSlop={10}
+            >
+              <MaterialIcons
+                name={showConfirmPassword ? 'visibility-off' : 'visibility'}
+                size={20}
+                color="#6F5948"
+              />
+            </Pressable>
+          </View>
+          {fieldErrors.confirmPassword ? <Text style={styles.inlineError}>{fieldErrors.confirmPassword}</Text> : null}
 
           {error ? <Text style={styles.error}>{error}</Text> : null}
           {success ? <Text style={styles.message}>{success}</Text> : null}
@@ -177,6 +285,25 @@ const styles = StyleSheet.create({
     color: '#3A2E22',
     fontFamily: 'PoppinsRegular',
     marginBottom: 12,
+  },
+  inputWrapper: {
+    width: '100%',
+    position: 'relative',
+  },
+  inputWithIcon: {
+    paddingRight: 44,
+  },
+  eyeButton: {
+    position: 'absolute',
+    right: 12,
+    top: 14,
+  },
+  inlineError: {
+    marginTop: -6,
+    marginBottom: 10,
+    fontSize: 13,
+    color: '#9B3E3E',
+    fontFamily: 'PoppinsRegular',
   },
   error: {
     fontSize: 13,
