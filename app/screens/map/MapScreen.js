@@ -14,7 +14,6 @@ import {
   StyleSheet,
   Text,
   TextInput,
-  Vibration,
   View,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -1254,7 +1253,6 @@ export default function MapScreen({ navigation, route }) {
     }
 
     animateHeartTap();
-    Vibration.vibrate(14);
 
     const establishmentId = String(item.id);
     const willSave = !savedEstablishments.some((entry) => String(entry?.id) === establishmentId);
