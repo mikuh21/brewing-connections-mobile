@@ -4336,7 +4336,7 @@ const styles = StyleSheet.create({
   aboutSectionLabel: {
     marginTop: 8,
     marginBottom: 2,
-    color: '#2E5A3D',
+    color: '#2D4A1E',
     fontFamily: 'PoppinsBold',
     fontSize: 12,
     lineHeight: 16,

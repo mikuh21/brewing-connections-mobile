@@ -60,7 +60,7 @@ function MainTabNavigator() {
         screenOptions={({ route }) => ({
           headerShown: false,
           tabBarShowLabel: true,
-          tabBarActiveTintColor: '#2E5A3D',
+          tabBarActiveTintColor: '#2D4A1E',
           tabBarInactiveTintColor: '#77695B',
           tabBarStyle: {
             height: 72,

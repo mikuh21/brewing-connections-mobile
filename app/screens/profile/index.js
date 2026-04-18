@@ -241,7 +241,7 @@ export default function ProfileScreen({ navigation }) {
               <MaterialIcons
                 name={isEmailVerified ? 'verified' : 'report-gmailerrorred'}
                 size={14}
-                color={isEmailVerified ? '#24563B' : '#8A5A11'}
+                color={isEmailVerified ? '#2D4A1E' : '#8A5A11'}
               />
               <Text style={styles.rolePillText}>
                 {isEmailVerified ? 'Email verified' : 'Email unverified'}
