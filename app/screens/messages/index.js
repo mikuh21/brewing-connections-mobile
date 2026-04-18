@@ -55,6 +55,52 @@ function formatTimeLabel(rawValue) {
 	});
 }
 
+function formatMessageTimestamp(rawValue) {
+	if (!rawValue) {
+		return '';
+	}
+
+	const date = new Date(rawValue);
+	if (Number.isNaN(date.getTime())) {
+		return '';
+	}
+
+	const day = date.toLocaleDateString('en-US', {
+		month: 'short',
+		day: 'numeric',
+	});
+
+	const time = date.toLocaleTimeString('en-US', {
+		hour: 'numeric',
+		minute: '2-digit',
+		hour12: true,
+	});
+
+	return `${day} • ${time}`;
+}
+
+function formatDateDividerLabel(rawValue) {
+	const date = new Date(rawValue);
+	if (Number.isNaN(date.getTime())) {
+		return '';
+	}
+
+	return date.toLocaleDateString('en-US', {
+		month: 'short',
+		day: 'numeric',
+		year: 'numeric',
+	});
+}
+
+function dateKey(rawValue) {
+	const date = new Date(rawValue);
+	if (Number.isNaN(date.getTime())) {
+		return '';
+	}
+
+	return date.toISOString().slice(0, 10);
+}
+
 function userInitials(name) {
 	const chunks = String(name || '').trim().split(/\s+/).filter(Boolean);
 	if (!chunks.length) {
@@ -271,6 +317,31 @@ export default function MessagesScreen({ navigation }) {
 		});
 	}, [recipientSearch, recipients]);
 
+	const messageTimeline = useMemo(() => {
+		const timeline = [];
+		let previousDate = '';
+
+		for (const message of messages) {
+			const key = dateKey(message?.created_at);
+			if (key && key !== previousDate) {
+				timeline.push({
+					type: 'divider',
+					id: `divider-${key}`,
+					label: formatDateDividerLabel(message?.created_at),
+				});
+				previousDate = key;
+			}
+
+			timeline.push({
+				type: 'message',
+				id: `message-${message?.id ?? Math.random()}`,
+				payload: message,
+			});
+		}
+
+		return timeline;
+	}, [messages]);
+
 	const handleSelectConversation = async (conversationId) => {
 		if (!conversationId) {
 			return;
@@ -311,7 +382,7 @@ export default function MessagesScreen({ navigation }) {
 			<KeyboardAvoidingView
 				style={styles.container}
 				behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-				keyboardVerticalOffset={Platform.OS === 'ios' ? 20 : 56}
+				keyboardVerticalOffset={Platform.OS === 'ios' ? 24 : 96}
 			>
 				<View style={styles.headerRow}>
 					<View style={styles.headerTitleWrap}>
@@ -401,20 +472,31 @@ export default function MessagesScreen({ navigation }) {
 							) : (
 								<FlatList
 									ref={listRef}
-									data={messages}
-									keyExtractor={(item, index) => String(item?.id || index)}
+									data={messageTimeline}
+									keyExtractor={(item) => item.id}
 									style={styles.messagesList}
 									contentContainerStyle={styles.messagesListContent}
 									showsVerticalScrollIndicator={false}
 									renderItem={({ item }) => {
-										const isMine = Number(item?.sender_id) === Number(user?.id);
+										if (item.type === 'divider') {
+											return (
+												<View style={styles.dateDividerRow}>
+													<View style={styles.dateDividerLine} />
+													<Text style={styles.dateDividerText}>{item.label}</Text>
+													<View style={styles.dateDividerLine} />
+												</View>
+											);
+										}
+
+										const message = item.payload;
+										const isMine = Number(message?.sender_id) === Number(user?.id);
 
 										return (
 											<View style={[styles.messageRow, isMine ? styles.messageRowMine : styles.messageRowOther]}>
 												<View style={[styles.messageBubble, isMine ? styles.messageBubbleMine : styles.messageBubbleOther]}>
-													<Text style={[styles.messageBody, isMine && styles.messageBodyMine]}>{item?.body}</Text>
+													<Text style={[styles.messageBody, isMine && styles.messageBodyMine]}>{message?.body}</Text>
 													<Text style={[styles.messageTime, isMine && styles.messageTimeMine]}>
-														{formatTimeLabel(item?.created_at)}
+														{formatMessageTimestamp(message?.created_at)}
 													</Text>
 												</View>
 											</View>
@@ -698,6 +780,22 @@ const styles = StyleSheet.create({
 		paddingHorizontal: 10,
 		paddingVertical: 10,
 		gap: 8,
+	},
+	dateDividerRow: {
+		flexDirection: 'row',
+		alignItems: 'center',
+		gap: 10,
+		paddingVertical: 4,
+	},
+	dateDividerLine: {
+		flex: 1,
+		height: 1,
+		backgroundColor: '#E3D8C8',
+	},
+	dateDividerText: {
+		color: '#8E8071',
+		fontFamily: 'PoppinsMedium',
+		fontSize: 11,
 	},
 	messageRow: {
 		width: '100%',
