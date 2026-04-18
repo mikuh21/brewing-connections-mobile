@@ -287,8 +287,8 @@ export default function MessagesScreen({ navigation }) {
 		<ScreenContainer>
 			<KeyboardAvoidingView
 				style={styles.container}
-				behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-				keyboardVerticalOffset={Platform.OS === 'ios' ? 10 : 0}
+				behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+				keyboardVerticalOffset={Platform.OS === 'ios' ? 20 : 0}
 			>
 				<View style={styles.headerRow}>
 					<View style={styles.headerTitleWrap}>
@@ -438,53 +438,63 @@ export default function MessagesScreen({ navigation }) {
 					animationType="slide"
 					onRequestClose={() => setRecipientModalOpen(false)}
 				>
-					<View style={styles.modalBackdrop}>
-						<View style={styles.modalCard}>
-							<View style={styles.modalHeader}>
-								<Text style={styles.modalTitle}>Start New Chat</Text>
-								<Pressable onPress={() => setRecipientModalOpen(false)}>
-									<MaterialIcons name="close" size={20} color="#6E6254" />
-								</Pressable>
-							</View>
-
-							<TextInput
-								style={styles.modalSearchInput}
-								value={recipientSearch}
-								onChangeText={setRecipientSearch}
-								placeholder="Search by name, role, or email"
-								placeholderTextColor="#9E8C78"
-							/>
-
-							<ScrollView style={styles.modalList} showsVerticalScrollIndicator={false}>
-								{filteredRecipients.map((recipient) => (
-									<Pressable
-										key={recipient.id}
-										style={styles.modalRecipientRow}
-										onPress={async () => {
-											setRecipientModalOpen(false);
-											setRecipientSearch('');
-											await startConversation(recipient.id);
-										}}
-										disabled={isPreparingConversation}
-									>
-										<View style={styles.modalRecipientAvatar}>
-											<Text style={styles.modalRecipientAvatarText}>{userInitials(recipient?.name)}</Text>
-										</View>
-										<View style={styles.modalRecipientMeta}>
-											<Text style={styles.modalRecipientName}>{recipient?.name}</Text>
-											<Text style={styles.modalRecipientRole}>{String(recipient?.role || '').replace('_', ' ')}</Text>
-										</View>
+					<KeyboardAvoidingView
+						style={styles.modalKeyboardWrap}
+						behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+						keyboardVerticalOffset={Platform.OS === 'ios' ? 20 : 0}
+					>
+						<View style={styles.modalBackdrop}>
+							<View style={styles.modalCard}>
+								<View style={styles.modalHeader}>
+									<Text style={styles.modalTitle}>Start New Chat</Text>
+									<Pressable onPress={() => setRecipientModalOpen(false)}>
+										<MaterialIcons name="close" size={20} color="#6E6254" />
 									</Pressable>
-								))}
+								</View>
 
-								{!filteredRecipients.length ? (
-									<View style={styles.centeredStateSmall}>
-										<Text style={styles.emptyThreadText}>No users found.</Text>
-									</View>
-								) : null}
-							</ScrollView>
+								<TextInput
+									style={styles.modalSearchInput}
+									value={recipientSearch}
+									onChangeText={setRecipientSearch}
+									placeholder="Search by name, role, or email"
+									placeholderTextColor="#9E8C78"
+								/>
+
+								<ScrollView
+									style={styles.modalList}
+									showsVerticalScrollIndicator={false}
+									keyboardShouldPersistTaps="handled"
+								>
+									{filteredRecipients.map((recipient) => (
+										<Pressable
+											key={recipient.id}
+											style={styles.modalRecipientRow}
+											onPress={async () => {
+												setRecipientModalOpen(false);
+												setRecipientSearch('');
+												await startConversation(recipient.id);
+											}}
+											disabled={isPreparingConversation}
+										>
+											<View style={styles.modalRecipientAvatar}>
+												<Text style={styles.modalRecipientAvatarText}>{userInitials(recipient?.name)}</Text>
+											</View>
+											<View style={styles.modalRecipientMeta}>
+												<Text style={styles.modalRecipientName}>{recipient?.name}</Text>
+												<Text style={styles.modalRecipientRole}>{String(recipient?.role || '').replace('_', ' ')}</Text>
+											</View>
+										</Pressable>
+									))}
+
+									{!filteredRecipients.length ? (
+										<View style={styles.centeredStateSmall}>
+											<Text style={styles.emptyThreadText}>No users found.</Text>
+										</View>
+									) : null}
+								</ScrollView>
+							</View>
 						</View>
-					</View>
+					</KeyboardAvoidingView>
 				</Modal>
 			</KeyboardAvoidingView>
 		</ScreenContainer>
@@ -776,6 +786,9 @@ const styles = StyleSheet.create({
 		flex: 1,
 		backgroundColor: 'rgba(28, 20, 10, 0.45)',
 		justifyContent: 'flex-end',
+	},
+	modalKeyboardWrap: {
+		flex: 1,
 	},
 	modalCard: {
 		maxHeight: '78%',
