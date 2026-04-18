@@ -563,6 +563,19 @@ function formatAddressWithBarangay(address, barangay) {
   return `${baseAddress}, ${normalizedBarangay}`;
 }
 
+function normalizeWebsiteUrl(websiteValue) {
+  const raw = String(websiteValue || '').trim();
+  if (!raw) {
+    return '';
+  }
+
+  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(raw)) {
+    return raw;
+  }
+
+  return `https://${raw}`;
+}
+
 export default function MapScreen({ navigation, route }) {
   const insets = useSafeAreaInsets();
   const mapRef = useRef(null);
@@ -1514,6 +1527,49 @@ export default function MapScreen({ navigation, route }) {
     }
   };
 
+  const handleContactPress = async (contactNumber) => {
+    const raw = String(contactNumber || '').trim();
+    if (!raw) {
+      Alert.alert('Unavailable', 'No contact number available for this establishment.');
+      return;
+    }
+
+    const sanitized = raw.replace(/[^\d+]/g, '');
+    const telUrl = `tel:${sanitized || raw}`;
+
+    try {
+      const canOpen = await Linking.canOpenURL(telUrl);
+      if (!canOpen) {
+        Alert.alert('Unable to call', 'This device cannot place phone calls right now.');
+        return;
+      }
+
+      await Linking.openURL(telUrl);
+    } catch {
+      Alert.alert('Unable to call', 'Could not open the phone app for this number.');
+    }
+  };
+
+  const handleWebsitePress = async (website) => {
+    const normalizedUrl = normalizeWebsiteUrl(website);
+    if (!normalizedUrl) {
+      Alert.alert('Unavailable', 'No website available for this establishment.');
+      return;
+    }
+
+    try {
+      const canOpen = await Linking.canOpenURL(normalizedUrl);
+      if (!canOpen) {
+        Alert.alert('Unable to open link', 'This website link is not supported on this device.');
+        return;
+      }
+
+      await Linking.openURL(normalizedUrl);
+    } catch {
+      Alert.alert('Unable to open link', 'Could not open the website link.');
+    }
+  };
+
   const resetTrailMode = async () => {
     try {
       await AsyncStorage.setItem(TRAIL_RESET_SIGNAL_KEY, String(Date.now()));
@@ -2160,10 +2216,32 @@ export default function MapScreen({ navigation, route }) {
                       </View>
                     </View>
                     <Text style={styles.detailText}>
-                      Contact: {selectedEstablishment.contactNumber || 'N/A'}
+                      Contact:{' '}
+                      {selectedEstablishment.contactNumber ? (
+                        <Text
+                          style={styles.detailLinkText}
+                          onPress={() => handleContactPress(selectedEstablishment.contactNumber)}
+                        >
+                          {selectedEstablishment.contactNumber}
+                        </Text>
+                      ) : (
+                        'N/A'
+                      )}
                     </Text>
                     <Text style={styles.detailText}>Email: {selectedEstablishment.email || 'N/A'}</Text>
-                    <Text style={styles.detailText}>Website: {selectedEstablishment.website || 'N/A'}</Text>
+                    <Text style={styles.detailText}>
+                      Website:{' '}
+                      {selectedEstablishment.website ? (
+                        <Text
+                          style={styles.detailLinkText}
+                          onPress={() => handleWebsitePress(selectedEstablishment.website)}
+                        >
+                          {selectedEstablishment.website}
+                        </Text>
+                      ) : (
+                        'N/A'
+                      )}
+                    </Text>
                     <Text style={styles.detailText}>
                       Visit Hours: {selectedEstablishment.visitHours || 'N/A'}
                     </Text>
@@ -3248,6 +3326,11 @@ const styles = StyleSheet.create({
     fontFamily: 'PoppinsRegular',
     fontSize: 13,
     lineHeight: 18,
+  },
+  detailLinkText: {
+    color: '#1E40AF',
+    fontFamily: 'PoppinsMedium',
+    textDecorationLine: 'underline',
   },
   metricRow: {
     flexDirection: 'row',
