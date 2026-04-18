@@ -710,18 +710,27 @@ export default function MapScreen({ navigation, route }) {
       ? selectedNames
       : selectedVarieties.map((item) => String(item).trim()).filter(Boolean);
 
-    const joined = names.join(', ');
-    const maxChars = 28;
-
-    if (joined.length <= maxChars) {
-      return joined;
+    if (!names.length) {
+      return 'All';
     }
 
-    if (names.length === 1) {
-      return `${names[0].slice(0, maxChars - 1)}…`;
+    const uniqueNames = Array.from(new Set(names));
+    const allSelected =
+      availableVarieties.length > 0 && uniqueNames.length >= availableVarieties.length;
+
+    if (allSelected) {
+      return 'All';
     }
 
-    return `${names[0]}, +${names.length - 1}`;
+    if (uniqueNames.length === 1) {
+      return uniqueNames[0];
+    }
+
+    if (uniqueNames.length === 2) {
+      return `${uniqueNames[0]}, ${uniqueNames[1]}`;
+    }
+
+    return `${uniqueNames[0]}, ${uniqueNames[1]} +${uniqueNames.length - 2}`;
   }, [selectedVarieties, availableVarieties]);
 
   const filteredEstablishments = useMemo(() => {
