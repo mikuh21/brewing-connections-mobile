@@ -914,6 +914,7 @@ export default function MapScreen({ navigation, route }) {
 
   const panelAnimation = useRef(new Animated.Value(160)).current;
   const dragY = useRef(new Animated.Value(0)).current;
+  const aboutDragY = useRef(new Animated.Value(0)).current;
 
   const selectedEstablishment = useMemo(
     () => establishments.find((item) => item.id === selectedEstablishmentId) || null,
@@ -1356,6 +1357,12 @@ export default function MapScreen({ navigation, route }) {
     return () => pulse.stop();
   }, [aboutPulseAnim, showAboutModal]);
 
+  useEffect(() => {
+    if (showAboutModal) {
+      aboutDragY.setValue(0);
+    }
+  }, [aboutDragY, showAboutModal]);
+
   const sheetPanResponder = useRef(
     PanResponder.create({
       onMoveShouldSetPanResponder: (_, gestureState) => {
@@ -1389,6 +1396,49 @@ export default function MapScreen({ navigation, route }) {
           useNativeDriver: true,
           speed: 20,
           bounciness: 6,
+        }).start();
+      },
+    })
+  ).current;
+
+  const aboutHandlePanResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_, gestureState) => {
+        const isVertical = Math.abs(gestureState.dy) > Math.abs(gestureState.dx);
+        return isVertical && gestureState.dy > 5;
+      },
+      onPanResponderMove: (_, gestureState) => {
+        const limitedDy = Math.max(0, Math.min(360, gestureState.dy));
+        aboutDragY.setValue(limitedDy);
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        const shouldDismiss = gestureState.dy > 90 || gestureState.vy > 0.9;
+
+        if (shouldDismiss) {
+          Animated.timing(aboutDragY, {
+            toValue: 420,
+            duration: 180,
+            useNativeDriver: true,
+          }).start(() => {
+            aboutDragY.setValue(0);
+            setShowAboutModal(false);
+          });
+          return;
+        }
+
+        Animated.spring(aboutDragY, {
+          toValue: 0,
+          useNativeDriver: true,
+          speed: 20,
+          bounciness: 5,
+        }).start();
+      },
+      onPanResponderTerminate: () => {
+        Animated.spring(aboutDragY, {
+          toValue: 0,
+          useNativeDriver: true,
+          speed: 20,
+          bounciness: 5,
         }).start();
       },
     })
@@ -2814,8 +2864,18 @@ export default function MapScreen({ navigation, route }) {
       >
         <View style={styles.aboutModalBackdrop}>
           <Pressable style={styles.aboutModalBackdropTap} onPress={() => setShowAboutModal(false)} />
-          <View style={[styles.aboutModalSheet, { paddingBottom: Math.max(insets.bottom + 14, 20) }]}>
-            <View style={styles.aboutHandle} />
+          <Animated.View
+            style={[
+              styles.aboutModalSheet,
+              {
+                paddingBottom: Math.max(insets.bottom + 14, 20),
+                transform: [{ translateY: aboutDragY }],
+              },
+            ]}
+          >
+            <View style={styles.aboutHandleTouchArea} {...aboutHandlePanResponder.panHandlers}>
+              <View style={styles.aboutHandle} />
+            </View>
 
             <View style={styles.aboutHeaderRow}>
               <View style={styles.aboutHeaderTextWrap}>
@@ -2864,7 +2924,7 @@ export default function MapScreen({ navigation, route }) {
                 </View>
               ))}
             </ScrollView>
-          </View>
+          </Animated.View>
         </View>
       </Modal>
 
@@ -3983,6 +4043,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#C7B49A',
     marginBottom: 10,
   },
+  aboutHandleTouchArea: {
+    alignSelf: 'stretch',
+    paddingTop: 2,
+  },
   aboutHeaderRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -3993,7 +4057,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   aboutTitle: {
-    color: '#2D4A1E',
+    color: '#3A2E22',
     fontFamily: 'PoppinsBold',
     fontSize: 19,
     lineHeight: 24,
