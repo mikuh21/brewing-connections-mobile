@@ -647,6 +647,32 @@ function getProductsByType(type) {
   return ['Coffee Beans', 'Ground Coffee'];
 }
 
+function getEstablishmentRecipientId(source) {
+  const candidates = [
+    source?.owner_id,
+    source?.user_id,
+    source?.owner_user_id,
+    source?.establishment_owner_id,
+    source?.owner?.id,
+    source?.user?.id,
+    source?.raw?.owner_id,
+    source?.raw?.user_id,
+    source?.raw?.owner_user_id,
+    source?.raw?.establishment_owner_id,
+    source?.raw?.owner?.id,
+    source?.raw?.user?.id,
+  ];
+
+  for (const candidate of candidates) {
+    const parsed = Number(candidate);
+    if (Number.isFinite(parsed) && parsed > 0) {
+      return parsed;
+    }
+  }
+
+  return null;
+}
+
 function renderTypeIcon(icon, iconLibrary, color, size = 12) {
   if (iconLibrary === 'community') {
     return <MaterialCommunityIcons name={icon} size={size} color={color} />;
@@ -1961,6 +1987,24 @@ export default function MapScreen({ navigation, route }) {
     }
   };
 
+  const handleOpenEstablishmentChat = () => {
+    if (!selectedEstablishment) {
+      return;
+    }
+
+    const recipientId = getEstablishmentRecipientId(selectedEstablishment);
+    const participantName = String(selectedEstablishment.name || '').trim();
+
+    try {
+      navigation?.navigate?.('Messages', {
+        recipientId: recipientId || undefined,
+        participantName: participantName || undefined,
+      });
+    } catch {
+      Alert.alert('Unable to open chat', 'Please try again in a moment.');
+    }
+  };
+
   const handleOpenPromoInPromos = () => {
     const activePromo = selectedEstablishment?.activePromoDetails?.[0]?.title || selectedEstablishment?.activePromos?.[0] || '';
 
@@ -2620,7 +2664,17 @@ export default function MapScreen({ navigation, route }) {
                   ) : null}
 
                   <View style={styles.sectionBlock}>
-                    <Text style={styles.sectionTitle}>Information</Text>
+                    <View style={styles.sectionTitleRow}>
+                      <Text style={styles.sectionTitle}>Information</Text>
+                      <Pressable
+                        style={styles.infoChatButton}
+                        onPress={handleOpenEstablishmentChat}
+                        accessibilityRole="button"
+                        accessibilityLabel="Open chat with this establishment"
+                      >
+                        <MaterialIcons name="chat-bubble-outline" size={16} color="#2D4A1E" />
+                      </Pressable>
+                    </View>
                     <View style={styles.detailTypeRow}>
                       <Text style={styles.detailText}>Type:</Text>
                       <View
@@ -3937,6 +3991,22 @@ const styles = StyleSheet.create({
     fontFamily: 'PoppinsBold',
     fontSize: 13,
     lineHeight: 18,
+  },
+  sectionTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  infoChatButton: {
+    width: 34,
+    height: 34,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#CDBFAE',
+    backgroundColor: '#F9F4EC',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   detailText: {
     color: '#4B3B2D',
