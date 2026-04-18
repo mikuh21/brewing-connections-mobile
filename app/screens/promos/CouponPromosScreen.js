@@ -475,7 +475,55 @@ export default function CouponPromosScreen({ route }) {
             const aDistance = typeof a.distanceKm === 'number' ? a.distanceKm : Number.POSITIVE_INFINITY;
             const bDistance = typeof b.distanceKm === 'number' ? b.distanceKm : Number.POSITIVE_INFINITY;
             return aDistance - bDistance;
+          })
+          .filter((promo, index, list) => {
+            const signature = [
+              String(promo.establishmentName || '').trim().toLowerCase(),
+              String(promo.title || '').trim().toLowerCase(),
+              String(promo.code || '').trim().toLowerCase(),
+            ].join('|');
+
+            return (
+              list.findIndex((entry) => {
+                const entrySignature = [
+                  String(entry.establishmentName || '').trim().toLowerCase(),
+                  String(entry.title || '').trim().toLowerCase(),
+                  String(entry.code || '').trim().toLowerCase(),
+                ].join('|');
+                return entrySignature === signature;
+              }) === index
+            );
           });
+
+        const promoById = normalized.reduce((acc, promo) => {
+          acc[promo.id] = promo;
+          return acc;
+        }, {});
+
+        const nextClaims = Object.entries(claimedCoupons || {}).reduce((acc, [promoId, claim]) => {
+          const match = promoById[promoId];
+          if (!match || !claim || typeof claim !== 'object') {
+            return acc;
+          }
+
+          const claimCode = String(claim.code || '').trim();
+          const claimTitle = String(claim.title || '').trim().toLowerCase();
+          const promoCode = String(match.code || '').trim();
+          const promoTitle = String(match.title || '').trim().toLowerCase();
+
+          const sameCode = !claimCode || !promoCode || claimCode === promoCode;
+          const sameTitle = !claimTitle || !promoTitle || claimTitle === promoTitle;
+
+          if (sameCode && sameTitle) {
+            acc[promoId] = claim;
+          }
+
+          return acc;
+        }, {});
+
+        if (Object.keys(nextClaims).length !== Object.keys(claimedCoupons || {}).length) {
+          await saveClaimedCoupons(nextClaims);
+        }
 
         setPromos(normalized);
       } catch {
@@ -485,7 +533,7 @@ export default function CouponPromosScreen({ route }) {
         setRefreshing(false);
       }
     },
-    [userLocation]
+    [claimedCoupons, saveClaimedCoupons, userLocation]
   );
 
   const filteredPromos = useMemo(() => {
@@ -550,8 +598,14 @@ export default function CouponPromosScreen({ route }) {
     if (loading) {
       return [];
     }
-    return filteredPromos;
-  }, [filteredPromos, loading]);
+
+    if (activeTab !== TAB_ALL && activeTab !== TAB_NEAR) {
+      return filteredPromos;
+    }
+
+    const nearIds = new Set(nearYou.map((item) => item.id));
+    return filteredPromos.filter((item) => !nearIds.has(item.id));
+  }, [activeTab, filteredPromos, loading, nearYou]);
 
   const emptyStateData = useMemo(() => buildEmptyState(activeTab), [activeTab]);
   const sectionTitle = useMemo(() => getSectionTitle(activeTab), [activeTab]);
