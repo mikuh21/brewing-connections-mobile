@@ -89,7 +89,7 @@ export default function MessagesScreen({ navigation }) {
 	const [isSendingMessage, setIsSendingMessage] = useState(false);
 	const [isPreparingConversation, setIsPreparingConversation] = useState(false);
 	const [screenError, setScreenError] = useState('');
-	const [androidKeyboardOffset, setAndroidKeyboardOffset] = useState(0);
+	const [keyboardOffset, setKeyboardOffset] = useState(0);
 
 	const fetchConversations = useCallback(async () => {
 		const payload = await getMessages();
@@ -254,17 +254,16 @@ export default function MessagesScreen({ navigation }) {
 	}, [messages]);
 
 	useEffect(() => {
-		if (Platform.OS !== 'android') {
-			return undefined;
-		}
+		const showEventName = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+		const hideEventName = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
 
-		const showSub = Keyboard.addListener('keyboardDidShow', (event) => {
+		const showSub = Keyboard.addListener(showEventName, (event) => {
 			const height = Number(event?.endCoordinates?.height || 0);
-			setAndroidKeyboardOffset(Math.max(0, height - 12));
+			setKeyboardOffset(Math.max(0, height + 10));
 		});
 
-		const hideSub = Keyboard.addListener('keyboardDidHide', () => {
-			setAndroidKeyboardOffset(0);
+		const hideSub = Keyboard.addListener(hideEventName, () => {
+			setKeyboardOffset(0);
 		});
 
 		return () => {
@@ -453,8 +452,8 @@ export default function MessagesScreen({ navigation }) {
 							<View
 								style={[
 									styles.composerWrap,
-									Platform.OS === 'android' && androidKeyboardOffset > 0
-										? { marginBottom: androidKeyboardOffset }
+									keyboardOffset > 0
+										? { transform: [{ translateY: -keyboardOffset }] }
 										: null,
 								]}
 							>
