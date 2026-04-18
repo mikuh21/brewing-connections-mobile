@@ -1146,22 +1146,17 @@ export default function CouponPromosScreen({ route, navigation }) {
               </Pressable>
             </View>
           ) : (
-            <View style={styles.cardActionStack}>
-              <Pressable
-                style={({ pressed }) => [styles.claimButton, pressed && styles.claimButtonPressed]}
-                onPress={() => {
-                  if (!claimStatus.isPending) {
-                    startClaimCountdown(item);
-                  }
-                  openClaimModal(item);
-                }}
-              >
-                <Text style={styles.claimButtonText}>Claim</Text>
-              </Pressable>
-              <Pressable style={[styles.viewActionButton, styles.viewActionButtonDisabled]} disabled>
-                <Text style={[styles.viewActionButtonText, styles.viewActionButtonTextDisabled]}>View</Text>
-              </Pressable>
-            </View>
+            <Pressable
+              style={({ pressed }) => [styles.claimButton, pressed && styles.claimButtonPressed]}
+              onPress={() => {
+                if (!claimStatus.isPending) {
+                  startClaimCountdown(item);
+                }
+                openClaimModal(item);
+              }}
+            >
+              <Text style={styles.claimButtonText}>Claim</Text>
+            </Pressable>
           )}
         </View>
       </View>
