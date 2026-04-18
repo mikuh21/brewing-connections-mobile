@@ -216,7 +216,7 @@ function formatRemaining(ms) {
   return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 }
 
-export default function CouponPromosScreen({ route }) {
+export default function CouponPromosScreen({ route, navigation }) {
   const [promos, setPromos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -237,6 +237,7 @@ export default function CouponPromosScreen({ route }) {
   const [focusedPromoId, setFocusedPromoId] = useState(null);
 
   const listRef = useRef(null);
+  const lastHandledFocusAtRef = useRef(null);
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const scanLineAnim = useRef(new Animated.Value(0)).current;
   const shimmerAnim = useRef(new Animated.Value(0)).current;
@@ -614,17 +615,27 @@ export default function CouponPromosScreen({ route }) {
   const focusAt = route?.params?.focusAt;
 
   useEffect(() => {
-    if (!focusPromoTitle) {
+    if (!focusPromoTitle || !focusAt) {
       return;
     }
+
+    if (lastHandledFocusAtRef.current === focusAt) {
+      return;
+    }
+
+    lastHandledFocusAtRef.current = focusAt;
 
     if (activeTab !== TAB_ALL) {
       setActiveTab(TAB_ALL);
     }
-  }, [activeTab, focusPromoTitle]);
+  }, [activeTab, focusAt, focusPromoTitle]);
 
   useEffect(() => {
-    if (!focusPromoTitle || !listPromos.length) {
+    if (!focusPromoTitle || !focusAt || !listPromos.length) {
+      return;
+    }
+
+    if (lastHandledFocusAtRef.current !== focusAt) {
       return;
     }
 
@@ -653,10 +664,15 @@ export default function CouponPromosScreen({ route }) {
 
     const timeout = setTimeout(() => {
       setFocusedPromoId(null);
+      navigation?.setParams?.({
+        focusPromoTitle: undefined,
+        focusEstablishmentName: undefined,
+        focusAt: undefined,
+      });
     }, 3200);
 
     return () => clearTimeout(timeout);
-  }, [focusAt, focusEstablishmentName, focusPromoTitle, listPromos]);
+  }, [focusAt, focusEstablishmentName, focusPromoTitle, listPromos, navigation]);
 
   const handleRefresh = useCallback(async () => {
     let location = userLocation;
