@@ -2996,39 +2996,34 @@ export default function MapScreen({ navigation, route }) {
               ))}
             </ScrollView>
           </Animated.View>
-        </View>
-      </Modal>
 
-      <Modal
-        visible={showBeanPreviewModal}
-        transparent
-        animationType="fade"
-        onRequestClose={handleCloseBeanPreview}
-      >
-        <View style={styles.aboutBeanModalBackdrop}>
-          <Pressable style={styles.aboutBeanModalBackdropTap} onPress={handleCloseBeanPreview} />
-          <Animated.View
-            style={[
-              styles.aboutBeanModalCard,
-              {
-                opacity: beanPreviewAnim,
-                transform: [
+          {showBeanPreviewModal ? (
+            <View style={styles.aboutBeanModalBackdrop}>
+              <Pressable style={styles.aboutBeanModalBackdropTap} onPress={handleCloseBeanPreview} />
+              <Animated.View
+                style={[
+                  styles.aboutBeanModalCard,
                   {
-                    scale: beanPreviewAnim.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [0.86, 1],
-                    }),
+                    opacity: beanPreviewAnim,
+                    transform: [
+                      {
+                        scale: beanPreviewAnim.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [0.86, 1],
+                        }),
+                      },
+                    ],
                   },
-                ],
-              },
-            ]}
-          >
-            {beanPreviewSource ? (
-              <Image source={beanPreviewSource} style={styles.aboutBeanModalImage} resizeMode="contain" />
-            ) : (
-              <MaterialCommunityIcons name="coffee-bean" size={128} color="#7A5D3A" />
-            )}
-          </Animated.View>
+                ]}
+              >
+                {beanPreviewSource ? (
+                  <Image source={beanPreviewSource} style={styles.aboutBeanModalImage} resizeMode="contain" />
+                ) : (
+                  <MaterialCommunityIcons name="coffee-bean" size={128} color="#7A5D3A" />
+                )}
+              </Animated.View>
+            </View>
+          ) : null}
         </View>
       </Modal>
 
@@ -4263,11 +4258,12 @@ const styles = StyleSheet.create({
     lineHeight: 15,
   },
   aboutBeanModalBackdrop: {
-    flex: 1,
+    ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(23, 18, 12, 0.56)',
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 24,
+    zIndex: 30,
   },
   aboutBeanModalBackdropTap: {
     ...StyleSheet.absoluteFillObject,
@@ -4286,6 +4282,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 16,
     elevation: 8,
+    zIndex: 31,
   },
   aboutBeanModalImage: {
     width: 164,
