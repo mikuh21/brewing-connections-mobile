@@ -42,6 +42,18 @@ const ROLE_PILL_THEME = {
 	reseller: { bg: 'rgba(30, 64, 175, 0.13)', border: 'rgba(30, 64, 175, 0.35)', text: '#1E40AF', label: 'Reseller' },
 };
 
+function getPrimarySellerName(source) {
+	return normalizeBusinessName(
+		source?.seller_name ||
+			source?.product?.seller_name ||
+			source?.seller?.name ||
+			source?.product?.seller?.name ||
+			source?.establishment_name ||
+			source?.product?.establishment_name ||
+			''
+	);
+}
+
 function money(value) {
 	return `PHP ${Number(value || 0).toFixed(2)}`;
 }
@@ -178,10 +190,14 @@ function getSellerRecipientId(source) {
 		source?.seller_id,
 		source?.owner_id,
 		source?.user_id,
+		source?.seller?.user_id,
+		source?.owner?.id,
 		source?.seller?.id,
 		source?.product?.seller_id,
 		source?.product?.owner_id,
 		source?.product?.user_id,
+		source?.product?.seller?.user_id,
+		source?.product?.owner?.id,
 		source?.product?.seller?.id,
 	];
 
@@ -281,8 +297,12 @@ export default function MarketplaceScreen() {
 
 	const openSellerChat = (source) => {
 		const recipientId = getSellerRecipientId(source);
+		const participantName = getPrimarySellerName(source);
 
-		navigation.navigate('Messages', recipientId ? { recipientId } : undefined);
+		navigation.navigate('Messages', {
+			recipientId: recipientId || undefined,
+			participantName: participantName || undefined,
+		});
 	};
 
 	const readCartItems = useCallback(async () => {
@@ -899,14 +919,6 @@ export default function MarketplaceScreen() {
 							) : null}
 						</View>
 
-						<View style={styles.modalFieldWrap}>
-							<Text style={styles.modalLabel}>Chat with seller</Text>
-							<Pressable style={styles.chatSellerButtonModal} onPress={() => openSellerChat(selectedProduct)}>
-								<MaterialIcons name="chat" size={16} color={theme.colors.white} />
-								<Text style={styles.chatSellerButtonModalText}>Open Chat</Text>
-							</Pressable>
-						</View>
-
 						<View style={styles.modalActionsRow}>
 							<Pressable style={styles.modalCancelButton} onPress={closeReserveModal}>
 								<Text style={styles.modalCancelText}>Cancel</Text>
@@ -1372,21 +1384,6 @@ const styles = StyleSheet.create({
 		color: theme.colors.sidebar,
 		fontFamily: theme.fonts.body,
 		backgroundColor: '#FCFAF7',
-	},
-	chatSellerButtonModal: {
-		borderRadius: theme.borderRadius.md,
-		backgroundColor: MARKETPLACE_ACTION_GREEN,
-		paddingVertical: 10,
-		paddingHorizontal: 12,
-		flexDirection: 'row',
-		alignItems: 'center',
-		justifyContent: 'center',
-		gap: 8,
-	},
-	chatSellerButtonModalText: {
-		color: theme.colors.white,
-		fontFamily: 'PoppinsBold',
-		fontSize: theme.fontSizes.sm,
 	},
 	pickerTrigger: {
 		borderWidth: 1,

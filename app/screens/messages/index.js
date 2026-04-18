@@ -3,6 +3,7 @@ import {
 	ActivityIndicator,
 	FlatList,
 	KeyboardAvoidingView,
+	Keyboard,
 	Modal,
 	Platform,
 	Pressable,
@@ -74,6 +75,7 @@ export default function MessagesScreen({ navigation }) {
 	const { refreshUnreadCount } = useChat();
 	const listRef = useRef(null);
 	const selectedRecipientId = route?.params?.recipientId;
+	const selectedParticipantName = String(route?.params?.participantName || '').trim();
 
 	const [conversations, setConversations] = useState([]);
 	const [recipients, setRecipients] = useState([]);
@@ -87,6 +89,7 @@ export default function MessagesScreen({ navigation }) {
 	const [isSendingMessage, setIsSendingMessage] = useState(false);
 	const [isPreparingConversation, setIsPreparingConversation] = useState(false);
 	const [screenError, setScreenError] = useState('');
+	const [androidKeyboardOffset, setAndroidKeyboardOffset] = useState(0);
 
 	const fetchConversations = useCallback(async () => {
 		const payload = await getMessages();
@@ -183,12 +186,27 @@ export default function MessagesScreen({ navigation }) {
 
 		try {
 			const [conversationList] = await Promise.all([fetchConversations(), fetchRecipients()]);
+			const matchedByRecipient = selectedRecipientId
+				? conversationList.find(
+						(conversation) =>
+							Number(conversation?.other_participant?.id) === Number(selectedRecipientId)
+				  )
+				: null;
+			const matchedByName = !matchedByRecipient && selectedParticipantName
+				? conversationList.find((conversation) => {
+						const conversationName = String(conversation?.other_participant?.name || '')
+							.trim()
+							.toLowerCase();
+						return conversationName === selectedParticipantName.toLowerCase();
+				  })
+				: null;
 			const hasSelected = conversationList.some(
 				(conversation) => Number(conversation?.id) === Number(selectedConversationId)
 			);
-			const nextSelected = hasSelected
-				? selectedConversationId
-				: conversationList[0]?.id || null;
+			const nextSelected =
+				matchedByRecipient?.id ||
+				matchedByName?.id ||
+				(hasSelected ? selectedConversationId : conversationList[0]?.id || null);
 
 			setSelectedConversationId(nextSelected);
 
@@ -202,7 +220,14 @@ export default function MessagesScreen({ navigation }) {
 		} finally {
 			setIsLoadingConversations(false);
 		}
-	}, [fetchConversationMessages, fetchConversations, fetchRecipients, selectedConversationId]);
+	}, [
+		fetchConversationMessages,
+		fetchConversations,
+		fetchRecipients,
+		selectedConversationId,
+		selectedParticipantName,
+		selectedRecipientId,
+	]);
 
 	useFocusEffect(
 		useCallback(() => {
@@ -227,6 +252,26 @@ export default function MessagesScreen({ navigation }) {
 			listRef.current?.scrollToEnd?.({ animated: true });
 		});
 	}, [messages]);
+
+	useEffect(() => {
+		if (Platform.OS !== 'android') {
+			return undefined;
+		}
+
+		const showSub = Keyboard.addListener('keyboardDidShow', (event) => {
+			const height = Number(event?.endCoordinates?.height || 0);
+			setAndroidKeyboardOffset(Math.max(0, height - 12));
+		});
+
+		const hideSub = Keyboard.addListener('keyboardDidHide', () => {
+			setAndroidKeyboardOffset(0);
+		});
+
+		return () => {
+			showSub.remove();
+			hideSub.remove();
+		};
+	}, []);
 
 	const selectedConversation = useMemo(
 		() => conversations.find((conversation) => conversation.id === selectedConversationId) || null,
@@ -287,7 +332,7 @@ export default function MessagesScreen({ navigation }) {
 		<ScreenContainer>
 			<KeyboardAvoidingView
 				style={styles.container}
-				behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+				behavior={Platform.OS === 'ios' ? 'padding' : undefined}
 				keyboardVerticalOffset={Platform.OS === 'ios' ? 20 : 0}
 			>
 				<View style={styles.headerRow}>
@@ -405,7 +450,14 @@ export default function MessagesScreen({ navigation }) {
 								/>
 							)}
 
-							<View style={styles.composerWrap}>
+							<View
+								style={[
+									styles.composerWrap,
+									Platform.OS === 'android' && androidKeyboardOffset > 0
+										? { marginBottom: androidKeyboardOffset }
+										: null,
+								]}
+							>
 								<TextInput
 									style={styles.composerInput}
 									value={draft}
@@ -440,8 +492,8 @@ export default function MessagesScreen({ navigation }) {
 				>
 					<KeyboardAvoidingView
 						style={styles.modalKeyboardWrap}
-						behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-						keyboardVerticalOffset={Platform.OS === 'ios' ? 20 : 0}
+						behavior="padding"
+						keyboardVerticalOffset={Platform.OS === 'ios' ? 20 : 24}
 					>
 						<View style={styles.modalBackdrop}>
 							<View style={styles.modalCard}>
