@@ -1031,6 +1031,12 @@ export default function CouponPromosScreen({ route }) {
                 </View>
               ) : null}
 
+              {!loading && (activeTab === TAB_EXPIRING || activeTab === TAB_REDEEMED) ? (
+                <View style={styles.filteredLabelWrap}>
+                  <Text style={styles.nearYouTitle}>{sectionTitle}</Text>
+                </View>
+              ) : null}
+
               {!loading && !filteredPromos.length ? (
                 <View style={styles.emptyState}>
                   {emptyStateData.icon ? (
@@ -1331,6 +1337,10 @@ const styles = StyleSheet.create({
   },
   nearYouSection: {
     marginTop: 10,
+    marginBottom: 4,
+  },
+  filteredLabelWrap: {
+    marginTop: 8,
     marginBottom: 4,
   },
   nearYouTitle: {

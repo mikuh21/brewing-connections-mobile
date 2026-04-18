@@ -201,7 +201,8 @@ function normalizeEstablishment(item, index) {
   const recentReviews = Array.isArray(source.recent_reviews)
     ? source.recent_reviews.filter(Boolean)
     : [];
-  const activePromos = getActivePromosFromSource(source);
+  const activePromoDetails = getActivePromoDetailsFromSource(source);
+  const activePromos = activePromoDetails.map((promo) => promo.title).filter(Boolean);
 
   return {
     id: `${type || 'establishment'}-${String(source.id ?? index)}`,
@@ -242,6 +243,7 @@ function normalizeEstablishment(item, index) {
     serviceAvg: Number(source.service_avg ?? 0),
     coffeeVarieties: varieties,
     recentReviews,
+    activePromoDetails,
     activePromos,
     raw: source,
   };
@@ -369,22 +371,65 @@ function getVarietyColor(varietyName) {
   return VARIETY_COLOR_MAP[key] || '#9E8C78';
 }
 
-function getActivePromosFromSource(source) {
+function getActivePromoDetailsFromSource(source) {
   const promoGroups = [source?.active_promos, source?.coupon_promos, source?.promos];
   const rawPromos = promoGroups.find((entry) => Array.isArray(entry)) || [];
 
   return rawPromos
-    .map((promo) => {
+    .map((promo, promoIndex) => {
       if (!promo) {
         return null;
       }
 
       if (typeof promo === 'string') {
-        return promo.trim() || null;
+        const title = promo.trim();
+        if (!title) {
+          return null;
+        }
+
+        return {
+          id: title,
+          title,
+          discount: '',
+          description: '',
+        };
       }
 
-      return String(promo.title || promo.name || promo.code || promo.description || '').trim() || null;
+      const title = String(promo.title || promo.name || promo.code || '').trim();
+      const discount = String(
+        promo.discount_text ||
+          (promo.discount_type && promo.discount_value
+            ? `${promo.discount_value}${promo.discount_type === 'percentage' ? '% off' : ' off'}`
+            : '')
+      ).trim();
+      const description = String(promo.description || promo.discount_description || '').trim();
+
+      if (!title && !discount && !description) {
+        return null;
+      }
+
+      return {
+        id: String(promo.id || promo.code || title || description || `promo-${promoIndex}`),
+        title: title || description || 'Active Promo',
+        discount,
+        description,
+      };
     })
+    .filter(Boolean)
+    .filter((promo, index, list) => {
+      const signature = `${String(promo.title || '').toLowerCase()}|${String(promo.discount || '').toLowerCase()}|${String(promo.description || '').toLowerCase()}`;
+      return (
+        list.findIndex((entry) => {
+          const entrySignature = `${String(entry.title || '').toLowerCase()}|${String(entry.discount || '').toLowerCase()}|${String(entry.description || '').toLowerCase()}`;
+          return entrySignature === signature;
+        }) === index
+      );
+    });
+}
+
+function getActivePromosFromSource(source) {
+  return getActivePromoDetailsFromSource(source)
+    .map((promo) => promo.title)
     .filter(Boolean);
 }
 
@@ -1597,7 +1642,7 @@ export default function MapScreen({ navigation, route }) {
   };
 
   const handleOpenPromoInPromos = () => {
-    const activePromo = selectedEstablishment?.activePromos?.[0] || '';
+    const activePromo = selectedEstablishment?.activePromoDetails?.[0]?.title || selectedEstablishment?.activePromos?.[0] || '';
 
     if (!activePromo) {
       Alert.alert('No active promo', 'There is no active promo available right now.');
@@ -2186,7 +2231,7 @@ export default function MapScreen({ navigation, route }) {
                 <View style={styles.sheetPromoWrap}>
                   <Text style={styles.sheetPromoLabel}>Active Promo:</Text>
                   <Text style={styles.sheetPromoValue} numberOfLines={1} ellipsizeMode="tail">
-                    {selectedEstablishment.activePromos?.[0] || 'No active promo'}
+                    {selectedEstablishment.activePromoDetails?.length ? 'One active promo' : 'No active promo'}
                   </Text>
                 </View>
               ) : null}
@@ -2317,12 +2362,22 @@ export default function MapScreen({ navigation, route }) {
                   {selectedEstablishment.type === 'cafe' ? (
                     <View style={styles.sectionBlock}>
                       <Text style={styles.sectionTitle}>Promo</Text>
-                      <View style={styles.promoRow}>
-                        <Text style={styles.detailText} numberOfLines={2}>
-                          {selectedEstablishment.activePromos?.[0] || 'No active promo'}
-                        </Text>
+                      {selectedEstablishment.activePromoDetails?.[0] ? (
+                        <View style={styles.promoRow}>
+                          <View style={styles.promoContentWrap}>
+                            <Text style={styles.promoTitleText} numberOfLines={2}>
+                              {selectedEstablishment.activePromoDetails[0].title}
+                            </Text>
+                            {selectedEstablishment.activePromoDetails[0].discount ? (
+                              <Text style={styles.promoDiscountText} numberOfLines={1}>
+                                {selectedEstablishment.activePromoDetails[0].discount}
+                              </Text>
+                            ) : null}
+                            <Text style={styles.promoDescriptionText} numberOfLines={3}>
+                              {selectedEstablishment.activePromoDetails[0].description || 'No promo description available.'}
+                            </Text>
+                          </View>
 
-                        {selectedEstablishment.activePromos?.[0] ? (
                           <Pressable
                             style={styles.promoCouponButton}
                             onPress={handleOpenPromoInPromos}
@@ -2331,8 +2386,10 @@ export default function MapScreen({ navigation, route }) {
                           >
                             <MaterialIcons name="local-offer" size={16} color="#FFFFFF" />
                           </Pressable>
-                        ) : null}
-                      </View>
+                        </View>
+                      ) : (
+                        <Text style={styles.detailText}>No active promo</Text>
+                      )}
                     </View>
                   ) : null}
 
@@ -3457,7 +3514,7 @@ const styles = StyleSheet.create({
   },
   promoRow: {
     marginTop: 2,
-    minHeight: 42,
+    minHeight: 84,
     borderWidth: 1,
     borderColor: '#D2C5B3',
     borderRadius: 12,
@@ -3465,9 +3522,31 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 8,
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     justifyContent: 'space-between',
     gap: 10,
+  },
+  promoContentWrap: {
+    flex: 1,
+    gap: 2,
+  },
+  promoTitleText: {
+    color: '#3A2E22',
+    fontFamily: 'PoppinsBold',
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  promoDiscountText: {
+    color: '#2D4A1E',
+    fontFamily: 'PoppinsSemiBold',
+    fontSize: 12,
+    lineHeight: 16,
+  },
+  promoDescriptionText: {
+    color: '#6A5A4B',
+    fontFamily: 'PoppinsRegular',
+    fontSize: 12,
+    lineHeight: 16,
   },
   promoCouponButton: {
     width: 30,
@@ -3477,6 +3556,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
+    marginTop: 2,
   },
   metricRow: {
     flexDirection: 'row',
