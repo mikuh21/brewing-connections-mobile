@@ -1596,6 +1596,25 @@ export default function MapScreen({ navigation, route }) {
     }
   };
 
+  const handleOpenPromoInPromos = () => {
+    const activePromo = selectedEstablishment?.activePromos?.[0] || '';
+
+    if (!activePromo) {
+      Alert.alert('No active promo', 'There is no active promo available right now.');
+      return;
+    }
+
+    try {
+      navigation?.navigate?.('Promos', {
+        focusPromoTitle: activePromo,
+        focusEstablishmentName: selectedEstablishment?.name || '',
+        focusAt: Date.now(),
+      });
+    } catch {
+      Alert.alert('Unable to open promos', 'Please try again in a moment.');
+    }
+  };
+
   const resetTrailMode = async () => {
     try {
       await AsyncStorage.setItem(TRAIL_RESET_SIGNAL_KEY, String(Date.now()));
@@ -2294,6 +2313,28 @@ export default function MapScreen({ navigation, route }) {
                       <Text style={styles.marketplaceInlineButtonText}>Open Marketplace</Text>
                     </Pressable>
                   </View>
+
+                  {selectedEstablishment.type === 'cafe' ? (
+                    <View style={styles.sectionBlock}>
+                      <Text style={styles.sectionTitle}>Promo</Text>
+                      <View style={styles.promoRow}>
+                        <Text style={styles.detailText} numberOfLines={2}>
+                          {selectedEstablishment.activePromos?.[0] || 'No active promo'}
+                        </Text>
+
+                        {selectedEstablishment.activePromos?.[0] ? (
+                          <Pressable
+                            style={styles.promoCouponButton}
+                            onPress={handleOpenPromoInPromos}
+                            accessibilityRole="button"
+                            accessibilityLabel="Open active promo in promos screen"
+                          >
+                            <MaterialIcons name="local-offer" size={16} color="#FFFFFF" />
+                          </Pressable>
+                        ) : null}
+                      </View>
+                    </View>
+                  ) : null}
 
                   {selectedEstablishment.type === 'cafe' ? (
                     <View style={styles.sectionBlock}>
@@ -3413,6 +3454,29 @@ const styles = StyleSheet.create({
     fontFamily: 'PoppinsBold',
     fontSize: 13,
     lineHeight: 16,
+  },
+  promoRow: {
+    marginTop: 2,
+    minHeight: 42,
+    borderWidth: 1,
+    borderColor: '#D2C5B3',
+    borderRadius: 12,
+    backgroundColor: '#F7F2EA',
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  promoCouponButton: {
+    width: 30,
+    height: 30,
+    borderRadius: 999,
+    backgroundColor: '#C8973A',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
   },
   metricRow: {
     flexDirection: 'row',

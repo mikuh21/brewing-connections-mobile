@@ -216,7 +216,7 @@ function formatRemaining(ms) {
   return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 }
 
-export default function CouponPromosScreen() {
+export default function CouponPromosScreen({ route }) {
   const [promos, setPromos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -234,7 +234,9 @@ export default function CouponPromosScreen() {
   const [scanned, setScanned] = useState(false);
   const [scannerResult, setScannerResult] = useState(null);
   const [resultModalVisible, setResultModalVisible] = useState(false);
+  const [focusedPromoId, setFocusedPromoId] = useState(null);
 
+  const listRef = useRef(null);
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const scanLineAnim = useRef(new Animated.Value(0)).current;
   const shimmerAnim = useRef(new Animated.Value(0)).current;
@@ -553,6 +555,54 @@ export default function CouponPromosScreen() {
 
   const emptyStateData = useMemo(() => buildEmptyState(activeTab), [activeTab]);
   const sectionTitle = useMemo(() => getSectionTitle(activeTab), [activeTab]);
+  const focusPromoTitle = String(route?.params?.focusPromoTitle || '').trim().toLowerCase();
+  const focusEstablishmentName = String(route?.params?.focusEstablishmentName || '').trim().toLowerCase();
+  const focusAt = route?.params?.focusAt;
+
+  useEffect(() => {
+    if (!focusPromoTitle) {
+      return;
+    }
+
+    if (activeTab !== TAB_ALL) {
+      setActiveTab(TAB_ALL);
+    }
+  }, [activeTab, focusPromoTitle]);
+
+  useEffect(() => {
+    if (!focusPromoTitle || !listPromos.length) {
+      return;
+    }
+
+    const targetIndex = listPromos.findIndex((item) => {
+      const title = String(item?.title || '').trim().toLowerCase();
+      const establishment = String(item?.establishmentName || '').trim().toLowerCase();
+
+      const titleMatch = title === focusPromoTitle || title.includes(focusPromoTitle) || focusPromoTitle.includes(title);
+      const establishmentMatch = !focusEstablishmentName || establishment === focusEstablishmentName;
+
+      return titleMatch && establishmentMatch;
+    });
+
+    if (targetIndex < 0) {
+      return;
+    }
+
+    const targetPromo = listPromos[targetIndex];
+    setFocusedPromoId(targetPromo.id);
+
+    listRef.current?.scrollToIndex?.({
+      index: targetIndex,
+      animated: true,
+      viewPosition: 0.2,
+    });
+
+    const timeout = setTimeout(() => {
+      setFocusedPromoId(null);
+    }, 3200);
+
+    return () => clearTimeout(timeout);
+  }, [focusAt, focusEstablishmentName, focusPromoTitle, listPromos]);
 
   const handleRefresh = useCallback(async () => {
     let location = userLocation;
@@ -870,8 +920,13 @@ export default function CouponPromosScreen() {
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
         <FlatList
+          ref={listRef}
           data={listPromos}
           keyExtractor={(item) => item.id}
+          onScrollToIndexFailed={({ index }) => {
+            const fallbackOffset = Math.max(0, index) * 220;
+            listRef.current?.scrollToOffset?.({ offset: fallbackOffset, animated: true });
+          }}
           contentContainerStyle={styles.listContent}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={GREEN} />}
           ListHeaderComponent={
@@ -932,7 +987,7 @@ export default function CouponPromosScreen() {
               ) : null}
             </View>
           }
-          renderItem={(props) => renderCard({ ...props, highlighted: false })}
+          renderItem={(props) => renderCard({ ...props, highlighted: props.item.id === focusedPromoId })}
           ListFooterComponent={loading ? null : <View style={{ height: 110 }} />}
         />
 
