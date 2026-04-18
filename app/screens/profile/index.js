@@ -746,7 +746,7 @@ const styles = StyleSheet.create({
   },
   signOutButton: {
     marginTop: theme.spacing.md,
-    backgroundColor: '#A33939',
+    backgroundColor: '#DC2626',
     borderRadius: theme.borderRadius.md,
     alignItems: 'center',
     paddingVertical: theme.spacing.sm,
@@ -815,11 +815,11 @@ const styles = StyleSheet.create({
   logoutModalConfirmButton: {
     flex: 1,
     borderWidth: 1,
-    borderColor: '#A33939',
+    borderColor: '#DC2626',
     borderRadius: theme.borderRadius.md,
     alignItems: 'center',
     paddingVertical: 10,
-    backgroundColor: '#A33939',
+    backgroundColor: '#DC2626',
   },
   logoutModalConfirmText: {
     color: '#FFFFFF',
