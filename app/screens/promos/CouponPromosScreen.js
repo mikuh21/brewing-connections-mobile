@@ -2,25 +2,22 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Clipboard from 'expo-clipboard';
 import * as Location from 'expo-location';
-import { CameraView, useCameraPermissions } from 'expo-camera';
 import {
   ActivityIndicator,
   Alert,
   Animated,
   FlatList,
-  Linking,
   Modal,
   Pressable,
   RefreshControl,
   SafeAreaView,
   StyleSheet,
   Text,
-  Vibration,
   View,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import QRCode from 'react-native-qrcode-svg';
-import { getCouponPromos, getEstablishments, verifyCouponPromoQr } from '../../services';
+import { getCouponPromos, getEstablishments } from '../../services';
 
 const BACKGROUND = '#F5F0E8';
 const GREEN = '#2D4A1E';
@@ -254,61 +251,14 @@ export default function CouponPromosScreen({ route, navigation }) {
 
   const [claimTarget, setClaimTarget] = useState(null);
   const [isClaimModalVisible, setIsClaimModalVisible] = useState(false);
-
-  const [cameraPermission, requestCameraPermission] = useCameraPermissions();
-  const [isScannerVisible, setIsScannerVisible] = useState(false);
-  const [scanned, setScanned] = useState(false);
-  const [scannerResult, setScannerResult] = useState(null);
-  const [resultModalVisible, setResultModalVisible] = useState(false);
   const [focusedPromoId, setFocusedPromoId] = useState(null);
 
   const listRef = useRef(null);
   const lastHandledFocusAtRef = useRef(null);
   const lastAnimatedFocusAtRef = useRef(null);
   const focusClearTimeoutRef = useRef(null);
-  const pulseAnim = useRef(new Animated.Value(1)).current;
-  const scanLineAnim = useRef(new Animated.Value(0)).current;
   const shimmerAnim = useRef(new Animated.Value(0)).current;
-  const tooltipOpacity = useRef(new Animated.Value(1)).current;
   const focusedPulseAnim = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    const pulseLoop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulseAnim, { toValue: 1.08, duration: 1000, useNativeDriver: true }),
-        Animated.timing(pulseAnim, { toValue: 1, duration: 1000, useNativeDriver: true }),
-      ])
-    );
-
-    if (!isScannerVisible) {
-      pulseLoop.start();
-    }
-
-    return () => pulseLoop.stop();
-  }, [isScannerVisible, pulseAnim]);
-
-  useEffect(() => {
-    const lineLoop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(scanLineAnim, {
-          toValue: 1,
-          duration: 1500,
-          useNativeDriver: true,
-        }),
-        Animated.timing(scanLineAnim, {
-          toValue: 0,
-          duration: 300,
-          useNativeDriver: true,
-        }),
-      ])
-    );
-
-    if (isScannerVisible && !scanned) {
-      lineLoop.start();
-    }
-
-    return () => lineLoop.stop();
-  }, [isScannerVisible, scanned, scanLineAnim]);
 
   useEffect(() => {
     const shimmerLoop = Animated.loop(
@@ -326,18 +276,6 @@ export default function CouponPromosScreen({ route, navigation }) {
 
     return () => shimmerLoop.stop();
   }, [loading, shimmerAnim]);
-
-  useEffect(() => {
-    const hideTooltipTimer = setTimeout(() => {
-      Animated.timing(tooltipOpacity, {
-        toValue: 0,
-        duration: 350,
-        useNativeDriver: true,
-      }).start();
-    }, 3000);
-
-    return () => clearTimeout(hideTooltipTimer);
-  }, [tooltipOpacity]);
 
   useEffect(() => {
     let mounted = true;
@@ -903,130 +841,6 @@ export default function CouponPromosScreen({ route, navigation }) {
     Alert.alert('Copied', 'Coupon code copied to clipboard.');
   }, []);
 
-  const handleOpenScanner = useCallback(async () => {
-    try {
-      let permissionGranted = cameraPermission?.granted;
-      if (!permissionGranted) {
-        const permission = await requestCameraPermission();
-        permissionGranted = permission?.granted;
-      }
-
-      if (!permissionGranted) {
-        Alert.alert('Camera permission needed to scan QR codes', '', [
-          { text: 'Cancel', style: 'cancel' },
-          {
-            text: 'Open Settings',
-            onPress: () => {
-              Linking.openSettings();
-            },
-          },
-        ]);
-        return;
-      }
-
-      setScanned(false);
-      setIsScannerVisible(true);
-    } catch {
-      Alert.alert('Unable to open camera right now.');
-    }
-  }, [cameraPermission?.granted, requestCameraPermission]);
-
-  const classifyScannerResult = useCallback((payload) => {
-    const statusRaw = String(payload?.status || payload?.result || '').toLowerCase();
-
-    if (statusRaw.includes('already') || payload?.already_claimed) {
-      return 'already';
-    }
-
-    if (statusRaw.includes('invalid') || statusRaw.includes('expired')) {
-      return 'invalid';
-    }
-
-    if (statusRaw.includes('not_cafe') || statusRaw.includes('not-cafe') || payload?.is_cafe_promo === false) {
-      return 'not_cafe';
-    }
-
-    return 'success';
-  }, []);
-
-  const processScannedData = useCallback(
-    async (qrData) => {
-      try {
-        const payload = await verifyCouponPromoQr({
-          qr_data: qrData,
-          user_location: userLocation
-            ? {
-                lat: userLocation.latitude,
-                lng: userLocation.longitude,
-              }
-            : null,
-        });
-
-        const type = classifyScannerResult(payload || {});
-        const result = {
-          type,
-          promoTitle: payload?.promo?.title || payload?.title || 'Promo',
-          discount: payload?.promo?.description || payload?.discount || payload?.message || '',
-          cafeName: payload?.promo?.establishment?.name || payload?.cafe_name || payload?.establishment_name || 'Partner Cafe',
-          code: payload?.promo?.code || payload?.coupon_code || payload?.code || null,
-          claimedAt: payload?.claimed_at || payload?.claimedAt || null,
-          message:
-            payload?.message ||
-            (type === 'already'
-              ? 'Already Redeemed'
-              : type === 'invalid'
-              ? 'Invalid or Expired QR Code'
-              : type === 'not_cafe'
-              ? 'This QR code is not for a cafe promo'
-              : 'Promo Applied! ✓'),
-        };
-
-        if (type === 'success' && result.code) {
-          const matchingPromo = promos.find((item) => item.code === result.code || item.qrPayload === qrData);
-          if (matchingPromo) {
-            await finalizeClaimed(matchingPromo, payload?.claimed_at || Date.now());
-          }
-        }
-
-        setScannerResult(result);
-      } catch {
-        setScannerResult({
-          type: 'invalid',
-          message: 'Invalid or Expired QR Code',
-          promoTitle: null,
-          discount: null,
-          cafeName: null,
-          code: null,
-          claimedAt: null,
-        });
-      } finally {
-        setResultModalVisible(true);
-      }
-    },
-    [classifyScannerResult, finalizeClaimed, promos, userLocation]
-  );
-
-  const handleBarCodeScanned = useCallback(
-    async ({ data }) => {
-      if (scanned || !data) {
-        return;
-      }
-
-      setScanned(true);
-      Vibration.vibrate(120);
-      setIsScannerVisible(false);
-      await processScannedData(data);
-    },
-    [processScannedData, scanned]
-  );
-
-  const scanAnother = useCallback(() => {
-    setResultModalVisible(false);
-    setScannerResult(null);
-    setScanned(false);
-    setIsScannerVisible(true);
-  }, []);
-
   const renderCard = ({ item, index, showNearestBadge, isFocused }) => {
     const claimStatus = getClaimStatus(item);
     const isViewEnabled = claimStatus.status === CLAIM_CLAIMED || claimStatus.status === CLAIM_PENDING;
@@ -1166,11 +980,6 @@ export default function CouponPromosScreen({ route, navigation }) {
     outputRange: [-180, 240],
   });
 
-  const scanLineTranslate = scanLineAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, 248],
-  });
-
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
@@ -1253,125 +1062,7 @@ export default function CouponPromosScreen({ route, navigation }) {
           renderItem={(props) => renderCard({ ...props, showNearestBadge: false, isFocused: props.item.id === focusedPromoId })}
           ListFooterComponent={loading ? null : <View style={{ height: 110 }} />}
         />
-
-        {!isScannerVisible ? (
-          <Animated.View style={[styles.tooltipWrap, { opacity: tooltipOpacity }]}>
-            <Text style={styles.tooltipText}>Scan Promo</Text>
-          </Animated.View>
-        ) : null}
-
-        <Animated.View style={[styles.floatingButtonWrap, !isScannerVisible && { transform: [{ scale: pulseAnim }] }]}>
-          <Pressable style={styles.floatingButton} onPress={handleOpenScanner}>
-            <MaterialIcons name="qr-code-scanner" size={28} color="#FFFFFF" />
-          </Pressable>
-        </Animated.View>
       </View>
-
-      <Modal visible={isScannerVisible} animationType="slide" onRequestClose={() => setIsScannerVisible(false)}>
-        <View style={styles.scannerRoot}>
-          <View style={styles.scannerTopBar}>
-            <Text style={styles.scannerTitle}>Scan Promo QR Code</Text>
-            <Pressable onPress={() => setIsScannerVisible(false)}>
-              <MaterialIcons name="close" size={24} color="#FFFFFF" />
-            </Pressable>
-          </View>
-
-          <View style={styles.scannerCameraWrap}>
-            <CameraView
-              style={styles.cameraView}
-              facing="back"
-              onBarcodeScanned={scanned ? undefined : handleBarCodeScanned}
-              barcodeScannerSettings={{
-                barcodeTypes: ['qr'],
-              }}
-            />
-
-            <View style={styles.scanFrame}>
-              <View style={[styles.corner, styles.cornerTopLeft]} />
-              <View style={[styles.corner, styles.cornerTopRight]} />
-              <View style={[styles.corner, styles.cornerBottomLeft]} />
-              <View style={[styles.corner, styles.cornerBottomRight]} />
-              <Animated.View
-                style={[
-                  styles.scanLine,
-                  {
-                    transform: [{ translateY: scanLineTranslate }],
-                  },
-                ]}
-              />
-            </View>
-          </View>
-
-          <Text style={styles.scannerHint}>Point camera at cafe QR code</Text>
-        </View>
-      </Modal>
-
-      <Modal
-        transparent
-        visible={resultModalVisible}
-        animationType="fade"
-        onRequestClose={() => {
-          setResultModalVisible(false);
-          setScannerResult(null);
-        }}
-      >
-        <View style={styles.modalBackdropSolid}>
-          <View style={styles.resultCard}>
-            {scannerResult?.type === 'success' ? (
-              <View style={[styles.resultIconWrap, { backgroundColor: '#DCFCE7' }]}>
-                <MaterialIcons name="check" size={28} color="#16A34A" />
-              </View>
-            ) : scannerResult?.type === 'already' ? (
-              <View style={[styles.resultIconWrap, { backgroundColor: '#FEF3C7' }]}>
-                <MaterialIcons name="warning" size={28} color="#EA580C" />
-              </View>
-            ) : (
-              <View style={[styles.resultIconWrap, { backgroundColor: '#FEE2E2' }]}>
-                <MaterialIcons name="close" size={28} color="#DC2626" />
-              </View>
-            )}
-
-            <Text style={styles.resultTitle}>{scannerResult?.message || 'Result'}</Text>
-
-            {scannerResult?.promoTitle ? <Text style={styles.resultSubtitle}>{scannerResult.promoTitle}</Text> : null}
-            {scannerResult?.discount ? <Text style={styles.resultBody}>{scannerResult.discount}</Text> : null}
-            {scannerResult?.cafeName ? <Text style={styles.resultCafe}>{scannerResult.cafeName}</Text> : null}
-            {scannerResult?.claimedAt ? (
-              <Text style={styles.resultBody}>Redeemed on {formatDate(scannerResult.claimedAt)}</Text>
-            ) : null}
-
-            {scannerResult?.code ? (
-              <View style={styles.resultCodePill}>
-                <Text style={styles.resultCodeText}>{scannerResult.code}</Text>
-              </View>
-            ) : null}
-
-            {scannerResult?.code ? (
-              <Pressable style={styles.secondaryAction} onPress={() => handleCopyCode(scannerResult.code)}>
-                <Text style={styles.secondaryActionText}>Copy Code</Text>
-              </Pressable>
-            ) : null}
-
-            <Pressable
-              style={styles.primaryAction}
-              onPress={() => {
-                setResultModalVisible(false);
-                setScannerResult(null);
-              }}
-            >
-              <Text style={styles.primaryActionText}>Done</Text>
-            </Pressable>
-
-            <Pressable style={styles.secondaryAction} onPress={scanAnother}>
-              <Text style={styles.secondaryActionText}>
-                {scannerResult?.type === 'invalid' || scannerResult?.type === 'not_cafe'
-                  ? 'Try Another'
-                  : 'Scan Another'}
-              </Text>
-            </Pressable>
-          </View>
-        </View>
-      </Modal>
 
       <Modal
         transparent
@@ -1858,38 +1549,6 @@ const styles = StyleSheet.create({
     fontFamily: 'PoppinsMedium',
     fontSize: 14,
   },
-  floatingButtonWrap: {
-    position: 'absolute',
-    right: 24,
-    bottom: 90,
-  },
-  floatingButton: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: GREEN,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.24,
-    shadowRadius: 10,
-    elevation: 8,
-  },
-  tooltipWrap: {
-    position: 'absolute',
-    right: 20,
-    bottom: 156,
-    backgroundColor: '#111827',
-    borderRadius: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 5,
-  },
-  tooltipText: {
-    color: '#FFFFFF',
-    fontFamily: 'PoppinsMedium',
-    fontSize: 11,
-  },
   modalBackdrop: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.35)',
@@ -1929,168 +1588,6 @@ const styles = StyleSheet.create({
   radiusOptionTextActive: {
     color: GREEN,
     fontFamily: 'PoppinsBold',
-  },
-  scannerRoot: {
-    flex: 1,
-    backgroundColor: '#000000',
-    paddingTop: 54,
-  },
-  scannerTopBar: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 18,
-    marginBottom: 22,
-  },
-  scannerTitle: {
-    color: '#FFFFFF',
-    fontFamily: 'PoppinsBold',
-    fontSize: 18,
-  },
-  scannerCameraWrap: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  cameraView: {
-    ...StyleSheet.absoluteFillObject,
-  },
-  scanFrame: {
-    width: 250,
-    height: 250,
-    borderColor: 'rgba(255, 255, 255, 0.45)',
-    borderWidth: 1,
-  },
-  corner: {
-    position: 'absolute',
-    width: 28,
-    height: 28,
-    borderColor: GOLD,
-  },
-  cornerTopLeft: {
-    top: -1,
-    left: -1,
-    borderLeftWidth: 4,
-    borderTopWidth: 4,
-  },
-  cornerTopRight: {
-    top: -1,
-    right: -1,
-    borderRightWidth: 4,
-    borderTopWidth: 4,
-  },
-  cornerBottomLeft: {
-    bottom: -1,
-    left: -1,
-    borderLeftWidth: 4,
-    borderBottomWidth: 4,
-  },
-  cornerBottomRight: {
-    bottom: -1,
-    right: -1,
-    borderRightWidth: 4,
-    borderBottomWidth: 4,
-  },
-  scanLine: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    height: 2,
-    backgroundColor: '#4A7C2F',
-  },
-  scannerHint: {
-    color: '#FFFFFF',
-    textAlign: 'center',
-    marginBottom: 44,
-    fontFamily: 'PoppinsMedium',
-    fontSize: 14,
-  },
-  modalBackdropSolid: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
-    justifyContent: 'center',
-    paddingHorizontal: 22,
-  },
-  resultCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 18,
-    padding: 18,
-    alignItems: 'center',
-  },
-  resultIconWrap: {
-    width: 58,
-    height: 58,
-    borderRadius: 29,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 10,
-  },
-  resultTitle: {
-    color: '#111827',
-    fontFamily: 'PoppinsBold',
-    fontSize: 19,
-    textAlign: 'center',
-    marginBottom: 6,
-  },
-  resultSubtitle: {
-    color: GREEN,
-    fontFamily: 'PoppinsBold',
-    fontSize: 16,
-    textAlign: 'center',
-  },
-  resultBody: {
-    marginTop: 4,
-    color: '#4B5563',
-    fontFamily: 'PoppinsRegular',
-    fontSize: 13,
-    textAlign: 'center',
-  },
-  resultCafe: {
-    marginTop: 2,
-    color: '#1F2937',
-    fontFamily: 'PoppinsMedium',
-    fontSize: 13,
-    textAlign: 'center',
-  },
-  resultCodePill: {
-    marginTop: 12,
-    backgroundColor: '#F3F4F6',
-    borderRadius: 12,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-  },
-  resultCodeText: {
-    color: '#111827',
-    fontFamily: 'monospace',
-    fontWeight: '700',
-    fontSize: 18,
-  },
-  primaryAction: {
-    marginTop: 12,
-    width: '100%',
-    borderRadius: 12,
-    backgroundColor: GREEN,
-    paddingVertical: 11,
-    alignItems: 'center',
-  },
-  primaryActionText: {
-    color: '#FFFFFF',
-    fontFamily: 'PoppinsBold',
-    fontSize: 14,
-  },
-  secondaryAction: {
-    marginTop: 8,
-    width: '100%',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#D1D5DB',
-    paddingVertical: 11,
-    alignItems: 'center',
-  },
-  secondaryActionText: {
-    color: '#374151',
-    fontFamily: 'PoppinsMedium',
-    fontSize: 14,
   },
   claimSheetBackdrop: {
     flex: 1,
