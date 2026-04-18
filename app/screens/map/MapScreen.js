@@ -649,16 +649,22 @@ function getProductsByType(type) {
 
 function getEstablishmentRecipientId(source) {
   const candidates = [
+    source?.seller_id,
     source?.owner_id,
     source?.user_id,
     source?.owner_user_id,
     source?.establishment_owner_id,
+    source?.seller?.user_id,
+    source?.seller?.id,
     source?.owner?.id,
     source?.user?.id,
+    source?.raw?.seller_id,
     source?.raw?.owner_id,
     source?.raw?.user_id,
     source?.raw?.owner_user_id,
     source?.raw?.establishment_owner_id,
+    source?.raw?.seller?.user_id,
+    source?.raw?.seller?.id,
     source?.raw?.owner?.id,
     source?.raw?.user?.id,
   ];
@@ -671,6 +677,33 @@ function getEstablishmentRecipientId(source) {
   }
 
   return null;
+}
+
+function getEstablishmentParticipantName(source) {
+  const candidates = [
+    source?.seller_name,
+    source?.owner_name,
+    source?.user_name,
+    source?.seller?.name,
+    source?.owner?.name,
+    source?.user?.name,
+    source?.raw?.seller_name,
+    source?.raw?.owner_name,
+    source?.raw?.user_name,
+    source?.raw?.seller?.name,
+    source?.raw?.owner?.name,
+    source?.raw?.user?.name,
+    source?.name,
+  ];
+
+  for (const candidate of candidates) {
+    const normalized = String(candidate || '').trim();
+    if (normalized) {
+      return normalized;
+    }
+  }
+
+  return '';
 }
 
 function renderTypeIcon(icon, iconLibrary, color, size = 12) {
@@ -1993,12 +2026,13 @@ export default function MapScreen({ navigation, route }) {
     }
 
     const recipientId = getEstablishmentRecipientId(selectedEstablishment);
-    const participantName = String(selectedEstablishment.name || '').trim();
+    const participantName = getEstablishmentParticipantName(selectedEstablishment);
 
     try {
       navigation?.navigate?.('Messages', {
         recipientId: recipientId || undefined,
         participantName: participantName || undefined,
+        chatIntentAt: Date.now(),
       });
     } catch {
       Alert.alert('Unable to open chat', 'Please try again in a moment.');

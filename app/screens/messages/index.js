@@ -114,6 +114,56 @@ function userInitials(name) {
 	return `${chunks[0][0]}${chunks[1][0]}`.toUpperCase();
 }
 
+function normalizeName(value) {
+	return String(value || '').trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+function buildNameCandidates(value) {
+	const raw = String(value || '').trim();
+	if (!raw) {
+		return [];
+	}
+
+	const parts = raw
+		.split(/[•|\/,-]/)
+		.map((item) => normalizeName(item))
+		.filter(Boolean);
+
+	const full = normalizeName(raw);
+	return Array.from(new Set([full, ...parts]));
+}
+
+function findConversationByName(conversationList, participantName) {
+	const candidates = buildNameCandidates(participantName);
+	if (!candidates.length) {
+		return null;
+	}
+
+	for (const conversation of conversationList) {
+		const otherName = normalizeName(conversation?.other_participant?.name);
+		if (!otherName) {
+			continue;
+		}
+
+		if (candidates.includes(otherName)) {
+			return conversation;
+		}
+	}
+
+	for (const conversation of conversationList) {
+		const otherName = normalizeName(conversation?.other_participant?.name);
+		if (!otherName) {
+			continue;
+		}
+
+		if (candidates.some((candidate) => candidate && (otherName.includes(candidate) || candidate.includes(otherName)))) {
+			return conversation;
+		}
+	}
+
+	return null;
+}
+
 export default function MessagesScreen({ navigation }) {
 	const { user } = useAuth();
 	const route = useRoute();
@@ -121,6 +171,7 @@ export default function MessagesScreen({ navigation }) {
 	const listRef = useRef(null);
 	const selectedRecipientId = route?.params?.recipientId;
 	const selectedParticipantName = String(route?.params?.participantName || '').trim();
+	const selectedChatIntentAt = route?.params?.chatIntentAt;
 
 	const [conversations, setConversations] = useState([]);
 	const [recipients, setRecipients] = useState([]);
@@ -236,13 +287,8 @@ export default function MessagesScreen({ navigation }) {
 							Number(conversation?.other_participant?.id) === Number(selectedRecipientId)
 				  )
 				: null;
-			const matchedByName = !matchedByRecipient && selectedParticipantName
-				? conversationList.find((conversation) => {
-						const conversationName = String(conversation?.other_participant?.name || '')
-							.trim()
-							.toLowerCase();
-						return conversationName === selectedParticipantName.toLowerCase();
-				  })
+			const matchedByName = !matchedByRecipient
+				? findConversationByName(conversationList, selectedParticipantName)
 				: null;
 			const hasSelected = conversationList.some(
 				(conversation) => Number(conversation?.id) === Number(selectedConversationId)
@@ -280,12 +326,58 @@ export default function MessagesScreen({ navigation }) {
 	);
 
 	useEffect(() => {
-		if (!selectedRecipientId) {
+		if (!selectedRecipientId && !selectedParticipantName) {
 			return;
 		}
 
-		startConversation(selectedRecipientId);
-	}, [selectedRecipientId, startConversation]);
+		let isCancelled = false;
+
+		const syncIncomingTarget = async () => {
+			try {
+				const latestConversations = await fetchConversations();
+
+				if (isCancelled) {
+					return;
+				}
+
+				const matchedByRecipient = selectedRecipientId
+					? latestConversations.find(
+							(conversation) =>
+								Number(conversation?.other_participant?.id) === Number(selectedRecipientId)
+						  )
+					: null;
+				const matchedByName = matchedByRecipient
+					? null
+					: findConversationByName(latestConversations, selectedParticipantName);
+
+				const targetConversationId = matchedByRecipient?.id || matchedByName?.id || null;
+				if (targetConversationId) {
+					setSelectedConversationId(targetConversationId);
+					await fetchConversationMessages(targetConversationId);
+					return;
+				}
+
+				if (selectedRecipientId) {
+					await startConversation(selectedRecipientId);
+				}
+			} catch {
+				// Keep the current thread visible if target lookup fails.
+			}
+		};
+
+		syncIncomingTarget();
+
+		return () => {
+			isCancelled = true;
+		};
+	}, [
+		fetchConversationMessages,
+		fetchConversations,
+		selectedChatIntentAt,
+		selectedParticipantName,
+		selectedRecipientId,
+		startConversation,
+	]);
 
 	useEffect(() => {
 		if (!messages.length) {

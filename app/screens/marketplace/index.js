@@ -302,6 +302,7 @@ export default function MarketplaceScreen() {
 		navigation.navigate('Messages', {
 			recipientId: recipientId || undefined,
 			participantName: participantName || undefined,
+			chatIntentAt: Date.now(),
 		});
 	};
 
