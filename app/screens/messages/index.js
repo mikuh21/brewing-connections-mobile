@@ -460,12 +460,6 @@ export default function MessagesScreen({ navigation }) {
 									onChangeText={setDraft}
 									placeholder="Type a message"
 									placeholderTextColor="#9E8C78"
-									showSoftInputOnFocus
-									onFocus={() => {
-										requestAnimationFrame(() => {
-											listRef.current?.scrollToEnd?.({ animated: true });
-										});
-									}}
 									multiline
 								/>
 								<Pressable
