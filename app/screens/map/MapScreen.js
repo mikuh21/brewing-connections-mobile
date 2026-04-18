@@ -860,6 +860,7 @@ export default function MapScreen({ navigation, route }) {
   const heartTapAnim = useRef(new Animated.Value(1)).current;
   const savedToastOpacity = useRef(new Animated.Value(0)).current;
   const aboutPulseAnim = useRef(new Animated.Value(1)).current;
+  const beanPreviewAnim = useRef(new Animated.Value(0)).current;
 
   const rawTrailStops = route?.params?.trailStops;
   const rawTrailOrigin = route?.params?.trailOrigin;
@@ -1373,6 +1374,38 @@ export default function MapScreen({ navigation, route }) {
       aboutDragY.setValue(0);
     }
   }, [aboutDragY, showAboutModal]);
+
+  useEffect(() => {
+    if (!showBeanPreviewModal) {
+      return;
+    }
+
+    beanPreviewAnim.setValue(0);
+    Animated.timing(beanPreviewAnim, {
+      toValue: 1,
+      duration: 220,
+      useNativeDriver: true,
+    }).start();
+  }, [beanPreviewAnim, showBeanPreviewModal]);
+
+  const handleOpenBeanPreview = (imageSource) => {
+    if (!imageSource) {
+      return;
+    }
+
+    setBeanPreviewSource(imageSource);
+    setShowBeanPreviewModal(true);
+  };
+
+  const handleCloseBeanPreview = () => {
+    Animated.timing(beanPreviewAnim, {
+      toValue: 0,
+      duration: 160,
+      useNativeDriver: true,
+    }).start(() => {
+      setShowBeanPreviewModal(false);
+    });
+  };
 
   const sheetPanResponder = useRef(
     PanResponder.create({
@@ -2936,10 +2969,7 @@ export default function MapScreen({ navigation, route }) {
                     <Text style={styles.aboutVarietyTitle}>{variety.title}</Text>
                     <Pressable
                       style={styles.aboutBeanPreviewButton}
-                      onPress={() => {
-                        setBeanPreviewSource(variety.imageSource || null);
-                        setShowBeanPreviewModal(true);
-                      }}
+                      onPress={() => handleOpenBeanPreview(variety.imageSource || null)}
                       accessibilityRole="button"
                       accessibilityLabel={`Preview ${variety.title} coffee bean image`}
                     >
@@ -2973,17 +3003,33 @@ export default function MapScreen({ navigation, route }) {
         visible={showBeanPreviewModal}
         transparent
         animationType="fade"
-        onRequestClose={() => setShowBeanPreviewModal(false)}
+        onRequestClose={handleCloseBeanPreview}
       >
-        <Pressable style={styles.aboutBeanModalBackdrop} onPress={() => setShowBeanPreviewModal(false)}>
-          <View style={styles.aboutBeanModalCard}>
+        <View style={styles.aboutBeanModalBackdrop}>
+          <Pressable style={styles.aboutBeanModalBackdropTap} onPress={handleCloseBeanPreview} />
+          <Animated.View
+            style={[
+              styles.aboutBeanModalCard,
+              {
+                opacity: beanPreviewAnim,
+                transform: [
+                  {
+                    scale: beanPreviewAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0.86, 1],
+                    }),
+                  },
+                ],
+              },
+            ]}
+          >
             {beanPreviewSource ? (
               <Image source={beanPreviewSource} style={styles.aboutBeanModalImage} resizeMode="contain" />
             ) : (
               <MaterialCommunityIcons name="coffee-bean" size={128} color="#7A5D3A" />
             )}
-          </View>
-        </Pressable>
+          </Animated.View>
+        </View>
       </Modal>
 
       <Modal visible={showDestinationReachedModal} transparent animationType="fade" onRequestClose={() => {}}>
@@ -4222,6 +4268,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 24,
+  },
+  aboutBeanModalBackdropTap: {
+    ...StyleSheet.absoluteFillObject,
   },
   aboutBeanModalCard: {
     width: 220,
