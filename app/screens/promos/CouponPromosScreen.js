@@ -686,12 +686,12 @@ export default function CouponPromosScreen({ route, navigation }) {
     Animated.sequence([
       Animated.timing(focusedPulseAnim, {
         toValue: 1,
-        duration: 280,
+        duration: 420,
         useNativeDriver: true,
       }),
       Animated.timing(focusedPulseAnim, {
         toValue: 0,
-        duration: 900,
+        duration: 4580,
         useNativeDriver: true,
       }),
     ]).start();
@@ -714,7 +714,7 @@ export default function CouponPromosScreen({ route, navigation }) {
         focusEstablishmentName: undefined,
         focusAt: undefined,
       });
-    }, 2200);
+    }, 5000);
 
     return () => clearTimeout(timeout);
   }, [filteredPromos, focusAt, focusEstablishmentName, focusPromoTitle, focusedPulseAnim, listPromos, navigation]);
