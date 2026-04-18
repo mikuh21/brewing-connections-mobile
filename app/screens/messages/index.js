@@ -254,6 +254,7 @@ export default function MessagesScreen({ navigation }) {
 		const payload = await getChatRecipients();
 		const nextRecipients = safeList(payload);
 		setRecipients(nextRecipients);
+		return nextRecipients;
 	}, []);
 
 	const fetchConversationMessages = useCallback(
@@ -334,7 +335,8 @@ export default function MessagesScreen({ navigation }) {
 		setScreenError('');
 
 		try {
-				const [conversationList, recipientList] = await Promise.all([fetchConversations(), fetchRecipients()]);
+				const [conversationList, recipientListRaw] = await Promise.all([fetchConversations(), fetchRecipients()]);
+				const recipientList = Array.isArray(recipientListRaw) ? recipientListRaw : [];
 
 				const recipientById = selectedRecipientId
 					? recipientList.find((recipient) => Number(recipient?.id) === Number(selectedRecipientId))
@@ -405,10 +407,11 @@ export default function MessagesScreen({ navigation }) {
 
 		const syncIncomingTarget = async () => {
 			try {
-				const [latestConversations, latestRecipients] = await Promise.all([
+				const [latestConversations, latestRecipientsRaw] = await Promise.all([
 					fetchConversations(),
 					fetchRecipients(),
 				]);
+				const latestRecipients = Array.isArray(latestRecipientsRaw) ? latestRecipientsRaw : [];
 
 				if (isCancelled) {
 					return;
