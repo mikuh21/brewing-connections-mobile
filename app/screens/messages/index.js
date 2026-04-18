@@ -26,6 +26,8 @@ import {
 import { useAuth, useChat } from '../../context';
 import theme from '../../theme';
 
+const MAIN_CHAT_KEYBOARD_OFFSET = Platform.OS === 'ios' ? 72 : 148;
+
 function safeList(data) {
 	if (Array.isArray(data?.data)) {
 		return data.data;
@@ -598,7 +600,7 @@ export default function MessagesScreen({ navigation }) {
 			<KeyboardAvoidingView
 				style={styles.container}
 				behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-				keyboardVerticalOffset={Platform.OS === 'ios' ? 24 : 96}
+				keyboardVerticalOffset={MAIN_CHAT_KEYBOARD_OFFSET}
 			>
 				<View style={styles.headerRow}>
 					<View style={styles.headerTitleWrap}>
@@ -1062,6 +1064,7 @@ const styles = StyleSheet.create({
 		borderTopColor: '#E9DDCF',
 		paddingHorizontal: 10,
 		paddingVertical: 8,
+		paddingBottom: 12,
 		flexDirection: 'row',
 		alignItems: 'flex-end',
 		gap: 8,
