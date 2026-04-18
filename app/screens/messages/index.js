@@ -218,6 +218,21 @@ function findRecipientByName(recipientList, participantName) {
 	return null;
 }
 
+function prioritizeConversation(conversationList, conversationId) {
+	const targetId = Number(conversationId);
+	if (!targetId || !Array.isArray(conversationList) || !conversationList.length) {
+		return Array.isArray(conversationList) ? conversationList : [];
+	}
+
+	const target = conversationList.find((conversation) => Number(conversation?.id) === targetId);
+	if (!target) {
+		return conversationList;
+	}
+
+	const rest = conversationList.filter((conversation) => Number(conversation?.id) !== targetId);
+	return [target, ...rest];
+}
+
 export default function MessagesScreen({ navigation }) {
 	const { user } = useAuth();
 	const route = useRoute();
@@ -324,6 +339,7 @@ export default function MessagesScreen({ navigation }) {
 
 				if (nextConversationId) {
 					setSelectedConversationId(nextConversationId);
+					setConversations((prev) => prioritizeConversation(prev, nextConversationId));
 					await fetchConversationMessages(nextConversationId);
 				}
 			} catch (error) {
@@ -377,6 +393,7 @@ export default function MessagesScreen({ navigation }) {
 				(hasSelected ? selectedConversationIdRef.current : conversationList[0]?.id || null);
 
 			setSelectedConversationId(nextSelected);
+			setConversations((prev) => prioritizeConversation(prev, nextSelected));
 
 			if (nextSelected) {
 				await fetchConversationMessages(nextSelected);
@@ -546,6 +563,7 @@ export default function MessagesScreen({ navigation }) {
 		}
 
 		setSelectedConversationId(conversationId);
+		setConversations((prev) => prioritizeConversation(prev, conversationId));
 		await fetchConversationMessages(conversationId);
 	};
 
