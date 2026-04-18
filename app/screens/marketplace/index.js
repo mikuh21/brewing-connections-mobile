@@ -187,15 +187,19 @@ function normalizeSellerRole(product) {
 
 function getSellerRecipientId(source) {
 	const possibleIds = [
+		source?.seller_user_id,
 		source?.seller_id,
 		source?.owner_id,
 		source?.user_id,
+		source?.seller?.seller_user_id,
 		source?.seller?.user_id,
 		source?.owner?.id,
 		source?.seller?.id,
+		source?.product?.seller_user_id,
 		source?.product?.seller_id,
 		source?.product?.owner_id,
 		source?.product?.user_id,
+		source?.product?.seller?.seller_user_id,
 		source?.product?.seller?.user_id,
 		source?.product?.owner?.id,
 		source?.product?.seller?.id,

@@ -334,11 +334,28 @@ export default function MessagesScreen({ navigation }) {
 		setScreenError('');
 
 		try {
-			const [conversationList] = await Promise.all([fetchConversations(), fetchRecipients()]);
-			const matchedByRecipient = selectedRecipientId
+				const [conversationList, recipientList] = await Promise.all([fetchConversations(), fetchRecipients()]);
+
+				const recipientById = selectedRecipientId
+					? recipientList.find((recipient) => Number(recipient?.id) === Number(selectedRecipientId))
+					: null;
+				const recipientByName = selectedParticipantName
+					? findRecipientByName(recipientList, selectedParticipantName)
+					: null;
+
+				const shouldPreferNameRecipient =
+					recipientById &&
+					recipientByName &&
+					Number(recipientById?.id) !== Number(recipientByName?.id);
+
+				const effectiveRecipientId = shouldPreferNameRecipient
+					? Number(recipientByName?.id)
+					: Number(selectedRecipientId || recipientByName?.id || 0);
+
+				const matchedByRecipient = effectiveRecipientId > 0
 				? conversationList.find(
 						(conversation) =>
-							Number(conversation?.other_participant?.id) === Number(selectedRecipientId)
+								Number(conversation?.other_participant?.id) === effectiveRecipientId
 				  )
 				: null;
 			const matchedByName = !matchedByRecipient
@@ -397,10 +414,26 @@ export default function MessagesScreen({ navigation }) {
 					return;
 				}
 
-				const matchedByRecipient = selectedRecipientId
+				const recipientById = selectedRecipientId
+					? latestRecipients.find((recipient) => Number(recipient?.id) === Number(selectedRecipientId))
+					: null;
+				const recipientByName = selectedParticipantName
+					? findRecipientByName(latestRecipients, selectedParticipantName)
+					: null;
+
+				const shouldPreferNameRecipient =
+					recipientById &&
+					recipientByName &&
+					Number(recipientById?.id) !== Number(recipientByName?.id);
+
+				const effectiveRecipientId = shouldPreferNameRecipient
+					? Number(recipientByName?.id)
+					: Number(selectedRecipientId || recipientByName?.id || 0);
+
+				const matchedByRecipient = effectiveRecipientId > 0
 					? latestConversations.find(
 							(conversation) =>
-								Number(conversation?.other_participant?.id) === Number(selectedRecipientId)
+								Number(conversation?.other_participant?.id) === effectiveRecipientId
 						  )
 					: null;
 				const matchedByName = matchedByRecipient
@@ -414,8 +447,8 @@ export default function MessagesScreen({ navigation }) {
 					return;
 				}
 
-				if (selectedRecipientId) {
-					await startConversation(selectedRecipientId);
+				if (effectiveRecipientId > 0) {
+					await startConversation(effectiveRecipientId);
 					return;
 				}
 
