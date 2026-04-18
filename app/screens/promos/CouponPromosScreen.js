@@ -263,6 +263,8 @@ export default function CouponPromosScreen({ route, navigation }) {
 
   const listRef = useRef(null);
   const lastHandledFocusAtRef = useRef(null);
+  const lastAnimatedFocusAtRef = useRef(null);
+  const focusClearTimeoutRef = useRef(null);
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const scanLineAnim = useRef(new Animated.Value(0)).current;
   const shimmerAnim = useRef(new Animated.Value(0)).current;
@@ -360,6 +362,14 @@ export default function CouponPromosScreen({ route, navigation }) {
     }, 1000);
 
     return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (focusClearTimeoutRef.current) {
+        clearTimeout(focusClearTimeoutRef.current);
+      }
+    };
   }, []);
 
   const requestLocation = useCallback(async () => {
@@ -665,6 +675,10 @@ export default function CouponPromosScreen({ route, navigation }) {
       return;
     }
 
+    if (lastAnimatedFocusAtRef.current === focusAt) {
+      return;
+    }
+
     const findPromoMatch = (item) => {
       const title = String(item?.title || '').trim().toLowerCase();
       const establishment = String(item?.establishmentName || '').trim().toLowerCase();
@@ -681,6 +695,7 @@ export default function CouponPromosScreen({ route, navigation }) {
       return;
     }
 
+    lastAnimatedFocusAtRef.current = focusAt;
     setFocusedPromoId(targetPromo.id);
     focusedPulseAnim.setValue(0);
     Animated.sequence([
@@ -707,7 +722,11 @@ export default function CouponPromosScreen({ route, navigation }) {
       listRef.current?.scrollToOffset?.({ offset: 0, animated: true });
     }
 
-    const timeout = setTimeout(() => {
+    if (focusClearTimeoutRef.current) {
+      clearTimeout(focusClearTimeoutRef.current);
+    }
+
+    focusClearTimeoutRef.current = setTimeout(() => {
       setFocusedPromoId(null);
       navigation?.setParams?.({
         focusPromoTitle: undefined,
@@ -715,8 +734,6 @@ export default function CouponPromosScreen({ route, navigation }) {
         focusAt: undefined,
       });
     }, 5000);
-
-    return () => clearTimeout(timeout);
   }, [filteredPromos, focusAt, focusEstablishmentName, focusPromoTitle, focusedPulseAnim, listPromos, navigation]);
 
   const handleRefresh = useCallback(async () => {
