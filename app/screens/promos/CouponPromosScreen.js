@@ -1134,9 +1134,6 @@ export default function CouponPromosScreen({ route, navigation }) {
                   ? `Failed • resets in ${Math.max(1, Math.ceil(claimStatus.resetRemainingMs / (1000 * 60 * 60)))}h`
                   : 'Failed'}
               </Text>
-              <Pressable style={[styles.viewActionButton, styles.viewActionButtonDisabled]} disabled>
-                <Text style={[styles.viewActionButtonText, styles.viewActionButtonTextDisabled]}>View</Text>
-              </Pressable>
             </View>
           ) : claimStatus.isPending ? (
             <View style={styles.cardActionStack}>
