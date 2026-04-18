@@ -49,7 +49,7 @@ const TYPE_FILTER_OPTIONS = [
   { key: 'farm', label: 'Farms', color: '#2D4A1E', icon: 'eco', iconLibrary: 'material' },
   { key: 'cafe', label: 'Cafes', color: '#8B4513', icon: 'local-cafe', iconLibrary: 'material' },
   { key: 'roaster', label: 'Roasters', color: '#C8973A', icon: 'local-fire-department', iconLibrary: 'material' },
-  { key: 'reseller', label: 'Resellers', color: '#1E40AF', icon: 'coffee-bean', iconLibrary: 'community' },
+  { key: 'reseller', label: 'Resellers', color: '#1E40AF', icon: 'seed', iconLibrary: 'community' },
 ];
 
 const TYPE_PIN_COLORS = {
@@ -63,7 +63,7 @@ const TYPE_MARKER_ICONS = {
   farm: { icon: 'eco', iconLibrary: 'material' },
   cafe: { icon: 'local-cafe', iconLibrary: 'material' },
   roaster: { icon: 'local-fire-department', iconLibrary: 'material' },
-  reseller: { icon: 'coffee-bean', iconLibrary: 'community' },
+  reseller: { icon: 'seed', iconLibrary: 'community' },
 };
 
 const TYPE_PILL_THEME = {
