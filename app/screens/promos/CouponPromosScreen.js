@@ -1029,6 +1029,7 @@ export default function CouponPromosScreen({ route, navigation }) {
 
   const renderCard = ({ item, index, showNearestBadge, isFocused }) => {
     const claimStatus = getClaimStatus(item);
+    const isViewEnabled = claimStatus.status === CLAIM_CLAIMED || claimStatus.status === CLAIM_PENDING;
     const focusedScale = focusedPulseAnim.interpolate({
       inputRange: [0, 1],
       outputRange: [1, 1.03],
@@ -1059,8 +1060,12 @@ export default function CouponPromosScreen({ route, navigation }) {
         <View style={styles.leftStrip} />
         <View style={styles.notchLeft} />
         <View style={styles.notchRight} />
-        <Pressable style={styles.viewPill} onPress={() => openClaimModal(item)}>
-          <Text style={styles.viewPillText}>View</Text>
+        <Pressable
+          style={[styles.viewPill, !isViewEnabled && styles.viewPillDisabled]}
+          disabled={!isViewEnabled}
+          onPress={isViewEnabled ? () => openClaimModal(item) : undefined}
+        >
+          <Text style={[styles.viewPillText, !isViewEnabled && styles.viewPillTextDisabled]}>View</Text>
         </Pressable>
 
         <View style={styles.cardTop}>
@@ -1116,25 +1121,47 @@ export default function CouponPromosScreen({ route, navigation }) {
           </View>
 
           {claimStatus.isClaimed ? (
-            <Text style={styles.claimedText}>Redeemed ✓</Text>
+            <View style={styles.cardActionStack}>
+              <Text style={styles.claimedText}>Redeemed ✓</Text>
+              <Pressable style={styles.viewActionButton} onPress={() => openClaimModal(item)}>
+                <Text style={styles.viewActionButtonText}>View</Text>
+              </Pressable>
+            </View>
           ) : claimStatus.isFailed ? (
-            <Text style={styles.failedText}>
-              {claimStatus.resetRemainingMs > 0
-                ? `Failed • resets in ${Math.max(1, Math.ceil(claimStatus.resetRemainingMs / (1000 * 60 * 60)))}h`
-                : 'Failed'}
-            </Text>
+            <View style={styles.cardActionStack}>
+              <Text style={styles.failedText}>
+                {claimStatus.resetRemainingMs > 0
+                  ? `Failed • resets in ${Math.max(1, Math.ceil(claimStatus.resetRemainingMs / (1000 * 60 * 60)))}h`
+                  : 'Failed'}
+              </Text>
+              <Pressable style={[styles.viewActionButton, styles.viewActionButtonDisabled]} disabled>
+                <Text style={[styles.viewActionButtonText, styles.viewActionButtonTextDisabled]}>View</Text>
+              </Pressable>
+            </View>
+          ) : claimStatus.isPending ? (
+            <View style={styles.cardActionStack}>
+              <Text style={styles.pendingText}>{formatRemaining(claimStatus.remainingMs)}</Text>
+              <Pressable style={styles.viewActionButton} onPress={() => openClaimModal(item)}>
+                <Text style={styles.viewActionButtonText}>View</Text>
+              </Pressable>
+            </View>
           ) : (
-            <Pressable
-              style={({ pressed }) => [styles.claimButton, pressed && styles.claimButtonPressed]}
-              onPress={() => {
-                if (!claimStatus.isPending) {
-                  startClaimCountdown(item);
-                }
-                openClaimModal(item);
-              }}
-            >
-              <Text style={styles.claimButtonText}>{claimStatus.isPending ? formatRemaining(claimStatus.remainingMs) : 'Claim'}</Text>
-            </Pressable>
+            <View style={styles.cardActionStack}>
+              <Pressable
+                style={({ pressed }) => [styles.claimButton, pressed && styles.claimButtonPressed]}
+                onPress={() => {
+                  if (!claimStatus.isPending) {
+                    startClaimCountdown(item);
+                  }
+                  openClaimModal(item);
+                }}
+              >
+                <Text style={styles.claimButtonText}>Claim</Text>
+              </Pressable>
+              <Pressable style={[styles.viewActionButton, styles.viewActionButtonDisabled]} disabled>
+                <Text style={[styles.viewActionButtonText, styles.viewActionButtonTextDisabled]}>View</Text>
+              </Pressable>
+            </View>
           )}
         </View>
       </View>
@@ -1627,6 +1654,13 @@ const styles = StyleSheet.create({
     fontFamily: 'PoppinsMedium',
     fontSize: 11,
   },
+  viewPillDisabled: {
+    backgroundColor: 'rgba(229, 231, 235, 0.75)',
+    borderColor: '#D1D5DB',
+  },
+  viewPillTextDisabled: {
+    color: '#9CA3AF',
+  },
   avatar: {
     width: 50,
     height: 50,
@@ -1776,6 +1810,36 @@ const styles = StyleSheet.create({
   },
   claimButtonText: {
     color: '#FFFFFF',
+    fontFamily: 'PoppinsBold',
+    fontSize: 13,
+  },
+  cardActionStack: {
+    alignItems: 'flex-end',
+    gap: 6,
+  },
+  viewActionButton: {
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 999,
+    paddingVertical: 6,
+    paddingHorizontal: 14,
+  },
+  viewActionButtonText: {
+    color: BROWN,
+    fontFamily: 'PoppinsBold',
+    fontSize: 12,
+    lineHeight: 15,
+  },
+  viewActionButtonDisabled: {
+    backgroundColor: '#F3F4F6',
+    borderColor: '#D1D5DB',
+  },
+  viewActionButtonTextDisabled: {
+    color: '#9CA3AF',
+  },
+  pendingText: {
+    color: '#0F766E',
     fontFamily: 'PoppinsBold',
     fontSize: 13,
   },
