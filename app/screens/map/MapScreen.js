@@ -21,6 +21,7 @@ import MapView, { Callout, Marker, Polyline } from 'react-native-maps';
 import * as Location from 'expo-location';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { API_CONFIG, api, getEstablishments } from '../../services';
 
 const LIPA_REGION = {
@@ -44,11 +45,11 @@ const MAP_DELTA_LIMITS = {
 };
 
 const TYPE_FILTER_OPTIONS = [
-  { key: 'all', label: 'All', color: '#3A2E22' },
-  { key: 'farm', label: 'Farms', color: '#2D4A1E' },
-  { key: 'cafe', label: 'Cafes', color: '#8B4513' },
-  { key: 'roaster', label: 'Roasters', color: '#C8973A' },
-  { key: 'reseller', label: 'Resellers', color: '#1E40AF' },
+  { key: 'all', label: 'All', color: '#3A2E22', icon: 'place', iconLibrary: 'material' },
+  { key: 'farm', label: 'Farms', color: '#2D4A1E', icon: 'eco', iconLibrary: 'material' },
+  { key: 'cafe', label: 'Cafes', color: '#8B4513', icon: 'local-cafe', iconLibrary: 'material' },
+  { key: 'roaster', label: 'Roasters', color: '#C8973A', icon: 'local-fire-department', iconLibrary: 'material' },
+  { key: 'reseller', label: 'Resellers', color: '#1E40AF', icon: 'coffee-bean', iconLibrary: 'community' },
 ];
 
 const TYPE_PIN_COLORS = {
@@ -56,6 +57,13 @@ const TYPE_PIN_COLORS = {
   cafe: '#8B4513',
   roaster: '#C8973A',
   reseller: '#1E40AF',
+};
+
+const TYPE_MARKER_ICONS = {
+  farm: { icon: 'eco', iconLibrary: 'material' },
+  cafe: { icon: 'local-cafe', iconLibrary: 'material' },
+  roaster: { icon: 'local-fire-department', iconLibrary: 'material' },
+  reseller: { icon: 'coffee-bean', iconLibrary: 'community' },
 };
 
 const TYPE_PILL_THEME = {
@@ -397,6 +405,14 @@ function getTypeDisplayLabel(item) {
     return 'Establishment';
   }
   return `${type.charAt(0).toUpperCase()}${type.slice(1)}`;
+}
+
+function renderTypeIcon(icon, iconLibrary, color, size = 12) {
+  if (iconLibrary === 'community') {
+    return <MaterialCommunityIcons name={icon} size={size} color={color} />;
+  }
+
+  return <MaterialIcons name={icon} size={size} color={color} />;
 }
 
 function getSearchMatchScore(item, query) {
@@ -1703,10 +1719,23 @@ export default function MapScreen({ navigation, route }) {
           <Marker
             key={item.id}
             coordinate={{ latitude: item.latitude, longitude: item.longitude }}
-            pinColor={TYPE_PIN_COLORS[item.type] || BRAND.accent}
+            tracksViewChanges={false}
             onPress={() => handleMarkerSelect(item)}
             onSelect={() => handleMarkerSelect(item)}
           >
+            <View
+              style={[
+                styles.establishmentMarker,
+                { backgroundColor: TYPE_PIN_COLORS[item.type] || BRAND.accent },
+              ]}
+            >
+              {renderTypeIcon(
+                TYPE_MARKER_ICONS[item.type]?.icon || 'place',
+                TYPE_MARKER_ICONS[item.type]?.iconLibrary || 'material',
+                '#FFFFFF',
+                TYPE_MARKER_ICONS[item.type]?.iconLibrary === 'community' ? 15 : 16
+              )}
+            </View>
             <Callout onPress={() => handleViewDetails(item)}>
               <View style={styles.calloutWrap}>
                 <Text style={styles.calloutName}>{item.name}</Text>
@@ -1845,6 +1874,9 @@ export default function MapScreen({ navigation, route }) {
                     }}
                   >
                     <View style={[styles.dropdownDot, { backgroundColor: item.color }]} />
+                    <View style={styles.dropdownTypeIconWrap}>
+                      {renderTypeIcon(item.icon, item.iconLibrary, item.color, 13)}
+                    </View>
                     <Text style={styles.dropdownItemText}>{item.label}</Text>
                     {isActive ? <Text style={styles.dropdownCheck}>✓</Text> : null}
                   </Pressable>
@@ -2404,6 +2436,20 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 14,
   },
+  establishmentMarker: {
+    width: 34,
+    height: 34,
+    borderRadius: 999,
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.24,
+    shadowRadius: 3,
+    elevation: 3,
+  },
   trailBottomPanel: {
     position: 'absolute',
     left: 0,
@@ -2755,6 +2801,11 @@ const styles = StyleSheet.create({
     width: 10,
     height: 10,
     borderRadius: 999,
+  },
+  dropdownTypeIconWrap: {
+    width: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   dropdownItemText: {
     flex: 1,
