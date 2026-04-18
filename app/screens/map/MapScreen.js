@@ -2504,7 +2504,12 @@ export default function MapScreen({ navigation, route }) {
                     <View style={styles.sectionBlock}>
                       <Text style={styles.sectionTitle}>Promo</Text>
                       {selectedEstablishment.activePromoDetails?.[0] ? (
-                        <View style={styles.promoRow}>
+                        <Pressable
+                          style={[styles.promoRow, styles.promoRowClickable]}
+                          onPress={handleOpenPromoInPromos}
+                          accessibilityRole="button"
+                          accessibilityLabel="Open full promo details in promos screen"
+                        >
                           <View style={styles.promoContentWrap}>
                             <Text style={styles.promoTitleText} numberOfLines={2}>
                               {selectedEstablishment.activePromoDetails[0].title}
@@ -2517,17 +2522,13 @@ export default function MapScreen({ navigation, route }) {
                             <Text style={styles.promoDescriptionText} numberOfLines={3}>
                               {selectedEstablishment.activePromoDetails[0].description || 'No promo description available.'}
                             </Text>
+                            <Text style={styles.promoHintText}>Click to view full promo details</Text>
                           </View>
 
-                          <Pressable
-                            style={styles.promoCouponButton}
-                            onPress={handleOpenPromoInPromos}
-                            accessibilityRole="button"
-                            accessibilityLabel="Open active promo in promos screen"
-                          >
+                          <View style={styles.promoCouponButton}>
                             <MaterialIcons name="local-offer" size={16} color="#FFFFFF" />
-                          </Pressable>
-                        </View>
+                          </View>
+                        </Pressable>
                       ) : (
                         <Text style={styles.detailText}>No active promo</Text>
                       )}
@@ -3667,6 +3668,9 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: 10,
   },
+  promoRowClickable: {
+    borderColor: '#CDB99D',
+  },
   promoContentWrap: {
     flex: 1,
     gap: 2,
@@ -3688,6 +3692,14 @@ const styles = StyleSheet.create({
     fontFamily: 'PoppinsRegular',
     fontSize: 12,
     lineHeight: 16,
+  },
+  promoHintText: {
+    marginTop: 3,
+    color: '#7B7B7B',
+    fontFamily: 'PoppinsRegular',
+    fontSize: 11,
+    lineHeight: 15,
+    fontStyle: 'italic',
   },
   promoCouponButton: {
     width: 30,
