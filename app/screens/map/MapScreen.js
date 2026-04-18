@@ -915,11 +915,16 @@ export default function MapScreen({ navigation, route }) {
   const panelAnimation = useRef(new Animated.Value(160)).current;
   const dragY = useRef(new Animated.Value(0)).current;
   const aboutDragY = useRef(new Animated.Value(0)).current;
+  const isDetailsExpandedRef = useRef(false);
 
   const selectedEstablishment = useMemo(
     () => establishments.find((item) => item.id === selectedEstablishmentId) || null,
     [establishments, selectedEstablishmentId]
   );
+
+  useEffect(() => {
+    isDetailsExpandedRef.current = isDetailsExpanded;
+  }, [isDetailsExpanded]);
 
   useEffect(() => {
     const nextCandidates = selectedEstablishment?.imageCandidates || [];
@@ -1376,11 +1381,18 @@ export default function MapScreen({ navigation, route }) {
       },
       onPanResponderRelease: (_, gestureState) => {
         const { dy, vy } = gestureState;
+        const isStrongCloseSwipe = dy > 110 || vy > 1.05;
 
         if (dy < -45 || vy < -0.8) {
           setIsDetailsExpanded(true);
         } else if (dy > 45 || vy > 0.8) {
-          setIsDetailsExpanded(false);
+          if (isStrongCloseSwipe || !isDetailsExpandedRef.current) {
+            setSelectedEstablishmentId(null);
+            setNavigationError('');
+            setIsDetailsExpanded(false);
+          } else {
+            setIsDetailsExpanded(false);
+          }
         }
 
         Animated.spring(dragY, {
