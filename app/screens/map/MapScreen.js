@@ -1403,14 +1403,20 @@ export default function MapScreen({ navigation, route }) {
 
   const aboutHandlePanResponder = useRef(
     PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onStartShouldSetPanResponderCapture: () => true,
+      onPanResponderGrant: () => {
+        aboutDragY.stopAnimation();
+      },
       onMoveShouldSetPanResponder: (_, gestureState) => {
         const isVertical = Math.abs(gestureState.dy) > Math.abs(gestureState.dx);
-        return isVertical && gestureState.dy > 5;
+        return isVertical && Math.abs(gestureState.dy) > 2;
       },
       onPanResponderMove: (_, gestureState) => {
         const limitedDy = Math.max(0, Math.min(360, gestureState.dy));
         aboutDragY.setValue(limitedDy);
       },
+      onPanResponderTerminationRequest: () => false,
       onPanResponderRelease: (_, gestureState) => {
         const shouldDismiss = gestureState.dy > 90 || gestureState.vy > 0.9;
 
@@ -2873,7 +2879,11 @@ export default function MapScreen({ navigation, route }) {
               },
             ]}
           >
-            <View style={styles.aboutHandleTouchArea} {...aboutHandlePanResponder.panHandlers}>
+            <View
+              collapsable={false}
+              style={styles.aboutHandleTouchArea}
+              {...aboutHandlePanResponder.panHandlers}
+            >
               <View style={styles.aboutHandle} />
             </View>
 
@@ -4045,7 +4055,10 @@ const styles = StyleSheet.create({
   },
   aboutHandleTouchArea: {
     alignSelf: 'stretch',
+    minHeight: 28,
+    justifyContent: 'center',
     paddingTop: 2,
+    paddingBottom: 8,
   },
   aboutHeaderRow: {
     flexDirection: 'row',
