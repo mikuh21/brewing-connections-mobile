@@ -96,6 +96,7 @@ const ABOUT_VARIETY_CONTENT = [
     title: 'Arabica',
     scientificName: 'Coffea arabica',
     color: VARIETY_COLOR_MAP.arabica,
+    imageSource: require('../../../assets/ARABICA.png'),
     overview:
       'Arabica is the most widely consumed coffee species in the world, prized for its superior quality and complex flavors. It is often considered premium coffee due to its smooth, balanced, and aromatic profile.',
     tasteProfile: ['Smooth, mild, and aromatic', 'Notes: fruity, floral, slightly sweet', 'Lower bitterness'],
@@ -107,6 +108,7 @@ const ABOUT_VARIETY_CONTENT = [
     title: 'Excelsa',
     scientificName: 'Coffea excelsa / Liberica var.',
     color: VARIETY_COLOR_MAP.excelsa,
+    imageSource: require('../../../assets/EXCELSA.png'),
     overview:
       'Excelsa is often classified as a variety of Liberica and is valued for adding depth and complexity to coffee blends. It is less commonly consumed on its own but plays an important role in enhancing flavor profiles.',
     tasteProfile: ['Tart, fruity, and slightly dark', 'Notes: berry-like, tangy', 'Adds complexity to blends'],
@@ -118,6 +120,7 @@ const ABOUT_VARIETY_CONTENT = [
     title: 'Liberica',
     scientificName: 'Coffea liberica',
     color: VARIETY_COLOR_MAP.liberica,
+    imageSource: require('../../../assets/LIBERICA.png'),
     overview:
       'Liberica is a rare coffee species globally but holds cultural and agricultural importance in the Philippines. It is known for its distinctive aroma and unique flavor that sets it apart from more common varieties.',
     tasteProfile: ['Smoky, woody, sometimes floral', 'Unique, complex flavor', 'Slightly fruity with a bold body'],
@@ -129,6 +132,7 @@ const ABOUT_VARIETY_CONTENT = [
     title: 'Robusta',
     scientificName: 'Coffea canephora',
     color: VARIETY_COLOR_MAP.robusta,
+    imageSource: require('../../../assets/ROBUSTA.png'),
     overview:
       'Robusta is known for its strong, bold flavor and is commonly used in instant coffee and espresso blends. It is easier to grow and more resilient, making it a practical choice for large-scale production.',
     tasteProfile: ['Bold, strong, and bitter', 'Notes: earthy, nutty, woody', 'Less acidity'],
@@ -843,7 +847,7 @@ export default function MapScreen({ navigation, route }) {
   const [showSavedToast, setShowSavedToast] = useState(false);
   const [showAboutModal, setShowAboutModal] = useState(false);
   const [showBeanPreviewModal, setShowBeanPreviewModal] = useState(false);
-  const [beanPreviewColor, setBeanPreviewColor] = useState('#7A5D3A');
+  const [beanPreviewSource, setBeanPreviewSource] = useState(ABOUT_VARIETY_CONTENT[0]?.imageSource || null);
   const lastRerouteRef = useRef({
     point: null,
     at: 0,
@@ -2933,13 +2937,13 @@ export default function MapScreen({ navigation, route }) {
                     <Pressable
                       style={styles.aboutBeanPreviewButton}
                       onPress={() => {
-                        setBeanPreviewColor(variety.color);
+                        setBeanPreviewSource(variety.imageSource || null);
                         setShowBeanPreviewModal(true);
                       }}
                       accessibilityRole="button"
                       accessibilityLabel={`Preview ${variety.title} coffee bean image`}
                     >
-                      <MaterialCommunityIcons name="coffee-bean" size={18} color={variety.color} />
+                      <Image source={variety.imageSource} style={styles.aboutBeanPreviewImage} resizeMode="contain" />
                     </Pressable>
                   </View>
                   <Text style={styles.aboutScientificName}>{variety.scientificName}</Text>
@@ -2973,7 +2977,11 @@ export default function MapScreen({ navigation, route }) {
       >
         <Pressable style={styles.aboutBeanModalBackdrop} onPress={() => setShowBeanPreviewModal(false)}>
           <View style={styles.aboutBeanModalCard}>
-            <MaterialCommunityIcons name="coffee-bean" size={128} color={beanPreviewColor} />
+            {beanPreviewSource ? (
+              <Image source={beanPreviewSource} style={styles.aboutBeanModalImage} resizeMode="contain" />
+            ) : (
+              <MaterialCommunityIcons name="coffee-bean" size={128} color="#7A5D3A" />
+            )}
           </View>
         </Pressable>
       </Modal>
@@ -4160,14 +4168,18 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   aboutBeanPreviewButton: {
-    width: 30,
-    height: 30,
+    width: 42,
+    height: 42,
     borderRadius: 999,
     borderWidth: 1,
     borderColor: '#D8CCBC',
     backgroundColor: 'rgba(255, 255, 255, 0.65)',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  aboutBeanPreviewImage: {
+    width: 30,
+    height: 30,
   },
   aboutScientificName: {
     marginTop: 1,
@@ -4225,5 +4237,9 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 16,
     elevation: 8,
+  },
+  aboutBeanModalImage: {
+    width: 164,
+    height: 164,
   },
 });
