@@ -842,6 +842,8 @@ export default function MapScreen({ navigation, route }) {
   const [savedEstablishments, setSavedEstablishments] = useState([]);
   const [showSavedToast, setShowSavedToast] = useState(false);
   const [showAboutModal, setShowAboutModal] = useState(false);
+  const [showBeanPreviewModal, setShowBeanPreviewModal] = useState(false);
+  const [beanPreviewColor, setBeanPreviewColor] = useState('#7A5D3A');
   const lastRerouteRef = useRef({
     point: null,
     at: 0,
@@ -2926,7 +2928,20 @@ export default function MapScreen({ navigation, route }) {
                     },
                   ]}
                 >
-                  <Text style={styles.aboutVarietyTitle}>{variety.title}</Text>
+                  <View style={styles.aboutVarietyHeaderRow}>
+                    <Text style={styles.aboutVarietyTitle}>{variety.title}</Text>
+                    <Pressable
+                      style={styles.aboutBeanPreviewButton}
+                      onPress={() => {
+                        setBeanPreviewColor(variety.color);
+                        setShowBeanPreviewModal(true);
+                      }}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Preview ${variety.title} coffee bean image`}
+                    >
+                      <MaterialCommunityIcons name="coffee-bean" size={18} color={variety.color} />
+                    </Pressable>
+                  </View>
                   <Text style={styles.aboutScientificName}>{variety.scientificName}</Text>
 
                   <Text style={styles.aboutSectionLabel}>Overview</Text>
@@ -2948,6 +2963,19 @@ export default function MapScreen({ navigation, route }) {
             </ScrollView>
           </Animated.View>
         </View>
+      </Modal>
+
+      <Modal
+        visible={showBeanPreviewModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowBeanPreviewModal(false)}
+      >
+        <Pressable style={styles.aboutBeanModalBackdrop} onPress={() => setShowBeanPreviewModal(false)}>
+          <View style={styles.aboutBeanModalCard}>
+            <MaterialCommunityIcons name="coffee-bean" size={128} color={beanPreviewColor} />
+          </View>
+        </Pressable>
       </Modal>
 
       <Modal visible={showDestinationReachedModal} transparent animationType="fade" onRequestClose={() => {}}>
@@ -4119,11 +4147,27 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 10,
   },
+  aboutVarietyHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
   aboutVarietyTitle: {
     color: '#3A2E22',
     fontFamily: 'PoppinsBold',
     fontSize: 15,
     lineHeight: 20,
+  },
+  aboutBeanPreviewButton: {
+    width: 30,
+    height: 30,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#D8CCBC',
+    backgroundColor: 'rgba(255, 255, 255, 0.65)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   aboutScientificName: {
     marginTop: 1,
@@ -4159,5 +4203,27 @@ const styles = StyleSheet.create({
     fontFamily: 'PoppinsItalic',
     fontSize: 11,
     lineHeight: 15,
+  },
+  aboutBeanModalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(23, 18, 12, 0.56)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+  },
+  aboutBeanModalCard: {
+    width: 220,
+    height: 220,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    borderWidth: 1,
+    borderColor: '#E2D5C3',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.2,
+    shadowRadius: 16,
+    elevation: 8,
   },
 });
