@@ -730,6 +730,10 @@ export default function MapScreen({ navigation, route }) {
       return `${uniqueNames[0]}, ${uniqueNames[1]}`;
     }
 
+    if (uniqueNames.length === 3) {
+      return `${uniqueNames[0]}, ${uniqueNames[1]}, ${uniqueNames[2]}`;
+    }
+
     return `${uniqueNames[0]}, ${uniqueNames[1]} +${uniqueNames.length - 2}`;
   }, [selectedVarieties, availableVarieties]);
 
