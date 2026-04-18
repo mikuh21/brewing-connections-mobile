@@ -515,8 +515,8 @@ export default function MarketplaceScreen() {
 		}
 
 		openConfirm({
-			title: 'Confirm Order',
-			message: 'Place this order now?',
+			title: 'Confirm Reserve',
+			message: 'Reserve this product now?',
 			confirmLabel: 'Yes, Confirm',
 			onConfirm: async () => {
 				if (!product?.id) {
@@ -639,7 +639,7 @@ export default function MarketplaceScreen() {
 					<View style={styles.productActionsRow}>
 						<Pressable style={styles.reserveButton} onPress={() => openReserveModal(item, 'order')}>
 							<MaterialIcons name="bolt" size={16} color={theme.colors.white} />
-							<Text style={styles.reserveButtonText}>Order Now</Text>
+							<Text style={styles.reserveButtonText}>Reserve Now</Text>
 						</Pressable>
 						<Pressable style={styles.addToCartButton} onPress={() => openReserveModal(item, 'cart')}>
 							<MaterialIcons name="add-shopping-cart" size={16} color={theme.colors.primary} />
@@ -721,7 +721,7 @@ export default function MarketplaceScreen() {
 						<Text style={styles.backButtonText}>Back</Text>
 					</Pressable>
 				</View>
-				<Text style={styles.subtitle}>Order fresh coffee products and track your orders</Text>
+				<Text style={styles.subtitle}>Reserve fresh coffee products and track your orders</Text>
 			</View>
 
 			<View style={styles.tabRow}>
@@ -822,7 +822,7 @@ export default function MarketplaceScreen() {
 			<Modal visible={reserveModalOpen} transparent animationType="fade" onRequestClose={closeReserveModal}>
 				<View style={styles.modalBackdrop}>
 					<View style={styles.modalCard}>
-						<Text style={styles.modalTitle}>{modalAction === 'cart' ? 'Add to Cart' : 'Order Product'}</Text>
+						<Text style={styles.modalTitle}>{modalAction === 'cart' ? 'Add to Cart' : 'Reserve Product'}</Text>
 
 						<Text style={styles.modalProductName}>{selectedProduct?.name || ''}</Text>
 						<Text style={styles.modalDetail}>{money(selectedProduct?.price_per_unit)} / {selectedProduct?.unit || 'kg'}</Text>
@@ -889,10 +889,10 @@ export default function MarketplaceScreen() {
 									{submittingOrder
 										? modalAction === 'cart'
 											? 'Adding...'
-											: 'Ordering...'
+											: 'Reserving...'
 										: modalAction === 'cart'
 											? 'Add to Cart'
-											: 'Order Now'}
+											: 'Reserve Now'}
 								</Text>
 							</Pressable>
 						</View>
