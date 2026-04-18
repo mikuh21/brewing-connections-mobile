@@ -30,6 +30,7 @@ const MUTED = '#6B7280';
 const DASH_GRAY = '#E5E7EB';
 const CLAIMED_COUPONS_KEY = 'claimed_coupons';
 const COUNTDOWN_MS = 20 * 60 * 1000;
+const FAILED_RESET_MS = 24 * 60 * 60 * 1000;
 const CLAIM_PENDING = 'pending';
 const CLAIM_CLAIMED = 'claimed';
 const CLAIM_FAILED = 'failed';
@@ -460,6 +461,45 @@ export default function CouponPromosScreen({ route, navigation }) {
     }
   }, [claimedCoupons, saveClaimedCoupons, timerNow]);
 
+  useEffect(() => {
+    const hasRecoverableFailed = Object.values(claimedCoupons).some((entry) => {
+      if (entry?.status !== CLAIM_FAILED) {
+        return false;
+      }
+
+      const failedAt = Number(entry?.failedAt || entry?.countdownEndsAt || 0);
+      if (!failedAt) {
+        return true;
+      }
+
+      return timerNow - failedAt >= FAILED_RESET_MS;
+    });
+
+    if (!hasRecoverableFailed) {
+      return;
+    }
+
+    const next = { ...claimedCoupons };
+    let changed = false;
+
+    Object.keys(next).forEach((promoId) => {
+      const entry = next[promoId];
+      if (entry?.status !== CLAIM_FAILED) {
+        return;
+      }
+
+      const failedAt = Number(entry?.failedAt || entry?.countdownEndsAt || 0);
+      if (!failedAt || timerNow - failedAt >= FAILED_RESET_MS) {
+        delete next[promoId];
+        changed = true;
+      }
+    });
+
+    if (changed) {
+      saveClaimedCoupons(next);
+    }
+  }, [claimedCoupons, saveClaimedCoupons, timerNow]);
+
   const fetchPromos = useCallback(
     async ({ location, isRefresh }) => {
       if (isRefresh) {
@@ -752,7 +792,18 @@ export default function CouponPromosScreen({ route, navigation }) {
   const startClaimCountdown = useCallback(
     async (promo) => {
       const current = claimedCoupons[promo.id];
-      if (current?.status === CLAIM_CLAIMED || current?.status === CLAIM_FAILED) {
+      if (current?.status === CLAIM_CLAIMED) {
+        return;
+      }
+
+      if (current?.status === CLAIM_FAILED) {
+        const failedAt = Number(current?.failedAt || current?.countdownEndsAt || 0);
+        if (failedAt && Date.now() - failedAt < FAILED_RESET_MS) {
+          return;
+        }
+      }
+
+      if (current?.status === CLAIM_FAILED && (!current?.failedAt && !current?.countdownEndsAt)) {
         return;
       }
 
@@ -807,20 +858,39 @@ export default function CouponPromosScreen({ route, navigation }) {
           return { status: CLAIM_CLAIMED, isClaimed: true, isPending: false, isFailed: false, remainingMs, claimedAt: claim.claimedAt || null };
         }
 
-        if (claim.status === CLAIM_FAILED || remainingMs <= 0) {
-          return { status: CLAIM_FAILED, isClaimed: false, isPending: false, isFailed: true, remainingMs: 0, claimedAt: claim.claimedAt || null };
+        if (claim.status === CLAIM_FAILED) {
+          const failedAt = Number(claim?.failedAt || claim?.countdownEndsAt || 0);
+          const resetRemainingMs = failedAt ? Math.max(0, failedAt + FAILED_RESET_MS - timerNow) : 0;
+
+          if (failedAt && resetRemainingMs <= 0) {
+            return { status: null, isClaimed: false, isPending: false, isFailed: false, remainingMs: 0, resetRemainingMs: 0, claimedAt: null };
+          }
+
+          return {
+            status: CLAIM_FAILED,
+            isClaimed: false,
+            isPending: false,
+            isFailed: true,
+            remainingMs: 0,
+            resetRemainingMs,
+            claimedAt: claim.claimedAt || null,
+          };
         }
 
-        return { status: CLAIM_PENDING, isClaimed: false, isPending: true, isFailed: false, remainingMs, claimedAt: null };
+        if (remainingMs <= 0) {
+          return { status: CLAIM_FAILED, isClaimed: false, isPending: false, isFailed: true, remainingMs: 0, resetRemainingMs: FAILED_RESET_MS, claimedAt: claim.claimedAt || null };
+        }
+
+        return { status: CLAIM_PENDING, isClaimed: false, isPending: true, isFailed: false, remainingMs, resetRemainingMs: 0, claimedAt: null };
       }
 
       const serverClaimedAt = dateFromAny(promo.claimedAt);
       if (!serverClaimedAt) {
-        return { status: null, isClaimed: false, isPending: false, isFailed: false, remainingMs: 0, claimedAt: null };
+        return { status: null, isClaimed: false, isPending: false, isFailed: false, remainingMs: 0, resetRemainingMs: 0, claimedAt: null };
       }
 
       const remainingMs = Math.max(0, serverClaimedAt.getTime() + COUNTDOWN_MS - timerNow);
-      return { status: CLAIM_CLAIMED, isClaimed: true, isPending: false, isFailed: false, remainingMs, claimedAt: serverClaimedAt.toISOString() };
+      return { status: CLAIM_CLAIMED, isClaimed: true, isPending: false, isFailed: false, remainingMs, resetRemainingMs: 0, claimedAt: serverClaimedAt.toISOString() };
     },
     [claimedCoupons, timerNow]
   );
@@ -1048,7 +1118,11 @@ export default function CouponPromosScreen({ route, navigation }) {
           {claimStatus.isClaimed ? (
             <Text style={styles.claimedText}>Redeemed ✓</Text>
           ) : claimStatus.isFailed ? (
-            <Text style={styles.failedText}>Failed</Text>
+            <Text style={styles.failedText}>
+              {claimStatus.resetRemainingMs > 0
+                ? `Failed • resets in ${Math.max(1, Math.ceil(claimStatus.resetRemainingMs / (1000 * 60 * 60)))}h`
+                : 'Failed'}
+            </Text>
           ) : (
             <Pressable
               style={({ pressed }) => [styles.claimButton, pressed && styles.claimButtonPressed]}
