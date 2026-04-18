@@ -254,15 +254,12 @@ export default function MessagesScreen({ navigation }) {
 	}, [messages]);
 
 	useEffect(() => {
-		const showEventName = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
-		const hideEventName = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
-
-		const showSub = Keyboard.addListener(showEventName, (event) => {
+		const showSub = Keyboard.addListener('keyboardDidShow', (event) => {
 			const height = Number(event?.endCoordinates?.height || 0);
 			setKeyboardOffset(Math.max(0, height + 10));
 		});
 
-		const hideSub = Keyboard.addListener(hideEventName, () => {
+		const hideSub = Keyboard.addListener('keyboardDidHide', () => {
 			setKeyboardOffset(0);
 		});
 
@@ -463,6 +460,12 @@ export default function MessagesScreen({ navigation }) {
 									onChangeText={setDraft}
 									placeholder="Type a message"
 									placeholderTextColor="#9E8C78"
+									showSoftInputOnFocus
+									onFocus={() => {
+										requestAnimationFrame(() => {
+											listRef.current?.scrollToEnd?.({ animated: true });
+										});
+									}}
 									multiline
 								/>
 								<Pressable

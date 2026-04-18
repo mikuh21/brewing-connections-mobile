@@ -209,14 +209,16 @@ export default function ProfileScreen({ navigation }) {
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <View style={styles.titleRow}>
           <Text style={styles.title}>Profile</Text>
-          <Pressable style={styles.chatButton} onPress={() => navigation.navigate('Messages')}>
-            <MaterialIcons name="chat-bubble-outline" size={19} color="#2D4A1E" />
+          <View style={styles.chatButtonWrap}>
+            <Pressable style={styles.chatButton} onPress={() => navigation.navigate('Messages')}>
+              <MaterialIcons name="chat-bubble-outline" size={19} color="#2D4A1E" />
+            </Pressable>
             {unreadCount > 0 ? (
               <View style={styles.chatBadge}>
                 <Text style={styles.chatBadgeText}>{unreadCount > 99 ? '99+' : unreadCount}</Text>
               </View>
             ) : null}
-          </Pressable>
+          </View>
         </View>
 
         <View style={styles.heroCard}>
@@ -470,12 +472,19 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFF9F1',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  chatButtonWrap: {
+    position: 'relative',
+    width: 42,
+    height: 42,
+    alignItems: 'center',
+    justifyContent: 'center',
     overflow: 'visible',
   },
   chatBadge: {
     position: 'absolute',
-    top: -3,
-    right: -3,
+    top: -1,
+    right: -1,
     minWidth: 18,
     height: 18,
     borderRadius: 999,
