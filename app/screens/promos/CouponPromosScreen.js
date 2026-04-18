@@ -96,6 +96,35 @@ function distanceLabel(distanceKm) {
   return `${distanceKm.toFixed(1)} km away`;
 }
 
+function buildPromoDiscountText(raw) {
+  if (!raw) {
+    return '';
+  }
+
+  const explicit = String(raw?.discount_text || raw?.discount || '').trim();
+  if (explicit) {
+    return explicit;
+  }
+
+  const discountType = String(raw?.discount_type || raw?.type || '').trim().toLowerCase();
+  const rawValue = raw?.discount_value ?? raw?.value ?? raw?.amount ?? raw?.fixed_amount;
+  const numericValue = Number(rawValue);
+  const hasNumericValue = Number.isFinite(numericValue);
+
+  if (discountType === 'percentage' && hasNumericValue) {
+    const normalized = Number.isInteger(numericValue)
+      ? String(numericValue)
+      : numericValue.toFixed(2).replace(/\.00$/, '').replace(/(\.\d*[1-9])0+$/, '$1');
+    return `${normalized}% off`;
+  }
+
+  if (['amount', 'fixed_amount', 'fixed'].includes(discountType) && hasNumericValue) {
+    return `PHP ${numericValue.toFixed(2)} off`;
+  }
+
+  return '';
+}
+
 function normalizePromo(raw, index, userLocation) {
   const establishment = raw?.establishment || raw?.cafe || raw?.shop || {};
   const establishmentType = String(establishment?.type || raw?.establishment_type || 'cafe').toLowerCase();
@@ -125,11 +154,7 @@ function normalizePromo(raw, index, userLocation) {
     longitude: Number.isFinite(lng) ? lng : null,
     qrPayload: raw?.qr_code_token || raw?.qr_data || raw?.qr_payload || raw?.code || raw?.coupon_code,
     claimedAt: raw?.claimed_at || null,
-    discountText:
-      raw?.discount_text ||
-      (raw?.discount_type && raw?.discount_value ? `${raw.discount_value}${raw.discount_type === 'percentage' ? '% off' : ' off'}` : null) ||
-      raw?.description ||
-      'Exclusive in-store offer',
+    discountText: buildPromoDiscountText(raw) || raw?.description || 'Exclusive in-store offer',
   };
 }
 
@@ -895,11 +920,11 @@ export default function CouponPromosScreen({ route, navigation }) {
     setIsScannerVisible(true);
   }, []);
 
-  const renderCard = ({ item, index, highlighted }) => {
+  const renderCard = ({ item, index, showNearestBadge, isFocused }) => {
     const claimStatus = getClaimStatus(item);
 
     return (
-      <View style={[styles.couponCard, highlighted && styles.highlightCard]}>
+      <View style={[styles.couponCard, isFocused && styles.highlightCard]}>
         <View style={styles.leftStrip} />
         <View style={styles.notchLeft} />
         <View style={styles.notchRight} />
@@ -927,9 +952,14 @@ export default function CouponPromosScreen({ route, navigation }) {
                   <Text style={styles.verifiedText}>Verified</Text>
                 </View>
               ) : null}
-              {highlighted && index === 0 ? (
+              {showNearestBadge && index === 0 ? (
                 <View style={styles.nearestBadge}>
                   <Text style={styles.nearestBadgeText}>Nearest</Text>
+                </View>
+              ) : null}
+              {isFocused ? (
+                <View style={styles.focusedBadge}>
+                  <Text style={styles.focusedBadgeText}>Focused</Text>
                 </View>
               ) : null}
             </View>
@@ -1042,7 +1072,9 @@ export default function CouponPromosScreen({ route, navigation }) {
                 <View style={styles.nearYouSection}>
                   <Text style={styles.nearYouTitle}>{sectionTitle}</Text>
                   {nearYou.map((item, idx) => (
-                    <View key={`near-${item.id}`}>{renderCard({ item, index: idx, highlighted: true })}</View>
+                    <View key={`near-${item.id}`}>
+                      {renderCard({ item, index: idx, showNearestBadge: true, isFocused: item.id === focusedPromoId })}
+                    </View>
                   ))}
                 </View>
               ) : null}
@@ -1063,7 +1095,7 @@ export default function CouponPromosScreen({ route, navigation }) {
               ) : null}
             </View>
           }
-          renderItem={(props) => renderCard({ ...props, highlighted: props.item.id === focusedPromoId })}
+          renderItem={(props) => renderCard({ ...props, showNearestBadge: false, isFocused: props.item.id === focusedPromoId })}
           ListFooterComponent={loading ? null : <View style={{ height: 110 }} />}
         />
 
@@ -1381,8 +1413,24 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   highlightCard: {
-    borderColor: DASH_GRAY,
-    borderWidth: 1,
+    borderColor: GOLD,
+    borderWidth: 2,
+    backgroundColor: '#FFF7EA',
+    shadowOpacity: 0.14,
+    shadowRadius: 12,
+    elevation: 5,
+  },
+  focusedBadge: {
+    backgroundColor: '#FDE9B7',
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
+  focusedBadgeText: {
+    color: '#7A4B0A',
+    fontFamily: 'PoppinsBold',
+    fontSize: 10,
+    lineHeight: 13,
   },
   leftStrip: {
     position: 'absolute',

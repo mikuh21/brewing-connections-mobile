@@ -487,6 +487,35 @@ function getVarietyColor(varietyName) {
   return VARIETY_COLOR_MAP[key] || '#9E8C78';
 }
 
+function buildPromoDiscountText(promo) {
+  if (!promo) {
+    return '';
+  }
+
+  const explicit = String(promo.discount_text || promo.discount || '').trim();
+  if (explicit) {
+    return explicit;
+  }
+
+  const discountType = String(promo.discount_type || promo.type || '').trim().toLowerCase();
+  const rawValue = promo.discount_value ?? promo.value ?? promo.amount ?? promo.fixed_amount;
+  const numericValue = Number(rawValue);
+  const hasNumericValue = Number.isFinite(numericValue);
+
+  if (discountType === 'percentage' && hasNumericValue) {
+    const normalized = Number.isInteger(numericValue)
+      ? String(numericValue)
+      : numericValue.toFixed(2).replace(/\.00$/, '').replace(/(\.\d*[1-9])0+$/, '$1');
+    return `${normalized}% off`;
+  }
+
+  if (['amount', 'fixed_amount', 'fixed'].includes(discountType) && hasNumericValue) {
+    return `PHP ${numericValue.toFixed(2)} off`;
+  }
+
+  return '';
+}
+
 function getActivePromoDetailsFromSource(source) {
   const promoGroups = [source?.active_promos, source?.coupon_promos, source?.promos];
   const rawPromos = promoGroups.find((entry) => Array.isArray(entry)) || [];
@@ -499,12 +528,7 @@ function getActivePromoDetailsFromSource(source) {
 
       if (typeof promo === 'string') {
         const title = promo.trim();
-        if (!title) {
-          return null;
-        }
-
-        return {
-          id: title,
+      const discount = buildPromoDiscountText(raw);
           title,
           discount: '',
           description: '',
@@ -531,7 +555,7 @@ function getActivePromoDetailsFromSource(source) {
         description,
       };
     })
-    .filter(Boolean)
+      const sourcePromoDetails = getActivePromoDetailsFromSource(source) || [];
     .filter((promo, index, list) => {
       const signature = `${String(promo.title || '').toLowerCase()}|${String(promo.discount || '').toLowerCase()}|${String(promo.description || '').toLowerCase()}`;
       return (
