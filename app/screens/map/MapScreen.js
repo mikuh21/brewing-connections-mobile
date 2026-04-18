@@ -3320,7 +3320,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
   },
   directionsButton: {
-    backgroundColor: BRAND.accent,
+    backgroundColor: '#2D4A1E',
   },
   detailsButton: {
     backgroundColor: BRAND.white,
