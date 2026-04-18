@@ -173,6 +173,28 @@ function normalizeSellerRole(product) {
 	return null;
 }
 
+function getSellerRecipientId(source) {
+	const possibleIds = [
+		source?.seller_id,
+		source?.owner_id,
+		source?.user_id,
+		source?.seller?.id,
+		source?.product?.seller_id,
+		source?.product?.owner_id,
+		source?.product?.user_id,
+		source?.product?.seller?.id,
+	];
+
+	for (const candidate of possibleIds) {
+		const numeric = Number(candidate);
+		if (Number.isFinite(numeric) && numeric > 0) {
+			return numeric;
+		}
+	}
+
+	return null;
+}
+
 function resolveImageUrl(pathOrUrl) {
 	if (!pathOrUrl) {
 		return null;
@@ -255,6 +277,12 @@ export default function MarketplaceScreen() {
 
 	const showToast = (message) => {
 		setToastState({ visible: true, message });
+	};
+
+	const openSellerChat = (source) => {
+		const recipientId = getSellerRecipientId(source);
+
+		navigation.navigate('Messages', recipientId ? { recipientId } : undefined);
 	};
 
 	const readCartItems = useCallback(async () => {
@@ -685,7 +713,7 @@ export default function MarketplaceScreen() {
 						<Text style={styles.orderDetail}>
 							Pickup: {formatDisplayDateTime(item?.pickup_date, item?.pickup_time)}
 						</Text>
-						<Pressable style={styles.chatSellerButton} onPress={() => {}}>
+						<Pressable style={styles.chatSellerButton} onPress={() => openSellerChat(item)}>
 							<MaterialIcons name="chat-bubble-outline" size={14} color={theme.colors.white} />
 							<Text style={styles.chatSellerButtonText}>Chat with seller</Text>
 						</Pressable>
@@ -873,7 +901,7 @@ export default function MarketplaceScreen() {
 
 						<View style={styles.modalFieldWrap}>
 							<Text style={styles.modalLabel}>Chat with seller</Text>
-							<Pressable style={styles.chatSellerButtonModal} onPress={() => {}}>
+							<Pressable style={styles.chatSellerButtonModal} onPress={() => openSellerChat(selectedProduct)}>
 								<MaterialIcons name="chat" size={16} color={theme.colors.white} />
 								<Text style={styles.chatSellerButtonModalText}>Open Chat</Text>
 							</Pressable>

@@ -214,6 +214,28 @@ export const getMessages = async () => {
   return unwrap(response);
 };
 
+export const getConversationMessages = async (conversationId) => {
+  const response = await api.get(`/api/conversations/${conversationId}/messages`);
+  return unwrap(response);
+};
+
+export const getChatRecipients = async () => {
+  const response = await api.get('/api/chat/recipients');
+  return unwrap(response);
+};
+
+export const createConversation = async (recipientId) => {
+  const response = await api.post('/api/conversations', {
+    recipient_id: recipientId,
+  });
+  return unwrap(response);
+};
+
+export const markConversationAsRead = async (conversationId) => {
+  const response = await api.post(`/api/conversations/${conversationId}/read`);
+  return unwrap(response);
+};
+
 export const sendMessage = async (data) => {
   const response = await api.post('/api/messages', data);
   return unwrap(response);

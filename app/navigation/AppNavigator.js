@@ -9,9 +9,11 @@ import TrailScreen from '../screens/trail';
 import PromosScreen from '../screens/promos';
 import MarketplaceScreen from '../screens/marketplace';
 import MarketplaceCartScreen from '../screens/marketplace/CartScreen';
+import MessagesScreen from '../screens/messages';
 import ProfileScreen from '../screens/profile';
 import SavedTrailsScreen from '../screens/profile/SavedTrailsScreen';
 import RatingScreen from '../screens/ratings';
+import { useChat } from '../context';
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
@@ -47,6 +49,7 @@ function renderLegendIcon(icon, iconLibrary, color) {
 
 function MainTabNavigator() {
   const insets = useSafeAreaInsets();
+  const { unreadCount } = useChat();
   const [showLegendModal, setShowLegendModal] = useState(true);
   const modalTopPadding = useMemo(() => Math.max(insets.top + 12, 26), [insets.top]);
   const modalBottomPadding = useMemo(() => Math.max(insets.bottom + 16, 24), [insets.bottom]);
@@ -80,6 +83,18 @@ function MainTabNavigator() {
             fontSize: 11,
             lineHeight: 13,
             letterSpacing: -0.2,
+          },
+          tabBarBadge:
+            route.name === 'Profile' && unreadCount > 0
+              ? unreadCount > 99
+                ? '99+'
+                : unreadCount
+              : undefined,
+          tabBarBadgeStyle: {
+            backgroundColor: '#C2410C',
+            color: '#FFFFFF',
+            fontFamily: 'PoppinsBold',
+            fontSize: 10,
           },
           tabBarIcon: ({ color, size, focused }) => (
             <MaterialIcons
@@ -181,6 +196,16 @@ export default function AppNavigator() {
         options={{
           gestureDirection: 'horizontal',
           cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
+        }}
+      />
+      <Stack.Screen
+        name="Messages"
+        component={MessagesScreen}
+        options={{
+          presentation: 'modal',
+          gestureDirection: 'vertical',
+          cardStyleInterpolator: CardStyleInterpolators.forVerticalIOS,
+          cardStyle: { backgroundColor: '#F5F0E8' },
         }}
       />
     </Stack.Navigator>

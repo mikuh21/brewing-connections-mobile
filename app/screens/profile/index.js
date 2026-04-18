@@ -13,7 +13,7 @@ import {
   View,
 } from 'react-native';
 import { ScreenContainer } from '../../components';
-import { useAuth } from '../../context';
+import { useAuth, useChat } from '../../context';
 import {
   getProfile,
   sendEmailVerification,
@@ -55,6 +55,7 @@ function normalizeProfilePayload(rawData) {
 
 export default function ProfileScreen({ navigation }) {
   const { user, signOut, updateUser } = useAuth();
+  const { unreadCount, refreshUnreadCount } = useChat();
   const [savedTrails, setSavedTrails] = useState([]);
   const [downloadedVarieties, setDownloadedVarieties] = useState([]);
   const [savedEstablishments, setSavedEstablishments] = useState([]);
@@ -110,7 +111,8 @@ export default function ProfileScreen({ navigation }) {
   useFocusEffect(
     useCallback(() => {
       restoreProfileAndStorage();
-    }, [restoreProfileAndStorage])
+      refreshUnreadCount();
+    }, [refreshUnreadCount, restoreProfileAndStorage])
   );
 
   const toggleVarietyOffline = async (varietyName) => {
@@ -205,7 +207,17 @@ export default function ProfileScreen({ navigation }) {
   return (
     <ScreenContainer>
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        <Text style={styles.title}>Profile</Text>
+        <View style={styles.titleRow}>
+          <Text style={styles.title}>Profile</Text>
+          <Pressable style={styles.chatButton} onPress={() => navigation.navigate('Messages')}>
+            <MaterialIcons name="chat-bubble-outline" size={19} color="#2D4A1E" />
+            {unreadCount > 0 ? (
+              <View style={styles.chatBadge}>
+                <Text style={styles.chatBadgeText}>{unreadCount > 99 ? '99+' : unreadCount}</Text>
+              </View>
+            ) : null}
+          </Pressable>
+        </View>
 
         <View style={styles.heroCard}>
           <View style={styles.avatarWrap}>
@@ -435,12 +447,47 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingBottom: theme.spacing.lg,
   },
+  titleRow: {
+    marginBottom: theme.spacing.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
   title: {
     fontSize: theme.fontSizes.xl,
     fontWeight: '700',
     color: theme.colors.sidebar,
-    marginBottom: theme.spacing.md,
     fontFamily: 'PoppinsBold',
+  },
+  chatButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    borderWidth: 1,
+    borderColor: '#D5CABD',
+    backgroundColor: '#FFF9F1',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  chatBadge: {
+    position: 'absolute',
+    top: -5,
+    right: -6,
+    minWidth: 17,
+    height: 17,
+    borderRadius: 999,
+    backgroundColor: '#C2410C',
+    borderWidth: 1,
+    borderColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+  },
+  chatBadgeText: {
+    color: '#FFFFFF',
+    fontFamily: 'PoppinsBold',
+    fontSize: 10,
+    lineHeight: 11,
   },
   heroCard: {
     backgroundColor: theme.colors.white,
