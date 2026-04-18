@@ -3,7 +3,6 @@ import {
 	ActivityIndicator,
 	FlatList,
 	KeyboardAvoidingView,
-	Keyboard,
 	Modal,
 	Platform,
 	Pressable,
@@ -89,7 +88,6 @@ export default function MessagesScreen({ navigation }) {
 	const [isSendingMessage, setIsSendingMessage] = useState(false);
 	const [isPreparingConversation, setIsPreparingConversation] = useState(false);
 	const [screenError, setScreenError] = useState('');
-	const [keyboardOffset, setKeyboardOffset] = useState(0);
 
 	const fetchConversations = useCallback(async () => {
 		const payload = await getMessages();
@@ -253,22 +251,6 @@ export default function MessagesScreen({ navigation }) {
 		});
 	}, [messages]);
 
-	useEffect(() => {
-		const showSub = Keyboard.addListener('keyboardDidShow', (event) => {
-			const height = Number(event?.endCoordinates?.height || 0);
-			setKeyboardOffset(Math.max(0, height + 10));
-		});
-
-		const hideSub = Keyboard.addListener('keyboardDidHide', () => {
-			setKeyboardOffset(0);
-		});
-
-		return () => {
-			showSub.remove();
-			hideSub.remove();
-		};
-	}, []);
-
 	const selectedConversation = useMemo(
 		() => conversations.find((conversation) => conversation.id === selectedConversationId) || null,
 		[conversations, selectedConversationId]
@@ -328,8 +310,8 @@ export default function MessagesScreen({ navigation }) {
 		<ScreenContainer>
 			<KeyboardAvoidingView
 				style={styles.container}
-				behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-				keyboardVerticalOffset={Platform.OS === 'ios' ? 20 : 0}
+				behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+				keyboardVerticalOffset={Platform.OS === 'ios' ? 20 : 56}
 			>
 				<View style={styles.headerRow}>
 					<View style={styles.headerTitleWrap}>
@@ -446,14 +428,7 @@ export default function MessagesScreen({ navigation }) {
 								/>
 							)}
 
-							<View
-								style={[
-									styles.composerWrap,
-									keyboardOffset > 0
-										? { transform: [{ translateY: -keyboardOffset }] }
-										: null,
-								]}
-							>
+							<View style={styles.composerWrap}>
 								<TextInput
 									style={styles.composerInput}
 									value={draft}
@@ -488,8 +463,8 @@ export default function MessagesScreen({ navigation }) {
 				>
 					<KeyboardAvoidingView
 						style={styles.modalKeyboardWrap}
-						behavior="padding"
-						keyboardVerticalOffset={Platform.OS === 'ios' ? 20 : 24}
+						behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+						keyboardVerticalOffset={Platform.OS === 'ios' ? 20 : 36}
 					>
 						<View style={styles.modalBackdrop}>
 							<View style={styles.modalCard}>
