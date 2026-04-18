@@ -223,6 +223,7 @@ export default function MessagesScreen({ navigation }) {
 	const route = useRoute();
 	const { refreshUnreadCount } = useChat();
 	const listRef = useRef(null);
+	const selectedConversationIdRef = useRef(null);
 	const selectedRecipientId = route?.params?.recipientId;
 	const selectedParticipantName = String(route?.params?.participantName || '').trim();
 	const selectedChatIntentAt = route?.params?.chatIntentAt;
@@ -239,6 +240,10 @@ export default function MessagesScreen({ navigation }) {
 	const [isSendingMessage, setIsSendingMessage] = useState(false);
 	const [isPreparingConversation, setIsPreparingConversation] = useState(false);
 	const [screenError, setScreenError] = useState('');
+
+	useEffect(() => {
+		selectedConversationIdRef.current = selectedConversationId;
+	}, [selectedConversationId]);
 
 	const fetchConversations = useCallback(async () => {
 		const payload = await getMessages();
@@ -364,12 +369,12 @@ export default function MessagesScreen({ navigation }) {
 				? findConversationByName(conversationList, selectedParticipantName)
 				: null;
 			const hasSelected = conversationList.some(
-				(conversation) => Number(conversation?.id) === Number(selectedConversationId)
+				(conversation) => Number(conversation?.id) === Number(selectedConversationIdRef.current)
 			);
 			const nextSelected =
 				matchedByRecipient?.id ||
 				matchedByName?.id ||
-				(hasSelected ? selectedConversationId : conversationList[0]?.id || null);
+				(hasSelected ? selectedConversationIdRef.current : conversationList[0]?.id || null);
 
 			setSelectedConversationId(nextSelected);
 
@@ -387,7 +392,6 @@ export default function MessagesScreen({ navigation }) {
 		fetchConversationMessages,
 		fetchConversations,
 		fetchRecipients,
-		selectedConversationId,
 		selectedParticipantName,
 		selectedRecipientId,
 	]);
