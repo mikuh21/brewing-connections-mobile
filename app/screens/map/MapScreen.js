@@ -528,7 +528,12 @@ function getActivePromoDetailsFromSource(source) {
 
       if (typeof promo === 'string') {
         const title = promo.trim();
-      const discount = buildPromoDiscountText(raw);
+        if (!title) {
+          return null;
+        }
+
+        return {
+          id: title,
           title,
           discount: '',
           description: '',
@@ -536,12 +541,7 @@ function getActivePromoDetailsFromSource(source) {
       }
 
       const title = String(promo.title || promo.name || promo.code || '').trim();
-      const discount = String(
-        promo.discount_text ||
-          (promo.discount_type && promo.discount_value
-            ? `${promo.discount_value}${promo.discount_type === 'percentage' ? '% off' : ' off'}`
-            : '')
-      ).trim();
+      const discount = buildPromoDiscountText(promo);
       const description = String(promo.description || promo.discount_description || '').trim();
 
       if (!title && !discount && !description) {
@@ -555,7 +555,6 @@ function getActivePromoDetailsFromSource(source) {
         description,
       };
     })
-      const sourcePromoDetails = getActivePromoDetailsFromSource(source) || [];
     .filter((promo, index, list) => {
       const signature = `${String(promo.title || '').toLowerCase()}|${String(promo.discount || '').toLowerCase()}|${String(promo.description || '').toLowerCase()}`;
       return (
