@@ -657,7 +657,7 @@ export default function CouponPromosScreen({ route, navigation }) {
   }, [activeTab, focusAt, focusPromoTitle]);
 
   useEffect(() => {
-    if (!focusPromoTitle || !focusAt || !listPromos.length) {
+    if (!focusPromoTitle || !focusAt || !filteredPromos.length) {
       return;
     }
 
@@ -665,7 +665,7 @@ export default function CouponPromosScreen({ route, navigation }) {
       return;
     }
 
-    const targetIndex = listPromos.findIndex((item) => {
+    const findPromoMatch = (item) => {
       const title = String(item?.title || '').trim().toLowerCase();
       const establishment = String(item?.establishmentName || '').trim().toLowerCase();
 
@@ -673,43 +673,39 @@ export default function CouponPromosScreen({ route, navigation }) {
       const establishmentMatch = !focusEstablishmentName || establishment === focusEstablishmentName;
 
       return titleMatch && establishmentMatch;
-    });
+    };
 
-    if (targetIndex < 0) {
+    const targetPromo = filteredPromos.find(findPromoMatch);
+
+    if (!targetPromo) {
       return;
     }
 
-    const targetPromo = listPromos[targetIndex];
     setFocusedPromoId(targetPromo.id);
     focusedPulseAnim.setValue(0);
     Animated.sequence([
       Animated.timing(focusedPulseAnim, {
         toValue: 1,
-        duration: 260,
-        useNativeDriver: true,
-      }),
-      Animated.timing(focusedPulseAnim, {
-        toValue: 0.2,
-        duration: 220,
-        useNativeDriver: true,
-      }),
-      Animated.timing(focusedPulseAnim, {
-        toValue: 1,
-        duration: 260,
+        duration: 280,
         useNativeDriver: true,
       }),
       Animated.timing(focusedPulseAnim, {
         toValue: 0,
-        duration: 1200,
+        duration: 900,
         useNativeDriver: true,
       }),
     ]).start();
 
-    listRef.current?.scrollToIndex?.({
-      index: targetIndex,
-      animated: true,
-      viewPosition: 0.2,
-    });
+    const targetIndexInList = listPromos.findIndex((item) => item.id === targetPromo.id);
+    if (targetIndexInList >= 0) {
+      listRef.current?.scrollToIndex?.({
+        index: targetIndexInList,
+        animated: true,
+        viewPosition: 0.2,
+      });
+    } else {
+      listRef.current?.scrollToOffset?.({ offset: 0, animated: true });
+    }
 
     const timeout = setTimeout(() => {
       setFocusedPromoId(null);
@@ -718,10 +714,10 @@ export default function CouponPromosScreen({ route, navigation }) {
         focusEstablishmentName: undefined,
         focusAt: undefined,
       });
-    }, 3200);
+    }, 2200);
 
     return () => clearTimeout(timeout);
-  }, [focusAt, focusEstablishmentName, focusPromoTitle, focusedPulseAnim, listPromos, navigation]);
+  }, [filteredPromos, focusAt, focusEstablishmentName, focusPromoTitle, focusedPulseAnim, listPromos, navigation]);
 
   const handleRefresh = useCallback(async () => {
     let location = userLocation;
