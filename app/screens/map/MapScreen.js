@@ -90,6 +90,53 @@ const VARIETY_COLOR_MAP = {
   arabica: '#8B1A1A',
 };
 
+const ABOUT_VARIETY_CONTENT = [
+  {
+    key: 'arabica',
+    title: 'Arabica',
+    scientificName: 'Coffea arabica',
+    color: VARIETY_COLOR_MAP.arabica,
+    overview:
+      'Arabica is the most widely consumed coffee species in the world, prized for its superior quality and complex flavors. It is often considered premium coffee due to its smooth, balanced, and aromatic profile.',
+    tasteProfile: ['Smooth, mild, and aromatic', 'Notes: fruity, floral, slightly sweet', 'Lower bitterness'],
+    characteristics: ['Grown in high altitudes', 'Lower caffeine content than Robusta', 'More delicate and harder to cultivate'],
+    reference: 'Philippine Coffee Board; CoffeeBeans.ph',
+  },
+  {
+    key: 'excelsa',
+    title: 'Excelsa',
+    scientificName: 'Coffea excelsa / Liberica var.',
+    color: VARIETY_COLOR_MAP.excelsa,
+    overview:
+      'Excelsa is often classified as a variety of Liberica and is valued for adding depth and complexity to coffee blends. It is less commonly consumed on its own but plays an important role in enhancing flavor profiles.',
+    tasteProfile: ['Tart, fruity, and slightly dark', 'Notes: berry-like, tangy', 'Adds complexity to blends'],
+    characteristics: ['Grown mostly in Southeast Asia', 'Contributes depth rather than used alone', 'Distinct light-to-dark flavor contrast'],
+    reference: 'CoffeeBeans.ph',
+  },
+  {
+    key: 'liberica',
+    title: 'Liberica',
+    scientificName: 'Coffea liberica',
+    color: VARIETY_COLOR_MAP.liberica,
+    overview:
+      'Liberica is a rare coffee species globally but holds cultural and agricultural importance in the Philippines. It is known for its distinctive aroma and unique flavor that sets it apart from more common varieties.',
+    tasteProfile: ['Smoky, woody, sometimes floral', 'Unique, complex flavor', 'Slightly fruity with a bold body'],
+    characteristics: ['Large, irregular beans', 'Thrives in tropical climates', 'Limited production worldwide'],
+    reference: 'Philippine Coffee Board; PCAARRD-DOST',
+  },
+  {
+    key: 'robusta',
+    title: 'Robusta',
+    scientificName: 'Coffea canephora',
+    color: VARIETY_COLOR_MAP.robusta,
+    overview:
+      'Robusta is known for its strong, bold flavor and is commonly used in instant coffee and espresso blends. It is easier to grow and more resilient, making it a practical choice for large-scale production.',
+    tasteProfile: ['Bold, strong, and bitter', 'Notes: earthy, nutty, woody', 'Less acidity'],
+    characteristics: ['Higher caffeine content', 'Grows in lower altitudes', 'More resistant to pests and diseases'],
+    reference: 'Philippine Coffee Board; CoffeeBeans.ph',
+  },
+];
+
 function resolveMapImageUrl(pathOrUrl) {
   if (!pathOrUrl) {
     return null;
@@ -794,6 +841,7 @@ export default function MapScreen({ navigation, route }) {
   const [activeSheetImageIndex, setActiveSheetImageIndex] = useState(0);
   const [savedEstablishments, setSavedEstablishments] = useState([]);
   const [showSavedToast, setShowSavedToast] = useState(false);
+  const [showAboutModal, setShowAboutModal] = useState(false);
   const lastRerouteRef = useRef({
     point: null,
     at: 0,
@@ -805,6 +853,7 @@ export default function MapScreen({ navigation, route }) {
   const destinationPulseAnim = useRef(new Animated.Value(1)).current;
   const heartTapAnim = useRef(new Animated.Value(1)).current;
   const savedToastOpacity = useRef(new Animated.Value(0)).current;
+  const aboutPulseAnim = useRef(new Animated.Value(1)).current;
 
   const rawTrailStops = route?.params?.trailStops;
   const rawTrailOrigin = route?.params?.trailOrigin;
@@ -1283,6 +1332,29 @@ export default function MapScreen({ navigation, route }) {
     pulse.start();
     return () => pulse.stop();
   }, [isTrailMode, trailState, trailPulseAnim]);
+
+  useEffect(() => {
+    const pulse = Animated.loop(
+      Animated.sequence([
+        Animated.timing(aboutPulseAnim, {
+          toValue: 1.08,
+          duration: 1000,
+          useNativeDriver: true,
+        }),
+        Animated.timing(aboutPulseAnim, {
+          toValue: 1,
+          duration: 1000,
+          useNativeDriver: true,
+        }),
+      ])
+    );
+
+    if (!showAboutModal) {
+      pulse.start();
+    }
+
+    return () => pulse.stop();
+  }, [aboutPulseAnim, showAboutModal]);
 
   const sheetPanResponder = useRef(
     PanResponder.create({
@@ -2277,6 +2349,25 @@ export default function MapScreen({ navigation, route }) {
         </Pressable>
       )}
 
+      <Animated.View
+        style={[
+          styles.aboutButtonWrap,
+          {
+            bottom: isTrailMode ? Math.max(insets.bottom + 210, 220) : Math.max(insets.bottom + 86, 94),
+            transform: [{ scale: aboutPulseAnim }],
+          },
+        ]}
+      >
+        <Pressable
+          style={styles.aboutButton}
+          onPress={() => setShowAboutModal(true)}
+          accessibilityRole="button"
+          accessibilityLabel="Open coffee varieties guide"
+        >
+          <MaterialIcons name="help-outline" size={28} color="#FFFFFF" />
+        </Pressable>
+      </Animated.View>
+
       {(isLoading || isLocationBusy) && (
         <View style={styles.centerState}>
           <ActivityIndicator size="large" color={BRAND.accent} />
@@ -2715,6 +2806,68 @@ export default function MapScreen({ navigation, route }) {
         </View>
       ) : null}
 
+      <Modal
+        visible={showAboutModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowAboutModal(false)}
+      >
+        <View style={styles.aboutModalBackdrop}>
+          <Pressable style={styles.aboutModalBackdropTap} onPress={() => setShowAboutModal(false)} />
+          <View style={[styles.aboutModalSheet, { paddingBottom: Math.max(insets.bottom + 14, 20) }]}>
+            <View style={styles.aboutHandle} />
+
+            <View style={styles.aboutHeaderRow}>
+              <View style={styles.aboutHeaderTextWrap}>
+                <Text style={styles.aboutTitle}>Coffee Variety Guide</Text>
+                <Text style={styles.aboutSubtitle}>Explore the flavor identity and traits of each variety.</Text>
+              </View>
+
+              <Pressable style={styles.aboutCloseButton} onPress={() => setShowAboutModal(false)}>
+                <MaterialIcons name="close" size={18} color="#3A2E22" />
+              </Pressable>
+            </View>
+
+            <ScrollView
+              style={styles.aboutScroll}
+              contentContainerStyle={styles.aboutScrollContent}
+              showsVerticalScrollIndicator={false}
+            >
+              {ABOUT_VARIETY_CONTENT.map((variety) => (
+                <View
+                  key={variety.key}
+                  style={[
+                    styles.aboutVarietyCard,
+                    {
+                      borderColor: `${variety.color}66`,
+                      borderLeftColor: variety.color,
+                    },
+                  ]}
+                >
+                  <Text style={styles.aboutVarietyTitle}>{variety.title}</Text>
+                  <Text style={styles.aboutScientificName}>{variety.scientificName}</Text>
+
+                  <Text style={styles.aboutSectionLabel}>Overview</Text>
+                  <Text style={styles.aboutBodyText}>{variety.overview}</Text>
+
+                  <Text style={styles.aboutSectionLabel}>Taste Profile</Text>
+                  {variety.tasteProfile.map((item, idx) => (
+                    <Text key={`${variety.key}-taste-${idx}`} style={styles.aboutBulletText}>• {item}</Text>
+                  ))}
+
+                  <Text style={styles.aboutSectionLabel}>Characteristics</Text>
+                  {variety.characteristics.map((item, idx) => (
+                    <Text key={`${variety.key}-characteristics-${idx}`} style={styles.aboutBulletText}>• {item}</Text>
+                  ))}
+
+                  <Text style={styles.aboutReference}>Reference: {variety.reference}</Text>
+                </View>
+              ))}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
       <Modal visible={showDestinationReachedModal} transparent animationType="fade" onRequestClose={() => {}}>
         <View style={styles.destinationModalBackdrop}>
           <View style={styles.destinationModalCard}>
@@ -3113,6 +3266,26 @@ const styles = StyleSheet.create({
   },
   recenterIcon: {
     color: BRAND.accentDark,
+  },
+  aboutButtonWrap: {
+    position: 'absolute',
+    right: 12,
+    zIndex: 22,
+  },
+  aboutButton: {
+    width: 54,
+    height: 54,
+    borderRadius: 999,
+    backgroundColor: '#2D4A1E',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
+    elevation: 7,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.5)',
   },
   filterBar: {
     flexDirection: 'row',
@@ -3781,6 +3954,120 @@ const styles = StyleSheet.create({
     marginTop: 2,
     color: '#6A5A4B',
     fontFamily: 'PoppinsRegular',
+    fontSize: 11,
+    lineHeight: 15,
+  },
+  aboutModalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(29, 23, 17, 0.34)',
+    justifyContent: 'flex-end',
+  },
+  aboutModalBackdropTap: {
+    flex: 1,
+  },
+  aboutModalSheet: {
+    maxHeight: '88%',
+    borderTopLeftRadius: 22,
+    borderTopRightRadius: 22,
+    borderWidth: 1,
+    borderColor: '#D8C8B1',
+    backgroundColor: '#FFF9F0',
+    paddingHorizontal: 14,
+    paddingTop: 8,
+  },
+  aboutHandle: {
+    alignSelf: 'center',
+    width: 44,
+    height: 5,
+    borderRadius: 999,
+    backgroundColor: '#C7B49A',
+    marginBottom: 10,
+  },
+  aboutHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  aboutHeaderTextWrap: {
+    flex: 1,
+  },
+  aboutTitle: {
+    color: '#2D4A1E',
+    fontFamily: 'PoppinsBold',
+    fontSize: 19,
+    lineHeight: 24,
+  },
+  aboutSubtitle: {
+    marginTop: 3,
+    color: '#645746',
+    fontFamily: 'PoppinsRegular',
+    fontSize: 12,
+    lineHeight: 17,
+  },
+  aboutCloseButton: {
+    width: 30,
+    height: 30,
+    borderRadius: 999,
+    backgroundColor: '#F1E6D7',
+    borderWidth: 1,
+    borderColor: '#DCCDB7',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  aboutScroll: {
+    marginTop: 10,
+  },
+  aboutScrollContent: {
+    gap: 10,
+    paddingBottom: 4,
+  },
+  aboutVarietyCard: {
+    borderWidth: 1,
+    borderLeftWidth: 4,
+    borderRadius: 14,
+    backgroundColor: '#FFFDFA',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  aboutVarietyTitle: {
+    color: '#3A2E22',
+    fontFamily: 'PoppinsBold',
+    fontSize: 15,
+    lineHeight: 20,
+  },
+  aboutScientificName: {
+    marginTop: 1,
+    color: '#695A46',
+    fontFamily: 'PoppinsItalic',
+    fontSize: 12,
+    lineHeight: 16,
+  },
+  aboutSectionLabel: {
+    marginTop: 8,
+    marginBottom: 2,
+    color: '#2E5A3D',
+    fontFamily: 'PoppinsBold',
+    fontSize: 12,
+    lineHeight: 16,
+  },
+  aboutBodyText: {
+    color: '#4D3F31',
+    fontFamily: 'PoppinsRegular',
+    fontSize: 12,
+    lineHeight: 17,
+  },
+  aboutBulletText: {
+    color: '#4D3F31',
+    fontFamily: 'PoppinsRegular',
+    fontSize: 12,
+    lineHeight: 17,
+    marginTop: 1,
+  },
+  aboutReference: {
+    marginTop: 8,
+    color: '#76624B',
+    fontFamily: 'PoppinsItalic',
     fontSize: 11,
     lineHeight: 15,
   },
