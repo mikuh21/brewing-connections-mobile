@@ -696,6 +696,34 @@ export default function MapScreen({ navigation, route }) {
     return Array.from(set).sort((a, b) => a.localeCompare(b));
   }, [establishments]);
 
+  const selectedVarietiesLabel = useMemo(() => {
+    if (!selectedVarieties.length) {
+      return 'All';
+    }
+
+    const normalizedSelected = selectedVarieties.map((item) => String(item).toLowerCase());
+    const selectedNames = availableVarieties.filter((item) =>
+      normalizedSelected.includes(String(item).toLowerCase())
+    );
+
+    const names = selectedNames.length
+      ? selectedNames
+      : selectedVarieties.map((item) => String(item).trim()).filter(Boolean);
+
+    const joined = names.join(', ');
+    const maxChars = 28;
+
+    if (joined.length <= maxChars) {
+      return joined;
+    }
+
+    if (names.length === 1) {
+      return `${names[0].slice(0, maxChars - 1)}…`;
+    }
+
+    return `${names[0]}, +${names.length - 1}`;
+  }, [selectedVarieties, availableVarieties]);
+
   const filteredEstablishments = useMemo(() => {
     const activeVarieties = selectedVarieties.map((v) => String(v).toLowerCase());
     const normalizedSearch = searchQuery.trim().toLowerCase();
@@ -1853,7 +1881,7 @@ export default function MapScreen({ navigation, route }) {
               }}
             >
               <Text style={styles.filterDropdownText}>
-                Varieties: {selectedVarieties.length ? selectedVarieties.length : 'All'}
+                Varieties: {selectedVarietiesLabel}
               </Text>
               <Text style={styles.filterDropdownChevron}>{openFilterMenu === 'variety' ? '▲' : '▼'}</Text>
             </Pressable>
