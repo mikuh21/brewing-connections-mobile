@@ -101,11 +101,6 @@ function buildPromoDiscountText(raw) {
     return '';
   }
 
-  const explicit = String(raw?.discount_text || raw?.discount || '').trim();
-  if (explicit) {
-    return explicit;
-  }
-
   const discountType = String(raw?.discount_type || raw?.type || '').trim().toLowerCase();
   const rawValue = raw?.discount_value ?? raw?.value ?? raw?.amount ?? raw?.fixed_amount;
   const numericValue = Number(rawValue);
@@ -120,6 +115,11 @@ function buildPromoDiscountText(raw) {
 
   if (['amount', 'fixed_amount', 'fixed'].includes(discountType) && hasNumericValue) {
     return `PHP ${numericValue.toFixed(2)} off`;
+  }
+
+  const explicit = String(raw?.discount_text || raw?.discount || '').trim();
+  if (explicit) {
+    return explicit;
   }
 
   return '';
@@ -267,6 +267,7 @@ export default function CouponPromosScreen({ route, navigation }) {
   const scanLineAnim = useRef(new Animated.Value(0)).current;
   const shimmerAnim = useRef(new Animated.Value(0)).current;
   const tooltipOpacity = useRef(new Animated.Value(1)).current;
+  const focusedPulseAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     const pulseLoop = Animated.loop(
@@ -680,6 +681,29 @@ export default function CouponPromosScreen({ route, navigation }) {
 
     const targetPromo = listPromos[targetIndex];
     setFocusedPromoId(targetPromo.id);
+    focusedPulseAnim.setValue(0);
+    Animated.sequence([
+      Animated.timing(focusedPulseAnim, {
+        toValue: 1,
+        duration: 260,
+        useNativeDriver: true,
+      }),
+      Animated.timing(focusedPulseAnim, {
+        toValue: 0.2,
+        duration: 220,
+        useNativeDriver: true,
+      }),
+      Animated.timing(focusedPulseAnim, {
+        toValue: 1,
+        duration: 260,
+        useNativeDriver: true,
+      }),
+      Animated.timing(focusedPulseAnim, {
+        toValue: 0,
+        duration: 1200,
+        useNativeDriver: true,
+      }),
+    ]).start();
 
     listRef.current?.scrollToIndex?.({
       index: targetIndex,
@@ -697,7 +721,7 @@ export default function CouponPromosScreen({ route, navigation }) {
     }, 3200);
 
     return () => clearTimeout(timeout);
-  }, [focusAt, focusEstablishmentName, focusPromoTitle, listPromos, navigation]);
+  }, [focusAt, focusEstablishmentName, focusPromoTitle, focusedPulseAnim, listPromos, navigation]);
 
   const handleRefresh = useCallback(async () => {
     let location = userLocation;
@@ -922,9 +946,33 @@ export default function CouponPromosScreen({ route, navigation }) {
 
   const renderCard = ({ item, index, showNearestBadge, isFocused }) => {
     const claimStatus = getClaimStatus(item);
+    const focusedScale = focusedPulseAnim.interpolate({
+      inputRange: [0, 1],
+      outputRange: [1, 1.03],
+    });
+    const focusedOpacity = focusedPulseAnim.interpolate({
+      inputRange: [0, 1],
+      outputRange: [0, 1],
+    });
 
     return (
+      <Animated.View
+        style={[
+          styles.couponCardWrap,
+          isFocused
+            ? {
+                transform: [{ scale: focusedScale }],
+              }
+            : null,
+        ]}
+      >
       <View style={[styles.couponCard, isFocused && styles.highlightCard]}>
+        {isFocused ? (
+          <Animated.View
+            pointerEvents="none"
+            style={[styles.focusGlowOverlay, { opacity: focusedOpacity }]}
+          />
+        ) : null}
         <View style={styles.leftStrip} />
         <View style={styles.notchLeft} />
         <View style={styles.notchRight} />
@@ -1003,6 +1051,7 @@ export default function CouponPromosScreen({ route, navigation }) {
           )}
         </View>
       </View>
+      </Animated.View>
     );
   };
 
@@ -1412,6 +1461,9 @@ const styles = StyleSheet.create({
     shadowRadius: 9,
     elevation: 3,
   },
+  couponCardWrap: {
+    marginBottom: 12,
+  },
   highlightCard: {
     borderColor: GOLD,
     borderWidth: 2,
@@ -1419,6 +1471,13 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.14,
     shadowRadius: 12,
     elevation: 5,
+  },
+  focusGlowOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: '#F6C760',
+    backgroundColor: 'rgba(246, 199, 96, 0.15)',
   },
   focusedBadge: {
     backgroundColor: '#FDE9B7',

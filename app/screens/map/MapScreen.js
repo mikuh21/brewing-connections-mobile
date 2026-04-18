@@ -212,12 +212,7 @@ function normalizeCouponPromoForMap(raw, index) {
 
   const establishment = raw?.establishment || raw?.cafe || raw?.shop || {};
   const title = String(raw?.title || raw?.name || raw?.code || '').trim();
-  const discount = String(
-    raw?.discount_text ||
-      (raw?.discount_type && raw?.discount_value
-        ? `${raw.discount_value}${raw.discount_type === 'percentage' ? '% off' : ' off'}`
-        : '')
-  ).trim();
+  const discount = buildPromoDiscountText(raw);
   const description = String(raw?.description || raw?.discount_description || '').trim();
 
   if (!title && !discount && !description) {
@@ -492,11 +487,6 @@ function buildPromoDiscountText(promo) {
     return '';
   }
 
-  const explicit = String(promo.discount_text || promo.discount || '').trim();
-  if (explicit) {
-    return explicit;
-  }
-
   const discountType = String(promo.discount_type || promo.type || '').trim().toLowerCase();
   const rawValue = promo.discount_value ?? promo.value ?? promo.amount ?? promo.fixed_amount;
   const numericValue = Number(rawValue);
@@ -511,6 +501,11 @@ function buildPromoDiscountText(promo) {
 
   if (['amount', 'fixed_amount', 'fixed'].includes(discountType) && hasNumericValue) {
     return `PHP ${numericValue.toFixed(2)} off`;
+  }
+
+  const explicit = String(promo.discount_text || promo.discount || '').trim();
+  if (explicit) {
+    return explicit;
   }
 
   return '';
