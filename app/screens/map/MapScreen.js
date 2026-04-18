@@ -407,6 +407,16 @@ function getTypeDisplayLabel(item) {
   return `${type.charAt(0).toUpperCase()}${type.slice(1)}`;
 }
 
+function getProductsByType(type) {
+  const normalizedType = String(type || '').trim().toLowerCase();
+
+  if (normalizedType === 'cafe') {
+    return ['Iced Coffee', 'Hot Coffee', 'Food'];
+  }
+
+  return ['Coffee Beans', 'Ground Coffee'];
+}
+
 function renderTypeIcon(icon, iconLibrary, color, size = 12) {
   if (iconLibrary === 'community') {
     return <MaterialCommunityIcons name={icon} size={size} color={color} />;
@@ -1570,6 +1580,22 @@ export default function MapScreen({ navigation, route }) {
     }
   };
 
+  const handleOpenMarketplace = () => {
+    try {
+      const parentNavigation = navigation?.getParent?.();
+      const parentRouteNames = parentNavigation?.getState?.()?.routeNames || [];
+
+      if (parentNavigation && parentRouteNames.includes('Marketplace')) {
+        parentNavigation.navigate('Marketplace');
+        return;
+      }
+
+      navigation?.navigate?.('Marketplace');
+    } catch {
+      Alert.alert('Unable to open Marketplace', 'Please try again in a moment.');
+    }
+  };
+
   const resetTrailMode = async () => {
     try {
       await AsyncStorage.setItem(TRAIL_RESET_SIGNAL_KEY, String(Date.now()));
@@ -2248,6 +2274,25 @@ export default function MapScreen({ navigation, route }) {
                     <Text style={styles.detailText}>
                       Activities: {selectedEstablishment.activities || 'N/A'}
                     </Text>
+                  </View>
+
+                  <View style={styles.sectionBlock}>
+                    <Text style={styles.sectionTitle}>Products</Text>
+                    <View style={styles.productsChipsWrap}>
+                      {getProductsByType(selectedEstablishment.type).map((product) => (
+                        <View key={product} style={styles.productChip}>
+                          <Text style={styles.productChipText}>{product}</Text>
+                        </View>
+                      ))}
+                    </View>
+
+                    <Pressable
+                      style={styles.marketplaceInlineButton}
+                      onPress={handleOpenMarketplace}
+                    >
+                      <MaterialIcons name="shopping-bag" size={15} color="#FFFFFF" />
+                      <Text style={styles.marketplaceInlineButtonText}>Open Marketplace</Text>
+                    </Pressable>
                   </View>
 
                   {selectedEstablishment.type === 'cafe' ? (
@@ -3331,6 +3376,43 @@ const styles = StyleSheet.create({
     color: '#1E40AF',
     fontFamily: 'PoppinsMedium',
     textDecorationLine: 'underline',
+  },
+  productsChipsWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 2,
+  },
+  productChip: {
+    borderWidth: 1,
+    borderColor: '#D2C5B3',
+    backgroundColor: '#F7F2EA',
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  productChipText: {
+    color: '#3A2E22',
+    fontFamily: 'PoppinsMedium',
+    fontSize: 12,
+    lineHeight: 15,
+  },
+  marketplaceInlineButton: {
+    marginTop: 10,
+    minHeight: 42,
+    borderRadius: 12,
+    backgroundColor: '#2D4A1E',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 8,
+    paddingHorizontal: 12,
+  },
+  marketplaceInlineButtonText: {
+    color: '#FFFFFF',
+    fontFamily: 'PoppinsBold',
+    fontSize: 13,
+    lineHeight: 16,
   },
   metricRow: {
     flexDirection: 'row',
