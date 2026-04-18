@@ -164,6 +164,60 @@ function findConversationByName(conversationList, participantName) {
 	return null;
 }
 
+function findRecipientByName(recipientList, participantName) {
+	const candidates = buildNameCandidates(participantName);
+	if (!candidates.length) {
+		return null;
+	}
+
+	for (const recipient of recipientList) {
+		const possibleNames = [
+			recipient?.name,
+			recipient?.display_name,
+			recipient?.full_name,
+			recipient?.establishment_name,
+			recipient?.business_name,
+			recipient?.seller_name,
+			recipient?.owner_name,
+		];
+
+		const normalizedNames = possibleNames.map((entry) => normalizeName(entry)).filter(Boolean);
+		if (!normalizedNames.length) {
+			continue;
+		}
+
+		const exactMatch = normalizedNames.some((name) => candidates.includes(name));
+		if (exactMatch) {
+			return recipient;
+		}
+	}
+
+	for (const recipient of recipientList) {
+		const possibleNames = [
+			recipient?.name,
+			recipient?.display_name,
+			recipient?.full_name,
+			recipient?.establishment_name,
+			recipient?.business_name,
+			recipient?.seller_name,
+			recipient?.owner_name,
+		];
+		const normalizedNames = possibleNames.map((entry) => normalizeName(entry)).filter(Boolean);
+		if (!normalizedNames.length) {
+			continue;
+		}
+
+		const partialMatch = normalizedNames.some((name) =>
+			candidates.some((candidate) => candidate && (name.includes(candidate) || candidate.includes(name)))
+		);
+		if (partialMatch) {
+			return recipient;
+		}
+	}
+
+	return null;
+}
+
 export default function MessagesScreen({ navigation }) {
 	const { user } = useAuth();
 	const route = useRoute();
@@ -334,7 +388,10 @@ export default function MessagesScreen({ navigation }) {
 
 		const syncIncomingTarget = async () => {
 			try {
-				const latestConversations = await fetchConversations();
+				const [latestConversations, latestRecipients] = await Promise.all([
+					fetchConversations(),
+					fetchRecipients(),
+				]);
 
 				if (isCancelled) {
 					return;
@@ -359,6 +416,14 @@ export default function MessagesScreen({ navigation }) {
 
 				if (selectedRecipientId) {
 					await startConversation(selectedRecipientId);
+					return;
+				}
+
+				const matchedRecipient = findRecipientByName(latestRecipients, selectedParticipantName);
+				const matchedRecipientId = Number(matchedRecipient?.id || 0);
+
+				if (matchedRecipientId > 0) {
+					await startConversation(matchedRecipientId);
 				}
 			} catch {
 				// Keep the current thread visible if target lookup fails.
@@ -373,6 +438,7 @@ export default function MessagesScreen({ navigation }) {
 	}, [
 		fetchConversationMessages,
 		fetchConversations,
+		fetchRecipients,
 		selectedChatIntentAt,
 		selectedParticipantName,
 		selectedRecipientId,
@@ -479,7 +545,7 @@ export default function MessagesScreen({ navigation }) {
 				<View style={styles.headerRow}>
 					<View style={styles.headerTitleWrap}>
 						<Text style={styles.title}>Messages</Text>
-						<Text style={styles.subtitle}>Chat with admin, farm, cafe owner, or reseller.</Text>
+						<Text style={styles.subtitle}>Chat with admin, farm, cafe owner, or reseller</Text>
 					</View>
 					<View style={styles.headerActions}>
 						<Pressable style={styles.headerIconButton} onPress={() => setRecipientModalOpen(true)}>
