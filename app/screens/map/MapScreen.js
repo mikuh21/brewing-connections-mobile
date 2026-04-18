@@ -3696,10 +3696,9 @@ const styles = StyleSheet.create({
   promoHintText: {
     marginTop: 3,
     color: '#7B7B7B',
-    fontFamily: 'PoppinsRegular',
+    fontFamily: 'PoppinsItalic',
     fontSize: 11,
     lineHeight: 15,
-    fontStyle: 'italic',
   },
   promoCouponButton: {
     width: 30,

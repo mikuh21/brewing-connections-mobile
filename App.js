@@ -3,6 +3,7 @@ import { ActivityIndicator, View } from 'react-native';
 import { useFonts } from 'expo-font';
 import {
   Poppins_400Regular,
+  Poppins_400Regular_Italic,
   Poppins_500Medium,
   Poppins_700Bold,
 } from '@expo-google-fonts/poppins';
@@ -43,6 +44,7 @@ export default function App() {
   const [fontsLoaded] = useFonts({
     Poppins: Poppins_400Regular,
     PoppinsRegular: Poppins_400Regular,
+    PoppinsItalic: Poppins_400Regular_Italic,
     PoppinsMedium: Poppins_500Medium,
     PoppinsBold: Poppins_700Bold,
     PlayfairDisplay: PlayfairDisplay_500Medium,
