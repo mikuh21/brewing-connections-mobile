@@ -22,7 +22,7 @@ import * as Location from 'expo-location';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { API_CONFIG, api, getEstablishments } from '../../services';
+import { API_CONFIG, api, getCouponPromos, getEstablishments } from '../../services';
 
 const LIPA_REGION = {
   latitude: 13.9411,
@@ -181,7 +181,106 @@ function resolveMapImageCandidates(...possibleValues) {
   return candidates.filter((candidate, index, list) => candidate && list.indexOf(candidate) === index);
 }
 
-function normalizeEstablishment(item, index) {
+function toLowerTrim(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
+function dateFromAny(value) {
+  if (!value) {
+    return null;
+  }
+
+  const raw = String(value).trim();
+  if (!raw) {
+    return null;
+  }
+
+  // Treat yyyy-mm-dd dates as inclusive for the whole day.
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+    const parsed = new Date(`${raw}T23:59:59.999`);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+
+  const parsed = new Date(raw);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function normalizeCouponPromoForMap(raw, index) {
+  if (!raw) {
+    return null;
+  }
+
+  const establishment = raw?.establishment || raw?.cafe || raw?.shop || {};
+  const title = String(raw?.title || raw?.name || raw?.code || '').trim();
+  const discount = String(
+    raw?.discount_text ||
+      (raw?.discount_type && raw?.discount_value
+        ? `${raw.discount_value}${raw.discount_type === 'percentage' ? '% off' : ' off'}`
+        : '')
+  ).trim();
+  const description = String(raw?.description || raw?.discount_description || '').trim();
+
+  if (!title && !discount && !description) {
+    return null;
+  }
+
+  const status = toLowerTrim(raw?.status || raw?.state || '');
+  const validUntilRaw = raw?.valid_until || raw?.expires_at || raw?.expiry_date;
+  const validUntil = dateFromAny(validUntilRaw);
+
+  return {
+    id: String(raw?.id ?? raw?.code ?? `coupon-promo-${index}`),
+    establishmentId: String(establishment?.id ?? raw?.establishment_id ?? '').trim(),
+    establishmentName: String(establishment?.name || raw?.establishment_name || '').trim(),
+    title: title || description || 'Active Promo',
+    discount,
+    description,
+    status,
+    validUntil,
+  };
+}
+
+function isPromoActiveForMap(promo) {
+  const status = toLowerTrim(promo?.status);
+  if (['expired', 'inactive', 'draft', 'disabled', 'archived'].includes(status)) {
+    return false;
+  }
+
+  if (promo?.validUntil && promo.validUntil.getTime() < Date.now()) {
+    return false;
+  }
+
+  return true;
+}
+
+function buildPromoIndexByEstablishment(rawPromos) {
+  const byEstablishment = new Map();
+
+  (Array.isArray(rawPromos) ? rawPromos : []).forEach((rawPromo, index) => {
+    const normalized = normalizeCouponPromoForMap(rawPromo, index);
+    if (!normalized || !isPromoActiveForMap(normalized)) {
+      return;
+    }
+
+    const keys = [];
+    if (normalized.establishmentId) {
+      keys.push(`id:${normalized.establishmentId}`);
+    }
+    if (normalized.establishmentName) {
+      keys.push(`name:${toLowerTrim(normalized.establishmentName)}`);
+    }
+
+    keys.forEach((key) => {
+      const list = byEstablishment.get(key) || [];
+      list.push(normalized);
+      byEstablishment.set(key, list);
+    });
+  });
+
+  return byEstablishment;
+}
+
+function normalizeEstablishment(item, index, promoIndexByEstablishment) {
   const source = item?.properties || item;
   const geometryCoords = item?.geometry?.coordinates;
 
@@ -201,7 +300,24 @@ function normalizeEstablishment(item, index) {
   const recentReviews = Array.isArray(source.recent_reviews)
     ? source.recent_reviews.filter(Boolean)
     : [];
-  const activePromoDetails = getActivePromoDetailsFromSource(source);
+  const sourcePromoDetails = getActivePromoDetailsFromSource(source);
+  const promoLookupId = String(source.id ?? '').trim();
+  const promoLookupName = toLowerTrim(source.name);
+  const indexedPromoDetails = [
+    ...(promoLookupId ? promoIndexByEstablishment?.get(`id:${promoLookupId}`) || [] : []),
+    ...(promoLookupName ? promoIndexByEstablishment?.get(`name:${promoLookupName}`) || [] : []),
+  ];
+  const activePromoDetails = [...sourcePromoDetails, ...indexedPromoDetails].filter(
+    (promo, promoIndex, list) => {
+      const signature = `${toLowerTrim(promo?.title)}|${toLowerTrim(promo?.discount)}|${toLowerTrim(promo?.description)}`;
+      return (
+        list.findIndex((entry) => {
+          const entrySignature = `${toLowerTrim(entry?.title)}|${toLowerTrim(entry?.discount)}|${toLowerTrim(entry?.description)}`;
+          return entrySignature === signature;
+        }) === promoIndex
+      );
+    }
+  );
   const activePromos = activePromoDetails.map((promo) => promo.title).filter(Boolean);
 
   return {
@@ -1229,13 +1345,20 @@ export default function MapScreen({ navigation, route }) {
     setError('');
 
     try {
-      const response = await getEstablishments();
-      const payload = Array.isArray(response)
-        ? response
-        : response?.features || response?.data || response?.establishments || [];
+      const [establishmentsResponse, promosResponse] = await Promise.all([
+        getEstablishments(),
+        getCouponPromos().catch(() => []),
+      ]);
+      const payload = Array.isArray(establishmentsResponse)
+        ? establishmentsResponse
+        : establishmentsResponse?.features || establishmentsResponse?.data || establishmentsResponse?.establishments || [];
+      const promosPayload = Array.isArray(promosResponse)
+        ? promosResponse
+        : promosResponse?.data || promosResponse?.promos || [];
+      const promoIndexByEstablishment = buildPromoIndexByEstablishment(promosPayload);
 
       const normalized = payload
-        .map((item, index) => normalizeEstablishment(item, index))
+        .map((item, index) => normalizeEstablishment(item, index, promoIndexByEstablishment))
         .filter(Boolean);
 
       setEstablishments(normalized);
