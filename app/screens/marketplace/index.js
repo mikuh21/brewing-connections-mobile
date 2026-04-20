@@ -946,6 +946,9 @@ export default function MarketplaceScreen() {
 							const minimumQuantity = getMinimumQuantity(selectedProduct);
 							const availableStock = getMaximumQuantity(selectedProduct);
 							const reservable = availableStock >= minimumQuantity;
+							const normalizedQuantity = clampToOrderableQuantity(orderQuantity, minimumQuantity, availableStock);
+							const canDecreaseQuantity = reservable && normalizedQuantity > minimumQuantity;
+							const canIncreaseQuantity = reservable && normalizedQuantity < availableStock;
 
 							return (
 								<>
@@ -960,20 +963,54 @@ export default function MarketplaceScreen() {
 
 						<View style={styles.modalFieldWrap}>
 							<Text style={styles.modalLabel}>Quantity</Text>
-							<TextInput
-								value={String(orderQuantity)}
-								onChangeText={(value) => {
-									setOrderQuantity(clampToOrderableQuantity(value, minimumQuantity, availableStock));
-								}}
-								onBlur={() => {
-									setOrderQuantity((currentValue) =>
-										clampToOrderableQuantity(currentValue, minimumQuantity, availableStock)
-									);
-								}}
-								keyboardType="number-pad"
-								style={styles.modalInput}
-								editable={reservable}
-							/>
+							<View style={styles.quantitySelectorRow}>
+								<Pressable
+									style={[styles.quantityStepButton, !canDecreaseQuantity && styles.quantityStepButtonDisabled]}
+									onPress={() => {
+										if (!canDecreaseQuantity) {
+											return;
+										}
+
+										setOrderQuantity((currentValue) =>
+											clampToOrderableQuantity(Number(currentValue || minimumQuantity) - 1, minimumQuantity, availableStock)
+										);
+									}}
+									disabled={!canDecreaseQuantity}
+								>
+									<Text style={styles.quantityStepText}>-</Text>
+								</Pressable>
+
+								<TextInput
+									value={String(normalizedQuantity)}
+									onChangeText={(value) => {
+										setOrderQuantity(clampToOrderableQuantity(value, minimumQuantity, availableStock));
+									}}
+									onBlur={() => {
+										setOrderQuantity((currentValue) =>
+											clampToOrderableQuantity(currentValue, minimumQuantity, availableStock)
+										);
+									}}
+									keyboardType="number-pad"
+									style={[styles.modalInput, styles.quantityInput]}
+									editable={reservable}
+								/>
+
+								<Pressable
+									style={[styles.quantityStepButton, !canIncreaseQuantity && styles.quantityStepButtonDisabled]}
+									onPress={() => {
+										if (!canIncreaseQuantity) {
+											return;
+										}
+
+										setOrderQuantity((currentValue) =>
+											clampToOrderableQuantity(Number(currentValue || minimumQuantity) + 1, minimumQuantity, availableStock)
+										);
+									}}
+									disabled={!canIncreaseQuantity}
+								>
+									<Text style={styles.quantityStepText}>+</Text>
+								</Pressable>
+							</View>
 						</View>
 
 						<View style={styles.modalFieldWrap}>
@@ -1507,6 +1544,34 @@ const styles = StyleSheet.create({
 		color: theme.colors.sidebar,
 		fontFamily: theme.fonts.body,
 		backgroundColor: '#FCFAF7',
+	},
+	quantitySelectorRow: {
+		flexDirection: 'row',
+		alignItems: 'center',
+		gap: 8,
+	},
+	quantityStepButton: {
+		width: 38,
+		height: 38,
+		borderRadius: theme.borderRadius.sm,
+		borderWidth: 1,
+		borderColor: theme.colors.primary,
+		backgroundColor: '#EEF4E8',
+		alignItems: 'center',
+		justifyContent: 'center',
+	},
+	quantityStepButtonDisabled: {
+		opacity: 0.45,
+	},
+	quantityStepText: {
+		fontSize: theme.fontSizes.lg,
+		fontFamily: 'PoppinsBold',
+		color: theme.colors.primary,
+		lineHeight: 22,
+	},
+	quantityInput: {
+		flex: 1,
+		textAlign: 'center',
 	},
 	pickerTrigger: {
 		borderWidth: 1,
