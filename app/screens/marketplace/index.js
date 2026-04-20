@@ -464,10 +464,21 @@ export default function MarketplaceScreen() {
 		[orders]
 	);
 
+	const getMinimumQuantity = useCallback((product) => Math.max(1, Number(product?.moq || 1)), []);
+
+	const clampToMinimumQuantity = useCallback((value, minimumQuantity) => {
+		const numericValue = Number(String(value || '').replace(/[^0-9]/g, '') || 0);
+		if (!Number.isFinite(numericValue) || numericValue < minimumQuantity) {
+			return minimumQuantity;
+		}
+
+		return numericValue;
+	}, []);
+
 	const openReserveModal = (product, action = 'order') => {
 		setSelectedProduct(product);
 		setModalAction(action);
-		setOrderQuantity(Math.max(1, Number(product?.moq || 1)));
+		setOrderQuantity(getMinimumQuantity(product));
 		const now = new Date();
 		setPickupDate(formatDateValue(now));
 		setPickupTime(formatTimeValue(now));
@@ -520,7 +531,7 @@ export default function MarketplaceScreen() {
 			return;
 		}
 
-		const minimumQuantity = Math.max(1, Number(selectedProduct?.moq || 1));
+		const minimumQuantity = getMinimumQuantity(selectedProduct);
 		const quantity = Number(orderQuantity || 0);
 
 		if (!Number.isFinite(quantity) || quantity < minimumQuantity) {
@@ -885,7 +896,14 @@ export default function MarketplaceScreen() {
 							<Text style={styles.modalLabel}>Quantity</Text>
 							<TextInput
 								value={String(orderQuantity)}
-								onChangeText={(value) => setOrderQuantity(Number(value.replace(/[^0-9]/g, '') || 0))}
+								onChangeText={(value) => {
+									const minimumQuantity = getMinimumQuantity(selectedProduct);
+									setOrderQuantity(clampToMinimumQuantity(value, minimumQuantity));
+								}}
+								onBlur={() => {
+									const minimumQuantity = getMinimumQuantity(selectedProduct);
+									setOrderQuantity((currentValue) => clampToMinimumQuantity(currentValue, minimumQuantity));
+								}}
 								keyboardType="number-pad"
 								style={styles.modalInput}
 							/>

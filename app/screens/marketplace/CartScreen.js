@@ -218,6 +218,13 @@ export default function MarketplaceCartScreen() {
 	const orderNow = (item) => {
 		if (!item?.product?.id) return;
 
+		const minimumQuantity = Math.max(1, Number(item?.product?.moq || 1));
+		const requestedQuantity = Number(item?.quantity || 0);
+		if (!Number.isFinite(requestedQuantity) || requestedQuantity < minimumQuantity) {
+			Alert.alert('Invalid quantity', `Quantity must be at least MOQ (${minimumQuantity}).`);
+			return;
+		}
+
 		openConfirm({
 			title: 'Confirm Order',
 			message: 'Place this cart item as an order now?',
@@ -227,7 +234,7 @@ export default function MarketplaceCartScreen() {
 				try {
 					await placeOrder({
 						product_id: item.product.id,
-						quantity: Number(item.quantity || 1),
+							quantity: requestedQuantity,
 						pickup_date: item.pickup_date || null,
 						pickup_time: item.pickup_time || null,
 						notes: null,
