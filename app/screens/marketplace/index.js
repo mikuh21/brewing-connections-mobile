@@ -264,6 +264,17 @@ function orderStatusStyle(status) {
 	return { bg: '#FFF3E0', text: '#B26A00' };
 }
 
+function getAvailableStock(product) {
+	return Math.max(0, Number(product?.stock_quantity || 0));
+}
+
+function isProductReservable(product) {
+	const minimumQuantity = Math.max(1, Number(product?.moq || 1));
+	const availableStock = getAvailableStock(product);
+
+	return availableStock >= minimumQuantity;
+}
+
 export default function MarketplaceScreen() {
 	const navigation = useNavigation();
 	const insets = useSafeAreaInsets();
@@ -466,16 +477,27 @@ export default function MarketplaceScreen() {
 
 	const getMinimumQuantity = useCallback((product) => Math.max(1, Number(product?.moq || 1)), []);
 
-	const clampToMinimumQuantity = useCallback((value, minimumQuantity) => {
+	const getMaximumQuantity = useCallback((product) => Math.max(0, Number(product?.stock_quantity || 0)), []);
+
+	const clampToOrderableQuantity = useCallback((value, minimumQuantity, maximumQuantity) => {
 		const numericValue = Number(String(value || '').replace(/[^0-9]/g, '') || 0);
 		if (!Number.isFinite(numericValue) || numericValue < minimumQuantity) {
 			return minimumQuantity;
+		}
+
+		if (maximumQuantity >= minimumQuantity && numericValue > maximumQuantity) {
+			return maximumQuantity;
 		}
 
 		return numericValue;
 	}, []);
 
 	const openReserveModal = (product, action = 'order') => {
+		if (!isProductReservable(product)) {
+			setError('This product is currently out of stock for its minimum order quantity.');
+			return;
+		}
+
 		setSelectedProduct(product);
 		setModalAction(action);
 		setOrderQuantity(getMinimumQuantity(product));
@@ -531,11 +553,27 @@ export default function MarketplaceScreen() {
 			return;
 		}
 
-		const minimumQuantity = getMinimumQuantity(selectedProduct);
+		const latestSelectedProduct =
+			products.find((product) => Number(product?.id) === Number(selectedProduct?.id)) || selectedProduct;
+		const minimumQuantity = getMinimumQuantity(latestSelectedProduct);
+		const maximumQuantity = getMaximumQuantity(latestSelectedProduct);
 		const quantity = Number(orderQuantity || 0);
+
+		if (!isProductReservable(latestSelectedProduct)) {
+			setError('This product is currently out of stock.');
+			setReserveModalOpen(false);
+			setSelectedProduct(null);
+			return;
+		}
 
 		if (!Number.isFinite(quantity) || quantity < minimumQuantity) {
 			setError(`Quantity must be at least ${minimumQuantity}.`);
+			return;
+		}
+
+		if (quantity > maximumQuantity) {
+			setError(`Only ${maximumQuantity} unit(s) are currently available.`);
+			setOrderQuantity(Math.max(minimumQuantity, maximumQuantity));
 			return;
 		}
 
@@ -549,7 +587,7 @@ export default function MarketplaceScreen() {
 			return;
 		}
 
-		const product = selectedProduct;
+		const product = latestSelectedProduct;
 		const action = modalAction;
 		const selectedQuantity = quantity;
 		const selectedPickupDate = pickupDate;
@@ -645,8 +683,9 @@ export default function MarketplaceScreen() {
 
 	const renderProductCard = ({ item }) => {
 		const imageUrl = resolveImageUrl(item?.image_url);
-		const stock = Math.max(0, Number(item?.stock_quantity || 0));
+		const stock = getAvailableStock(item);
 		const minimum = Math.max(1, Number(item?.moq || 1));
+		const reservable = stock >= minimum;
 		const productType = item?.category || item?.type || item?.product_type || null;
 		const roastType = item?.roast_type || item?.roast_level || item?.roast || null;
 		const grindType = item?.grind_type || item?.grind || null;
@@ -695,19 +734,36 @@ export default function MarketplaceScreen() {
 
 					<View style={styles.productInfoRow}>
 						<Text style={styles.productPrice}>{money(item?.price_per_unit)}</Text>
-						<Text style={styles.productStock}>Stock: {stock}</Text>
+						<Text style={[styles.productStock, !reservable && styles.productStockOut]}>
+							Stock: {stock}
+						</Text>
 					</View>
 
 					<Text style={styles.productHint}>MOQ: {minimum} {item?.unit || 'kg'}</Text>
+					{!reservable ? <Text style={styles.unavailableHint}>Out of stock</Text> : null}
 
 					<View style={styles.productActionsRow}>
-						<Pressable style={styles.reserveButton} onPress={() => openReserveModal(item, 'order')}>
+						<Pressable
+							style={[styles.reserveButton, !reservable && styles.actionButtonDisabled]}
+							onPress={() => openReserveModal(item, 'order')}
+							disabled={!reservable}
+						>
 							<MaterialIcons name="bolt" size={16} color={theme.colors.white} />
-							<Text style={styles.reserveButtonText}>Reserve Now</Text>
+							<Text style={styles.reserveButtonText}>{reservable ? 'Reserve Now' : 'Unavailable'}</Text>
 						</Pressable>
-						<Pressable style={styles.addToCartButton} onPress={() => openReserveModal(item, 'cart')}>
-							<MaterialIcons name="add-shopping-cart" size={16} color={theme.colors.primary} />
-							<Text style={styles.addToCartButtonText}>Add to Cart</Text>
+						<Pressable
+							style={[styles.addToCartButton, !reservable && styles.addToCartButtonDisabled]}
+							onPress={() => openReserveModal(item, 'cart')}
+							disabled={!reservable}
+						>
+							<MaterialIcons
+								name="add-shopping-cart"
+								size={16}
+								color={!reservable ? '#8B8B8B' : theme.colors.primary}
+							/>
+							<Text style={[styles.addToCartButtonText, !reservable && styles.addToCartButtonTextDisabled]}>
+								Add to Cart
+							</Text>
 						</Pressable>
 					</View>
 				</View>
@@ -886,26 +942,37 @@ export default function MarketplaceScreen() {
 			<Modal visible={reserveModalOpen} transparent animationType="fade" onRequestClose={closeReserveModal}>
 				<View style={styles.modalBackdrop}>
 					<View style={styles.modalCard}>
+						{(() => {
+							const minimumQuantity = getMinimumQuantity(selectedProduct);
+							const availableStock = getMaximumQuantity(selectedProduct);
+							const reservable = availableStock >= minimumQuantity;
+
+							return (
+								<>
 						<Text style={styles.modalTitle}>{modalAction === 'cart' ? 'Add to Cart' : 'Reserve Product'}</Text>
 
 						<Text style={styles.modalProductName}>{selectedProduct?.name || ''}</Text>
 						<Text style={styles.modalDetail}>{money(selectedProduct?.price_per_unit)} / {selectedProduct?.unit || 'kg'}</Text>
-						<Text style={styles.modalDetail}>Minimum order: {Math.max(1, Number(selectedProduct?.moq || 1))}</Text>
+						<Text style={styles.modalDetail}>Minimum order: {minimumQuantity}</Text>
+						<Text style={[styles.modalDetail, !reservable && styles.modalDetailWarning]}>
+							Available stock: {availableStock}
+						</Text>
 
 						<View style={styles.modalFieldWrap}>
 							<Text style={styles.modalLabel}>Quantity</Text>
 							<TextInput
 								value={String(orderQuantity)}
 								onChangeText={(value) => {
-									const minimumQuantity = getMinimumQuantity(selectedProduct);
-									setOrderQuantity(clampToMinimumQuantity(value, minimumQuantity));
+									setOrderQuantity(clampToOrderableQuantity(value, minimumQuantity, availableStock));
 								}}
 								onBlur={() => {
-									const minimumQuantity = getMinimumQuantity(selectedProduct);
-									setOrderQuantity((currentValue) => clampToMinimumQuantity(currentValue, minimumQuantity));
+									setOrderQuantity((currentValue) =>
+										clampToOrderableQuantity(currentValue, minimumQuantity, availableStock)
+									);
 								}}
 								keyboardType="number-pad"
 								style={styles.modalInput}
+								editable={reservable}
 							/>
 						</View>
 
@@ -947,18 +1014,27 @@ export default function MarketplaceScreen() {
 								<Text style={styles.modalCancelText}>Cancel</Text>
 							</Pressable>
 
-							<Pressable style={styles.modalSubmitButton} onPress={submitOrder} disabled={submittingOrder}>
+							<Pressable
+								style={[styles.modalSubmitButton, (!reservable || submittingOrder) && styles.actionButtonDisabled]}
+								onPress={submitOrder}
+								disabled={!reservable || submittingOrder}
+							>
 								<Text style={styles.modalSubmitText}>
 									{submittingOrder
 										? modalAction === 'cart'
 											? 'Adding...'
 											: 'Reserving...'
+										: !reservable
+											? 'Unavailable'
 										: modalAction === 'cart'
 											? 'Add to Cart'
 											: 'Reserve Now'}
 								</Text>
 							</Pressable>
 						</View>
+								</>
+							);
+						})()}
 					</View>
 				</View>
 			</Modal>
@@ -1215,11 +1291,21 @@ const styles = StyleSheet.create({
 		fontSize: theme.fontSizes.sm,
 		fontFamily: theme.fonts.body,
 	},
+	productStockOut: {
+		color: '#B00020',
+		fontWeight: '700',
+	},
 	productHint: {
 		marginTop: 4,
 		color: '#826D54',
 		fontSize: theme.fontSizes.xs,
 		fontFamily: theme.fonts.body,
+	},
+	unavailableHint: {
+		marginTop: 6,
+		color: '#B00020',
+		fontSize: theme.fontSizes.xs,
+		fontFamily: 'PoppinsMedium',
 	},
 	productActionsRow: {
 		marginTop: 12,
@@ -1248,6 +1334,13 @@ const styles = StyleSheet.create({
 		paddingVertical: 10,
 		gap: 6,
 	},
+	actionButtonDisabled: {
+		opacity: 0.55,
+	},
+	addToCartButtonDisabled: {
+		borderColor: '#C9C9C9',
+		backgroundColor: '#F2F2F2',
+	},
 	reserveButtonText: {
 		color: theme.colors.white,
 		fontWeight: '700',
@@ -1259,6 +1352,9 @@ const styles = StyleSheet.create({
 		fontWeight: '700',
 		fontSize: theme.fontSizes.sm,
 		fontFamily: theme.fonts.body,
+	},
+	addToCartButtonTextDisabled: {
+		color: '#8B8B8B',
 	},
 	orderCard: {
 		backgroundColor: theme.colors.white,
@@ -1387,6 +1483,10 @@ const styles = StyleSheet.create({
 		marginTop: 2,
 		color: theme.colors.textMuted,
 		fontFamily: theme.fonts.body,
+	},
+	modalDetailWarning: {
+		color: '#B00020',
+		fontFamily: 'PoppinsMedium',
 	},
 	modalFieldWrap: {
 		marginTop: 10,

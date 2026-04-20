@@ -13,7 +13,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { ConfirmToastModal, ScreenContainer } from '../../components';
-import { API_CONFIG, placeOrder } from '../../services';
+import { API_CONFIG, getProducts, placeOrder } from '../../services';
 import theme from '../../theme';
 
 const CART_STORAGE_KEY = 'marketplace_cart_items';
@@ -105,6 +105,18 @@ function getSellerDisplayName(source) {
 	}
 
 	return sellerName || 'Seller';
+}
+
+function getAvailableStock(product) {
+	return Math.max(0, Number(product?.stock_quantity || 0));
+}
+
+function getMinimumQuantity(product) {
+	return Math.max(1, Number(product?.moq || 1));
+}
+
+function isProductReservable(product) {
+	return getAvailableStock(product) >= getMinimumQuantity(product);
 }
 
 function resolveImageUrl(pathOrUrl) {
@@ -218,10 +230,22 @@ export default function MarketplaceCartScreen() {
 	const orderNow = (item) => {
 		if (!item?.product?.id) return;
 
-		const minimumQuantity = Math.max(1, Number(item?.product?.moq || 1));
+		const minimumQuantity = getMinimumQuantity(item?.product);
+		const availableStock = getAvailableStock(item?.product);
 		const requestedQuantity = Number(item?.quantity || 0);
+
+		if (!isProductReservable(item?.product)) {
+			Alert.alert('Out of stock', 'This item is currently unavailable.');
+			return;
+		}
+
 		if (!Number.isFinite(requestedQuantity) || requestedQuantity < minimumQuantity) {
 			Alert.alert('Invalid quantity', `Quantity must be at least MOQ (${minimumQuantity}).`);
+			return;
+		}
+
+		if (requestedQuantity > availableStock) {
+			Alert.alert('Insufficient stock', `Only ${availableStock} unit(s) are currently available.`);
 			return;
 		}
 
@@ -232,9 +256,26 @@ export default function MarketplaceCartScreen() {
 			onConfirm: async () => {
 				setSubmittingId(item.id);
 				try {
+					const productsPayload = await getProducts();
+					const latestProducts = Array.isArray(productsPayload?.products) ? productsPayload.products : [];
+					const latestProduct =
+						latestProducts.find((product) => Number(product?.id) === Number(item?.product?.id)) || item.product;
+					const latestMinimum = getMinimumQuantity(latestProduct);
+					const latestStock = getAvailableStock(latestProduct);
+
+					if (latestStock < latestMinimum) {
+						Alert.alert('Out of stock', 'This item is currently unavailable. Please remove it from cart.');
+						return;
+					}
+
+					if (requestedQuantity > latestStock) {
+						Alert.alert('Insufficient stock', `Only ${latestStock} unit(s) are currently available.`);
+						return;
+					}
+
 					await placeOrder({
-						product_id: item.product.id,
-							quantity: requestedQuantity,
+						product_id: latestProduct.id,
+						quantity: requestedQuantity,
 						pickup_date: item.pickup_date || null,
 						pickup_time: item.pickup_time || null,
 						notes: null,
@@ -278,6 +319,11 @@ export default function MarketplaceCartScreen() {
 					{cartItems.map((item) => {
 						const imageUrl = resolveImageUrl(item?.product?.image_url);
 						const sellerDisplayName = getSellerDisplayName(item);
+						const minimumQuantity = getMinimumQuantity(item?.product);
+						const availableStock = getAvailableStock(item?.product);
+						const reservable = availableStock >= minimumQuantity;
+						const stockEnoughForItem = Number(item?.quantity || 0) <= availableStock;
+						const orderDisabled = !reservable || !stockEnoughForItem || submittingId === item.id;
 
 						return (
 							<View key={item.id} style={styles.cartItemCard}>
@@ -294,6 +340,13 @@ export default function MarketplaceCartScreen() {
 										<Text style={styles.cartItemMeta}>{sellerDisplayName}</Text>
 										<Text style={styles.cartItemMeta}>Qty: {item.quantity}</Text>
 										<Text style={styles.cartItemMeta}>Price: {money(item?.product?.price_per_unit)}</Text>
+										<Text style={[styles.cartItemMeta, (!reservable || !stockEnoughForItem) && styles.cartItemMetaWarning]}>
+											Stock: {availableStock}
+										</Text>
+										{!reservable ? <Text style={styles.cartItemMetaWarning}>Out of stock</Text> : null}
+										{reservable && !stockEnoughForItem ? (
+											<Text style={styles.cartItemMetaWarning}>Quantity exceeds current stock</Text>
+										) : null}
 									</View>
 								</View>
 
@@ -305,12 +358,18 @@ export default function MarketplaceCartScreen() {
 										<Text style={styles.removeButtonText}>Remove</Text>
 									</Pressable>
 									<Pressable
-										style={styles.orderNowButton}
+										style={[styles.orderNowButton, orderDisabled && styles.orderNowButtonDisabled]}
 										onPress={() => orderNow(item)}
-										disabled={submittingId === item.id}
+										disabled={orderDisabled}
 									>
-										<Text style={styles.orderNowButtonText}>
-											{submittingId === item.id ? 'Ordering...' : 'Order Now'}
+										<Text style={[styles.orderNowButtonText, orderDisabled && styles.orderNowButtonTextDisabled]}>
+											{submittingId === item.id
+												? 'Ordering...'
+												: !reservable
+													? 'Unavailable'
+													: !stockEnoughForItem
+														? 'Adjust Quantity'
+														: 'Order Now'}
 										</Text>
 									</Pressable>
 								</View>
@@ -446,6 +505,10 @@ const styles = StyleSheet.create({
 		fontFamily: 'PoppinsRegular',
 		fontSize: theme.fontSizes.xs,
 	},
+	cartItemMetaWarning: {
+		color: '#B00020',
+		fontFamily: 'PoppinsMedium',
+	},
 	cartItemActions: {
 		marginTop: 10,
 		flexDirection: 'row',
@@ -489,10 +552,16 @@ const styles = StyleSheet.create({
 		justifyContent: 'center',
 		backgroundColor: MARKETPLACE_ACTION_GREEN,
 	},
+	orderNowButtonDisabled: {
+		backgroundColor: '#BDBDBD',
+	},
 	orderNowButtonText: {
 		color: '#FFFFFF',
 		fontFamily: 'PoppinsMedium',
 		fontSize: theme.fontSizes.xs,
+	},
+	orderNowButtonTextDisabled: {
+		color: '#F7F7F7',
 	},
 	modalBackdrop: {
 		flex: 1,
