@@ -1010,27 +1010,31 @@ const cancelOrder = async (order) => {
 						<Text style={styles.orderDetail}>
 							Pickup: {formatDisplayDateTime(item?.pickup_date, item?.pickup_time)}
 						</Text>
-						<Pressable style={styles.chatSellerButton} onPress={() => openSellerChat(item)}>
-							<MaterialIcons name="chat-bubble-outline" size={14} color={theme.colors.white} />
-							<Text style={styles.chatSellerButtonText}>Chat with seller</Text>
-						</Pressable>
-						{activeTab === TAB_TRACKING ? (
-							<Pressable style={styles.receiptButton} onPress={() => openReceiptModal(item)}>
-								<MaterialIcons name="receipt-long" size={14} color={MARKETPLACE_ACTION_GREEN} />
-								<Text style={styles.receiptButtonText}>View Receipt</Text>
+						<View style={styles.orderActionsTopRow}>
+							<Pressable style={styles.chatSellerButton} onPress={() => openSellerChat(item)}>
+								<MaterialIcons name="chat-bubble-outline" size={14} color={theme.colors.white} />
+								<Text style={styles.chatSellerButtonText}>Chat with seller</Text>
 							</Pressable>
-						) : null}
+							{activeTab === TAB_TRACKING ? (
+								<Pressable style={styles.receiptButton} onPress={() => openReceiptModal(item)}>
+									<MaterialIcons name="receipt-long" size={14} color={MARKETPLACE_ACTION_GREEN} />
+									<Text style={styles.receiptButtonText}>View Receipt</Text>
+								</Pressable>
+							) : null}
+						</View>
 
 						{cancellable ? (
-							<Pressable
-								style={styles.cancelOrderButton}
-								onPress={() => cancelOrder(item)}
-								disabled={cancellingOrderId === item.id}
-							>
-								<Text style={styles.cancelOrderButtonText}>
-									{cancellingOrderId === item.id ? 'Cancelling...' : 'Cancel Order'}
-								</Text>
-							</Pressable>
+							<View style={styles.orderActionsBottomRow}>
+								<Pressable
+									style={styles.cancelOrderButton}
+									onPress={() => cancelOrder(item)}
+									disabled={cancellingOrderId === item.id}
+								>
+									<Text style={styles.cancelOrderButtonText}>
+										{cancellingOrderId === item.id ? 'Cancelling...' : 'Cancel Order'}
+									</Text>
+								</Pressable>
+							</View>
 						) : null}
 					</View>
 				</View>
@@ -1851,6 +1855,18 @@ const styles = StyleSheet.create({
 	orderBodyTextWrap: {
 		flex: 1,
 	},
+	orderActionsTopRow: {
+		marginTop: 8,
+		flexDirection: 'row',
+		alignItems: 'center',
+		gap: 8,
+		flexWrap: 'wrap',
+	},
+	orderActionsBottomRow: {
+		marginTop: 10,
+		flexDirection: 'row',
+		justifyContent: 'flex-end',
+	},
 	orderProductName: {
 		color: theme.colors.sidebar,
 		fontWeight: '700',
@@ -1869,8 +1885,7 @@ const styles = StyleSheet.create({
 		fontFamily: theme.fonts.body,
 	},
 	chatSellerButton: {
-		marginTop: 8,
-		alignSelf: 'flex-start',
+		alignSelf: 'auto',
 		paddingHorizontal: 10,
 		paddingVertical: 6,
 		borderRadius: theme.borderRadius.pill,
@@ -1879,6 +1894,7 @@ const styles = StyleSheet.create({
 		backgroundColor: MARKETPLACE_ACTION_GREEN,
 		flexDirection: 'row',
 		alignItems: 'center',
+		justifyContent: 'center',
 		gap: 6,
 	},
 	chatSellerButtonText: {
@@ -1887,8 +1903,7 @@ const styles = StyleSheet.create({
 		fontSize: theme.fontSizes.xs,
 	},
 	receiptButton: {
-		marginTop: 8,
-		alignSelf: 'flex-start',
+		alignSelf: 'auto',
 		paddingHorizontal: 10,
 		paddingVertical: 6,
 		borderRadius: theme.borderRadius.pill,
@@ -1897,6 +1912,7 @@ const styles = StyleSheet.create({
 		backgroundColor: '#EEF4E8',
 		flexDirection: 'row',
 		alignItems: 'center',
+		justifyContent: 'center',
 		gap: 6,
 	},
 	receiptButtonText: {
@@ -2038,8 +2054,6 @@ const styles = StyleSheet.create({
 		fontSize: theme.fontSizes.sm,
 	},
 	cancelOrderButton: {
-		marginTop: 8,
-		alignSelf: 'flex-start',
 		paddingHorizontal: 10,
 		paddingVertical: 6,
 		borderRadius: theme.borderRadius.pill,
