@@ -1867,6 +1867,7 @@ const styles = StyleSheet.create({
 	orderActionsReceiptRow: {
 		marginTop: 10,
 		flexDirection: 'row',
+		alignSelf: 'flex-start',
 		justifyContent: 'flex-start',
 	},
 	orderActionsBottomRow: {
