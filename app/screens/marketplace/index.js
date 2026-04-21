@@ -3,6 +3,7 @@ import {
 	ActivityIndicator,
 	FlatList,
 	Image,
+	KeyboardAvoidingView,
 	Linking,
 	Modal,
 	Platform,
@@ -688,8 +689,9 @@ export default function MarketplaceScreen() {
 			return;
 		}
 
+		const action = modalAction;
 		const sellerRoleForValidation = normalizeSellerRole(latestSelectedProduct);
-		const requiresInAppContact = sellerRoleForValidation === 'cafe';
+		const requiresInAppContact = sellerRoleForValidation === 'cafe' && action === 'order';
 		const normalizedAddress = String(reservationAddress || '').trim();
 		const normalizedContactNumber = String(reservationContactNumber || '').replace(/\s+/g, '');
 
@@ -704,7 +706,6 @@ export default function MarketplaceScreen() {
 		}
 
 		const product = latestSelectedProduct;
-		const action = modalAction;
 		const selectedQuantity = quantity;
 		const selectedPickupDate = pickupDate;
 		const selectedPickupTime = pickupTime;
@@ -726,8 +727,6 @@ export default function MarketplaceScreen() {
 				quantity: selectedQuantity,
 				pickup_date: selectedPickupDate,
 				pickup_time: selectedPickupTime,
-				address: selectedAddress,
-				contact_number: selectedContactNumber,
 				added_at: new Date().toISOString(),
 			};
 
@@ -746,7 +745,7 @@ export default function MarketplaceScreen() {
 			message:
 				normalizeSellerRole(product) === 'farm' || normalizeSellerRole(product) === 'reseller'
 					? 'Continue this reservation on the web form?'
-					: 'Reserve this product now in-app?',
+					: 'Reserve this product now?',
 			confirmLabel:
 				normalizeSellerRole(product) === 'farm' || normalizeSellerRole(product) === 'reseller'
 					? 'Open Web Form'
@@ -1158,8 +1157,13 @@ export default function MarketplaceScreen() {
 			)}
 
 			<Modal visible={reserveModalOpen} transparent animationType="fade" onRequestClose={closeReserveModal}>
-				<View style={styles.modalBackdrop}>
+				<KeyboardAvoidingView
+					style={styles.modalBackdrop}
+					behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+					keyboardVerticalOffset={Platform.OS === 'ios' ? Math.max(insets.top, 12) : 0}
+				>
 					<View style={styles.modalCard}>
+						<ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
 						{(() => {
 									const sellerRole = normalizeSellerRole(selectedProduct);
 									const minimumQuantity = getMinimumQuantity(selectedProduct);
@@ -1181,14 +1185,14 @@ export default function MarketplaceScreen() {
 												</>
 											)}
 
-											{sellerRole === 'cafe' && (
+											{sellerRole === 'cafe' && modalAction === 'order' && (
 												<>
 													<View style={styles.modalFieldWrap}>
 														<Text style={styles.modalLabel}>Address</Text>
 														<TextInput
 															value={reservationAddress}
 															onChangeText={setReservationAddress}
-															placeholder="Enter your pickup address"
+															placeholder="Enter complete address"
 															placeholderTextColor={theme.colors.textMuted}
 															style={styles.modalInput}
 														/>
@@ -1319,8 +1323,9 @@ export default function MarketplaceScreen() {
 								</>
 							);
 						})()}
+						</ScrollView>
 					</View>
-				</View>
+				</KeyboardAvoidingView>
 			</Modal>
 
 			<Modal visible={receiptModalOpen} transparent animationType="fade" onRequestClose={closeReceiptModal}>
