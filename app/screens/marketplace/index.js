@@ -1015,25 +1015,26 @@ const cancelOrder = async (order) => {
 								<MaterialIcons name="chat-bubble-outline" size={14} color={theme.colors.white} />
 								<Text style={styles.chatSellerButtonText}>Chat with seller</Text>
 							</Pressable>
-							{activeTab === TAB_TRACKING ? (
-								<Pressable style={styles.receiptButton} onPress={() => openReceiptModal(item)}>
-									<MaterialIcons name="receipt-long" size={14} color={MARKETPLACE_ACTION_GREEN} />
-									<Text style={styles.receiptButtonText}>View Receipt</Text>
-								</Pressable>
-							) : null}
 						</View>
 
-						{cancellable ? (
+						{activeTab === TAB_TRACKING || cancellable ? (
 							<View style={styles.orderActionsBottomRow}>
-								<Pressable
-									style={styles.cancelOrderButton}
-									onPress={() => cancelOrder(item)}
-									disabled={cancellingOrderId === item.id}
-								>
-									<Text style={styles.cancelOrderButtonText}>
-										{cancellingOrderId === item.id ? 'Cancelling...' : 'Cancel Order'}
-									</Text>
-								</Pressable>
+								{activeTab === TAB_TRACKING ? (
+									<Pressable style={styles.receiptIconButton} onPress={() => openReceiptModal(item)}>
+										<MaterialIcons name="receipt-long" size={18} color={MARKETPLACE_ACTION_GREEN} />
+									</Pressable>
+								) : null}
+								{cancellable ? (
+									<Pressable
+										style={styles.cancelOrderButton}
+										onPress={() => cancelOrder(item)}
+										disabled={cancellingOrderId === item.id}
+									>
+										<Text style={styles.cancelOrderButtonText}>
+											{cancellingOrderId === item.id ? 'Cancelling...' : 'Cancel Order'}
+										</Text>
+									</Pressable>
+								) : null}
 							</View>
 						) : null}
 					</View>
@@ -1865,7 +1866,9 @@ const styles = StyleSheet.create({
 	orderActionsBottomRow: {
 		marginTop: 10,
 		flexDirection: 'row',
+		alignItems: 'center',
 		justifyContent: 'flex-end',
+		gap: 8,
 	},
 	orderProductName: {
 		color: theme.colors.sidebar,
@@ -1902,23 +1905,16 @@ const styles = StyleSheet.create({
 		fontFamily: 'PoppinsMedium',
 		fontSize: theme.fontSizes.xs,
 	},
-	receiptButton: {
-		alignSelf: 'auto',
-		paddingHorizontal: 10,
-		paddingVertical: 6,
-		borderRadius: theme.borderRadius.pill,
+	receiptIconButton: {
+		width: 34,
+		height: 34,
+		borderRadius: 17,
 		borderWidth: 1,
 		borderColor: MARKETPLACE_ACTION_GREEN,
 		backgroundColor: '#EEF4E8',
 		flexDirection: 'row',
 		alignItems: 'center',
 		justifyContent: 'center',
-		gap: 6,
-	},
-	receiptButtonText: {
-		color: MARKETPLACE_ACTION_GREEN,
-		fontFamily: 'PoppinsMedium',
-		fontSize: theme.fontSizes.xs,
 	},
 	errorText: {
 		marginBottom: theme.spacing.sm,
