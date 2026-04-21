@@ -514,9 +514,17 @@ export default function MarketplaceScreen() {
 		[orders]
 	);
 
-	const getMinimumQuantity = useCallback(() => 1, []);
+	const getMinimumQuantity = useCallback((product) => {
+		const sellerRole = normalizeSellerRole(product);
+		if (sellerRole === 'cafe') return 1;
+		return Math.max(1, Number(product?.moq || 1));
+	}, []);
 
-	const getMaximumQuantity = useCallback((product) => Math.max(0, Number(product?.stock_quantity || 0)), []);
+	const getMaximumQuantity = useCallback((product) => {
+		const sellerRole = normalizeSellerRole(product);
+		if (sellerRole === 'cafe') return Math.max(0, Number(product?.stock_quantity || 0));
+		return Math.max(0, Number(product?.stock_quantity || 0));
+	}, []);
 
 	const clampToOrderableQuantity = useCallback((value, minimumQuantity, maximumQuantity) => {
 		const numericValue = Number(String(value || '').replace(/[^0-9]/g, '') || 0);
@@ -773,13 +781,13 @@ export default function MarketplaceScreen() {
 
 	const renderProductCard = ({ item }) => {
 		const imageUrl = resolveImageUrl(item?.image_url);
+		const sellerRole = normalizeSellerRole(item);
 		const stock = getAvailableStock(item);
-		const minimum = 1;
+		const minimum = getMinimumQuantity(item);
 		const reservable = stock >= minimum;
 		const productType = item?.category || item?.type || item?.product_type || null;
 		const roastType = item?.roast_type || item?.roast_level || item?.roast || null;
 		const grindType = item?.grind_type || item?.grind || null;
-		const sellerRole = normalizeSellerRole(item);
 		const sellerRoleTheme = sellerRole ? ROLE_PILL_THEME[sellerRole] : null;
 		const usesWebCheckout = sellerRole === 'farm' || sellerRole === 'reseller';
 		const sellerDisplayName = getSellerDisplayName(item);
@@ -853,9 +861,15 @@ export default function MarketplaceScreen() {
 					</Text>
 
 					<View style={styles.productInfoRow}>
-						<Text style={styles.productPrice}>{money(item?.price_per_unit)}</Text>
+						<Text style={styles.productPrice}>{money(item?.price_per_unit)}{sellerRole !== 'cafe' && item?.unit ? ` / ${item.unit}` : ''}</Text>
+						{sellerRole !== 'cafe' && (
+							<Text style={styles.productStock}>{`Stock: ${stock}`}</Text>
+						)}
 					</View>
-					{!reservable ? <Text style={styles.unavailableHint}>Unavailable</Text> : null}
+					{sellerRole !== 'cafe' && (
+						<Text style={styles.productHint}>{`MOQ: ${item?.moq || 1}${item?.unit ? ` ${item.unit}` : ''}`}</Text>
+					)}
+					{!reservable ? <Text style={styles.unavailableHint}>{sellerRole === 'cafe' ? 'Unavailable' : 'Out of stock'}</Text> : null}
 
 					<View style={styles.productActionsRow}>
 						<Pressable

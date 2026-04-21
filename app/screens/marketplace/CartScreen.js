@@ -131,7 +131,9 @@ function getAvailableStock(product) {
 }
 
 function getMinimumQuantity(product) {
-	return 1;
+	const sellerRole = normalizeSellerRole(product);
+	if (sellerRole === 'cafe') return 1;
+	return Math.max(1, Number(product?.moq || 1));
 }
 
 function isProductReservable(product) {
@@ -296,12 +298,12 @@ export default function MarketplaceCartScreen() {
 		}
 
 		if (!Number.isFinite(requestedQuantity) || requestedQuantity < minimumQuantity) {
-			Alert.alert('Invalid quantity', 'Quantity must be at least 1.');
+			Alert.alert('Invalid quantity', `Quantity must be at least ${minimumQuantity}.`);
 			return;
 		}
 
 		if (requestedQuantity > availableStock) {
-			Alert.alert('Unavailable quantity', 'Requested quantity is currently unavailable.');
+			Alert.alert('Unavailable quantity', `Only ${availableStock} unit(s) are currently available.`);
 			return;
 		}
 
@@ -437,6 +439,7 @@ export default function MarketplaceCartScreen() {
 						const reservable = availableStock >= minimumQuantity;
 						const stockEnoughForItem = Number(item?.quantity || 0) <= availableStock;
 						const orderDisabled = !reservable || !stockEnoughForItem || submittingId === item.id;
+						const sellerRole = normalizeSellerRole(item?.product);
 
 						return (
 							<View key={item.id} style={styles.cartItemCard}>
@@ -452,39 +455,45 @@ export default function MarketplaceCartScreen() {
 										<Text style={styles.cartItemName}>{item?.product?.name || 'Product'}</Text>
 										<Text style={styles.cartItemMeta}>{sellerDisplayName}</Text>
 										<Text style={styles.cartItemMeta}>Qty: {item.quantity}</Text>
-										<Text style={styles.cartItemMeta}>Price: {money(item?.product?.price_per_unit)}</Text>
-										{!reservable ? <Text style={styles.cartItemMetaWarning}>Unavailable</Text> : null}
+										<Text style={styles.cartItemMeta}>Price: {money(item?.product?.price_per_unit)}{sellerRole !== 'cafe' && item?.product?.unit ? ` / ${item.product.unit}` : ''}</Text>
+										{sellerRole !== 'cafe' && (
+											<Text style={styles.cartItemMeta}>{`Stock: ${availableStock}`}</Text>
+										)}
+										{sellerRole !== 'cafe' && (
+											<Text style={styles.cartItemMeta}>{`MOQ: ${item?.product?.moq || 1}${item?.product?.unit ? ` ${item.product.unit}` : ''}`}</Text>
+										)}
+										{!reservable ? <Text style={styles.cartItemMetaWarning}>{sellerRole === 'cafe' ? 'Unavailable' : 'Out of stock'}</Text> : null}
 										{reservable && !stockEnoughForItem ? (
-											<Text style={styles.cartItemMetaWarning}>Quantity currently unavailable</Text>
+											<Text style={styles.cartItemMetaWarning}>{sellerRole === 'cafe' ? 'Quantity currently unavailable' : 'Quantity exceeds current stock'}</Text>
 										) : null}
 									</View>
 								</View>
 
-								<View style={styles.cartItemActions}>
-									<Pressable style={styles.viewDetailsButton} onPress={() => setSelectedItem(item)}>
-										<Text style={styles.viewDetailsButtonText}>View Details</Text>
-									</Pressable>
-									<Pressable style={styles.removeButton} onPress={() => removeCartItem(item.id)}>
-										<Text style={styles.removeButtonText}>Remove</Text>
-									</Pressable>
-									<Pressable
-										style={[styles.orderNowButton, orderDisabled && styles.orderNowButtonDisabled]}
-										onPress={() => orderNow(item)}
-										disabled={orderDisabled}
-									>
-										<Text style={[styles.orderNowButtonText, orderDisabled && styles.orderNowButtonTextDisabled]}>
-											{submittingId === item.id
-												? 'Ordering...'
-												: !reservable
-													? 'Unavailable'
-													: !stockEnoughForItem
-														? 'Adjust Quantity'
-														: 'Order Now'}
-										</Text>
-									</Pressable>
-								</View>
+							<View style={styles.cartItemActions}>
+								<Pressable style={styles.viewDetailsButton} onPress={() => setSelectedItem(item)}>
+									<Text style={styles.viewDetailsButtonText}>View Details</Text>
+								</Pressable>
+								<Pressable style={styles.removeButton} onPress={() => removeCartItem(item.id)}>
+									<Text style={styles.removeButtonText}>Remove</Text>
+								</Pressable>
+								<Pressable
+									style={[styles.orderNowButton, orderDisabled && styles.orderNowButtonDisabled]}
+									onPress={() => orderNow(item)}
+									disabled={orderDisabled}
+								>
+									<Text style={[styles.orderNowButtonText, orderDisabled && styles.orderNowButtonTextDisabled]}>
+										{submittingId === item.id
+											? 'Ordering...'
+											: !reservable
+												? 'Unavailable'
+											: !stockEnoughForItem
+												? (sellerRole === 'cafe' ? 'Adjust Quantity' : 'Adjust to available stock')
+												: 'Order Now'}
+									</Text>
+								</Pressable>
 							</View>
-						);
+						</View>
+					);
 					})}
 				</ScrollView>
 			)}
@@ -499,50 +508,60 @@ export default function MarketplaceCartScreen() {
 					<View style={styles.modalCard}>
 						{(() => {
 							const sellerDisplayName = getSellerDisplayName(selectedItem);
+							const sellerRole = normalizeSellerRole(selectedItem?.product);
+							const minimumQuantity = getMinimumQuantity(selectedItem?.product);
+							const availableStock = getAvailableStock(selectedItem?.product);
 							return (
 								<>
-						<Text style={styles.modalTitle}>Cart Item Details</Text>
-						<Text style={styles.modalDetailName}>{selectedItem?.product?.name || 'Product'}</Text>
-						<Text style={styles.modalDetailText}>Seller: {sellerDisplayName}</Text>
-						<Text style={styles.modalDetailText}>Quantity</Text>
+							<Text style={styles.modalTitle}>Cart Item Details</Text>
+							<Text style={styles.modalDetailName}>{selectedItem?.product?.name || 'Product'}</Text>
+							<Text style={styles.modalDetailText}>Seller: {sellerDisplayName}</Text>
+							<Text style={styles.modalDetailText}>Quantity</Text>
 
-						<View style={styles.quantitySelectorRow}>
-							<Pressable
-								style={styles.quantityStepButton}
-								onPress={() => {
-									const currentQuantity = Math.max(1, Number(selectedItem?.quantity || 1));
-									void updateCartItemQuantity(selectedItem.id, Math.max(1, currentQuantity - 1));
-								}}
-							>
-								<Text style={styles.quantityStepText}>-</Text>
+							<View style={styles.quantitySelectorRow}>
+								<Pressable
+									style={styles.quantityStepButton}
+									onPress={() => {
+										const currentQuantity = Math.max(minimumQuantity, Number(selectedItem?.quantity || minimumQuantity));
+										void updateCartItemQuantity(selectedItem.id, Math.max(minimumQuantity, currentQuantity - 1));
+									}}
+								>
+									<Text style={styles.quantityStepText}>-</Text>
+								</Pressable>
+
+								<TextInput
+									value={String(Math.max(minimumQuantity, Number(selectedItem?.quantity || minimumQuantity)))}
+									onChangeText={(value) => {
+										void updateCartItemQuantity(selectedItem.id, value);
+									}}
+									keyboardType="number-pad"
+									style={[styles.modalInput, styles.quantityInput]}
+								/>
+
+								<Pressable
+									style={styles.quantityStepButton}
+									onPress={() => {
+										const currentQuantity = Math.max(minimumQuantity, Number(selectedItem?.quantity || minimumQuantity));
+										void updateCartItemQuantity(selectedItem.id, currentQuantity + 1);
+									}}
+								>
+									<Text style={styles.quantityStepText}>+</Text>
+								</Pressable>
+							</View>
+
+							{sellerRole !== 'cafe' && (
+								<>
+									<Text style={styles.modalDetailText}>{`Stock: ${availableStock}`}</Text>
+									<Text style={styles.modalDetailText}>{`MOQ: ${selectedItem?.product?.moq || 1}${selectedItem?.product?.unit ? ` ${selectedItem.product.unit}` : ''}`}</Text>
+								</>
+							)}
+
+							<Text style={styles.modalDetailText}>Pickup Date: {formatDisplayDate(selectedItem?.pickup_date)}</Text>
+							<Text style={styles.modalDetailText}>Pickup Time: {formatDisplayTime(selectedItem?.pickup_time)}</Text>
+							<Text style={styles.modalDetailText}>Price: {money(selectedItem?.product?.price_per_unit)}{sellerRole !== 'cafe' && selectedItem?.product?.unit ? ` / ${selectedItem.product.unit}` : ''}</Text>
+							<Pressable style={styles.closeModalButton} onPress={() => setSelectedItem(null)}>
+								<Text style={styles.closeModalButtonText}>Close</Text>
 							</Pressable>
-
-							<TextInput
-								value={String(Math.max(1, Number(selectedItem?.quantity || 1)))}
-								onChangeText={(value) => {
-									void updateCartItemQuantity(selectedItem.id, value);
-								}}
-								keyboardType="number-pad"
-								style={[styles.modalInput, styles.quantityInput]}
-							/>
-
-							<Pressable
-								style={styles.quantityStepButton}
-								onPress={() => {
-									const currentQuantity = Math.max(1, Number(selectedItem?.quantity || 1));
-									void updateCartItemQuantity(selectedItem.id, currentQuantity + 1);
-								}}
-							>
-								<Text style={styles.quantityStepText}>+</Text>
-							</Pressable>
-						</View>
-
-						<Text style={styles.modalDetailText}>Pickup Date: {formatDisplayDate(selectedItem?.pickup_date)}</Text>
-						<Text style={styles.modalDetailText}>Pickup Time: {formatDisplayTime(selectedItem?.pickup_time)}</Text>
-						<Text style={styles.modalDetailText}>Price: {money(selectedItem?.product?.price_per_unit)}</Text>
-						<Pressable style={styles.closeModalButton} onPress={() => setSelectedItem(null)}>
-							<Text style={styles.closeModalButtonText}>Close</Text>
-						</Pressable>
 							</>
 							);
 						})()}
