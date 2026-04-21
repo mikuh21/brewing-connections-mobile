@@ -347,7 +347,7 @@ export default function MarketplaceCartScreen() {
 			message:
 				normalizeSellerRole(item?.product) === 'farm' || normalizeSellerRole(item?.product) === 'reseller'
 					? 'Continue this cart reservation on the web form?'
-					: 'Reserve this cart item now in-app?',
+					: 'Reserve this item now?',
 			confirmLabel:
 				normalizeSellerRole(item?.product) === 'farm' || normalizeSellerRole(item?.product) === 'reseller'
 					? 'Open Web Form'
@@ -619,7 +619,7 @@ export default function MarketplaceCartScreen() {
 						<TextInput
 							value={reserveAddress}
 							onChangeText={setReserveAddress}
-							placeholder="Enter your pickup address"
+							placeholder="Enter complete address"
 							placeholderTextColor={theme.colors.textMuted}
 							style={styles.modalInput}
 						/>
