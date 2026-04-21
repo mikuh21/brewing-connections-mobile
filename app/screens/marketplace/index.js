@@ -3,6 +3,7 @@ import {
 	ActivityIndicator,
 	FlatList,
 	Image,
+	Linking,
 	Modal,
 	Platform,
 	Pressable,
@@ -19,7 +20,15 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ConfirmToastModal, ScreenContainer } from '../../components';
-import { API_CONFIG, getMyOrders, getProducts, placeOrder, updateOrderStatus } from '../../services';
+import {
+	API_CONFIG,
+	createLandingReservationPrefillToken,
+	getMyOrders,
+	getProducts,
+	placeOrder,
+	updateOrderStatus,
+} from '../../services';
+import { useAuth } from '../../context';
 import theme from '../../theme';
 
 const TAB_PRODUCTS = 'products';
@@ -122,6 +131,28 @@ function formatDisplayDateTime(dateValue, timeValue) {
 
 function normalizeBusinessName(name) {
 	return String(name || '').replace(/Cafe and Restaurant/gi, 'Cafe & Restaurant').trim();
+}
+
+function buildLandingReservationUrl({ productId, quantity, prefillToken }) {
+	const runtimeWebBase = process.env.EXPO_PUBLIC_WEB_URL || API_CONFIG?.baseUrl || '';
+	const baseUrl = String(runtimeWebBase || '').replace(/\/+$/, '');
+	if (!baseUrl) {
+		return '';
+	}
+
+	const params = new URLSearchParams();
+	if (Number.isInteger(Number(productId)) && Number(productId) > 0) {
+		params.set('product_id', String(Number(productId)));
+	}
+	if (Number.isFinite(Number(quantity)) && Number(quantity) > 0) {
+		params.set('quantity', String(Math.floor(Number(quantity))));
+	}
+	if (prefillToken) {
+		params.set('prefill_token', String(prefillToken));
+	}
+
+	const query = params.toString();
+	return `${baseUrl}/${query ? `?${query}` : ''}#farm-products`;
 }
 
 function getSellerDisplayName(source) {
@@ -278,6 +309,7 @@ function isProductReservable(product) {
 export default function MarketplaceScreen() {
 	const navigation = useNavigation();
 	const insets = useSafeAreaInsets();
+	const { user } = useAuth();
 	const [activeTab, setActiveTab] = useState(TAB_PRODUCTS);
 	const [products, setProducts] = useState([]);
 	const [orders, setOrders] = useState([]);
@@ -617,9 +649,18 @@ export default function MarketplaceScreen() {
 		}
 
 		openConfirm({
-			title: 'Confirm Reserve',
-			message: 'Reserve this product now?',
-			confirmLabel: 'Yes, Confirm',
+			title:
+				normalizeSellerRole(product) === 'farm' || normalizeSellerRole(product) === 'reseller'
+					? 'Continue Reservation'
+					: 'Confirm Reserve',
+			message:
+				normalizeSellerRole(product) === 'farm' || normalizeSellerRole(product) === 'reseller'
+					? 'Continue this reservation on the web form?'
+					: 'Reserve this product now in-app?',
+			confirmLabel:
+				normalizeSellerRole(product) === 'farm' || normalizeSellerRole(product) === 'reseller'
+					? 'Open Web Form'
+					: 'Yes, Confirm',
 			onConfirm: async () => {
 				if (!product?.id) {
 					return;
@@ -629,21 +670,61 @@ export default function MarketplaceScreen() {
 				setError('');
 
 				try {
-					await placeOrder({
-						product_id: product.id,
+					const sellerRole = normalizeSellerRole(product);
+					const requiresWebHandoff = sellerRole === 'farm' || sellerRole === 'reseller';
+
+					if (!requiresWebHandoff) {
+						await placeOrder({
+							product_id: product.id,
+							quantity: selectedQuantity,
+							pickup_date: selectedPickupDate || null,
+							pickup_time: selectedPickupTime || null,
+							notes: null,
+						});
+
+						setActiveTab(TAB_TRACKING);
+						await fetchMarketplaceData(true);
+						showToast('Reservation placed in-app successfully.');
+						return;
+					}
+
+					let prefillToken = '';
+					try {
+						const prefillResponse = await createLandingReservationPrefillToken({
+							product_id: product.id,
+							quantity: selectedQuantity,
+						});
+						prefillToken = String(prefillResponse?.prefill_token || '').trim();
+					} catch (_prefillError) {
+						prefillToken = '';
+					}
+
+					const landingUrl = buildLandingReservationUrl({
+						productId: product.id,
 						quantity: selectedQuantity,
-						pickup_date: selectedPickupDate || null,
-						pickup_time: selectedPickupTime || null,
-						notes: null,
+						prefillToken,
 					});
 
-					setActiveTab(TAB_TRACKING);
-					await fetchMarketplaceData(true);
+					if (!landingUrl) {
+						throw new Error('Landing page URL is not configured. Set EXPO_PUBLIC_WEB_URL or EXPO_PUBLIC_API_URL.');
+					}
+
+					const canOpen = await Linking.canOpenURL(landingUrl);
+					if (!canOpen) {
+						throw new Error('Unable to open the landing reservation page on this device.');
+					}
+
+					await Linking.openURL(landingUrl);
+					showToast(
+						prefillToken
+							? 'Landing form opened for farm/reseller reservation. Name/email may be prefilled. Enter address and contact number on web.'
+							: `Landing form opened for farm/reseller reservation. Complete it on web and enter address/contact${user?.email ? ` (${user.email})` : ''}.`
+					);
 				} catch (submitError) {
 					const message =
 						submitError?.response?.data?.message ||
 						submitError?.message ||
-						'Unable to submit order right now.';
+						'Unable to continue reservation on the web form right now.';
 					setError(message);
 				} finally {
 					setSubmittingOrder(false);
@@ -691,6 +772,7 @@ export default function MarketplaceScreen() {
 		const grindType = item?.grind_type || item?.grind || null;
 		const sellerRole = normalizeSellerRole(item);
 		const sellerRoleTheme = sellerRole ? ROLE_PILL_THEME[sellerRole] : null;
+		const usesWebCheckout = sellerRole === 'farm' || sellerRole === 'reseller';
 		const sellerDisplayName = getSellerDisplayName(item);
 
 		return (
@@ -717,6 +799,22 @@ export default function MarketplaceScreen() {
 							<Text style={[styles.rolePillText, { color: sellerRoleTheme.text }]}>{sellerRoleTheme.label}</Text>
 						</View>
 					) : null}
+
+					<View
+						style={[
+							styles.checkoutModePill,
+							usesWebCheckout ? styles.checkoutModePillWeb : styles.checkoutModePillInApp,
+						]}
+					>
+						<Text
+							style={[
+								styles.checkoutModePillText,
+								usesWebCheckout ? styles.checkoutModePillTextWeb : styles.checkoutModePillTextInApp,
+							]}
+						>
+							{usesWebCheckout ? 'Web Checkout' : 'In-App Checkout'}
+						</Text>
+					</View>
 
 					{productType || roastType || grindType ? (
 						<Text style={styles.productRoastGrind}>
@@ -842,6 +940,12 @@ export default function MarketplaceScreen() {
 					</Pressable>
 				</View>
 				<Text style={styles.subtitle}>Reserve fresh coffee products and track your orders</Text>
+				<View style={styles.handoffBanner}>
+					<MaterialIcons name="open-in-browser" size={16} color="#2D4A1E" />
+					<Text style={styles.handoffBannerText}>
+						Farm owner and reseller products continue on landing web form. Cafe owner products are reserved in-app.
+					</Text>
+				</View>
 			</View>
 
 			<View style={styles.tabRow}>
@@ -1141,6 +1245,25 @@ const styles = StyleSheet.create({
 		fontSize: theme.fontSizes.sm,
 		fontFamily: 'PoppinsRegular',
 	},
+	handoffBanner: {
+		marginTop: 10,
+		flexDirection: 'row',
+		alignItems: 'flex-start',
+		gap: 8,
+		backgroundColor: '#EEF6E6',
+		borderWidth: 1,
+		borderColor: '#C7DBB4',
+		borderRadius: theme.borderRadius.md,
+		paddingVertical: 8,
+		paddingHorizontal: 10,
+	},
+	handoffBannerText: {
+		flex: 1,
+		color: '#2D4A1E',
+		fontFamily: 'PoppinsRegular',
+		fontSize: 12,
+		lineHeight: 17,
+	},
 	tabRow: {
 		flexDirection: 'row',
 		marginBottom: theme.spacing.md,
@@ -1297,6 +1420,34 @@ const styles = StyleSheet.create({
 		fontFamily: 'PoppinsMedium',
 		fontSize: 11,
 		lineHeight: 14,
+	},
+	checkoutModePill: {
+		alignSelf: 'flex-start',
+		marginTop: 6,
+		paddingHorizontal: 8,
+		paddingVertical: 4,
+		borderRadius: theme.borderRadius.pill,
+		borderWidth: 1,
+	},
+	checkoutModePillWeb: {
+		backgroundColor: '#EEF6E6',
+		borderColor: '#C7DBB4',
+	},
+	checkoutModePillInApp: {
+		backgroundColor: '#E8F3FC',
+		borderColor: '#B8D5EF',
+	},
+	checkoutModePillText: {
+		fontFamily: 'PoppinsMedium',
+		fontSize: 10,
+		lineHeight: 13,
+		textTransform: 'uppercase',
+	},
+	checkoutModePillTextWeb: {
+		color: '#2D4A1E',
+	},
+	checkoutModePillTextInApp: {
+		color: '#155E9A',
 	},
 	productRoastGrind: {
 		marginTop: 4,

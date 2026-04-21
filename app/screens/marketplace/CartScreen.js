@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
 	Alert,
 	Image,
+	Linking,
 	Modal,
 	Pressable,
 	ScrollView,
@@ -13,7 +14,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { ConfirmToastModal, ScreenContainer } from '../../components';
-import { API_CONFIG, getProducts, placeOrder } from '../../services';
+import { API_CONFIG, createLandingReservationPrefillToken, getProducts, placeOrder } from '../../services';
 import theme from '../../theme';
 
 const CART_STORAGE_KEY = 'marketplace_cart_items';
@@ -107,6 +108,23 @@ function getSellerDisplayName(source) {
 	return sellerName || 'Seller';
 }
 
+function normalizeSellerRole(product) {
+	const rawRole =
+		product?.seller_type ||
+		product?.seller_role ||
+		product?.user_type ||
+		product?.seller?.role ||
+		product?.seller?.type ||
+		'';
+
+	const normalized = String(rawRole).trim().toLowerCase();
+	if (normalized.includes('farm')) return 'farm';
+	if (normalized.includes('cafe')) return 'cafe';
+	if (normalized.includes('roast')) return 'roaster';
+	if (normalized.includes('resell')) return 'reseller';
+	return null;
+}
+
 function getAvailableStock(product) {
 	return Math.max(0, Number(product?.stock_quantity || 0));
 }
@@ -138,6 +156,28 @@ function resolveImageUrl(pathOrUrl) {
 	}
 
 	return `${apiOrigin}/storage/${raw.replace(/^\/+/, '')}`;
+}
+
+function buildLandingReservationUrl({ productId, quantity, prefillToken }) {
+	const runtimeWebBase = process.env.EXPO_PUBLIC_WEB_URL || API_CONFIG?.baseUrl || '';
+	const baseUrl = String(runtimeWebBase || '').replace(/\/+$/, '');
+	if (!baseUrl) {
+		return '';
+	}
+
+	const params = new URLSearchParams();
+	if (Number.isInteger(Number(productId)) && Number(productId) > 0) {
+		params.set('product_id', String(Number(productId)));
+	}
+	if (Number.isFinite(Number(quantity)) && Number(quantity) > 0) {
+		params.set('quantity', String(Math.floor(Number(quantity))));
+	}
+	if (prefillToken) {
+		params.set('prefill_token', String(prefillToken));
+	}
+
+	const query = params.toString();
+	return `${baseUrl}/${query ? `?${query}` : ''}#farm-products`;
 }
 
 export default function MarketplaceCartScreen() {
@@ -250,9 +290,18 @@ export default function MarketplaceCartScreen() {
 		}
 
 		openConfirm({
-			title: 'Confirm Order',
-			message: 'Place this cart item as an order now?',
-			confirmLabel: 'Yes, Order',
+			title:
+				normalizeSellerRole(item?.product) === 'farm' || normalizeSellerRole(item?.product) === 'reseller'
+					? 'Continue Reservation'
+					: 'Confirm Order',
+			message:
+				normalizeSellerRole(item?.product) === 'farm' || normalizeSellerRole(item?.product) === 'reseller'
+					? 'Continue this cart reservation on the web form?'
+					: 'Place this cart item as an in-app order now?',
+			confirmLabel:
+				normalizeSellerRole(item?.product) === 'farm' || normalizeSellerRole(item?.product) === 'reseller'
+					? 'Open Web Form'
+					: 'Yes, Order',
 			onConfirm: async () => {
 				setSubmittingId(item.id);
 				try {
@@ -273,24 +322,64 @@ export default function MarketplaceCartScreen() {
 						return;
 					}
 
-					await placeOrder({
-						product_id: latestProduct.id,
+					const sellerRole = normalizeSellerRole(latestProduct);
+					const requiresWebHandoff = sellerRole === 'farm' || sellerRole === 'reseller';
+
+					if (!requiresWebHandoff) {
+						await placeOrder({
+							product_id: latestProduct.id,
+							quantity: requestedQuantity,
+							pickup_date: item.pickup_date || null,
+							pickup_time: item.pickup_time || null,
+							notes: null,
+						});
+
+						const currentItems = await readCartItems();
+						const nextItems = currentItems.filter((entry) => entry.id !== item.id);
+						await saveCartItems(nextItems);
+						Alert.alert('Order Placed', 'Your cart item was ordered in-app successfully.');
+						return;
+					}
+
+					let prefillToken = '';
+					try {
+						const prefillResponse = await createLandingReservationPrefillToken({
+							product_id: latestProduct.id,
+							quantity: requestedQuantity,
+						});
+						prefillToken = String(prefillResponse?.prefill_token || '').trim();
+					} catch (_prefillError) {
+						prefillToken = '';
+					}
+
+					const landingUrl = buildLandingReservationUrl({
+						productId: latestProduct.id,
 						quantity: requestedQuantity,
-						pickup_date: item.pickup_date || null,
-						pickup_time: item.pickup_time || null,
-						notes: null,
+						prefillToken,
 					});
 
-					const currentItems = await readCartItems();
-					const nextItems = currentItems.filter((entry) => entry.id !== item.id);
-					await saveCartItems(nextItems);
-					Alert.alert('Order Placed', 'Your cart item was ordered successfully.');
+					if (!landingUrl) {
+						throw new Error('Landing page URL is not configured. Set EXPO_PUBLIC_WEB_URL or EXPO_PUBLIC_API_URL.');
+					}
+
+					const canOpen = await Linking.canOpenURL(landingUrl);
+					if (!canOpen) {
+						throw new Error('Unable to open the landing reservation page on this device.');
+					}
+
+					await Linking.openURL(landingUrl);
+					Alert.alert(
+						'Continue on Web',
+						prefillToken
+							? 'Landing form opened for farm/reseller reservation. Name/email may be prefilled. Enter address and contact number on web.'
+							: 'Landing form opened for farm/reseller reservation. Complete reservation on web and enter address/contact number.'
+					);
 				} catch (error) {
 					const message =
 						error?.response?.data?.message ||
 						error?.message ||
-						'Unable to place this order right now.';
-					Alert.alert('Order Failed', message);
+						'Unable to continue reservation on the web form right now.';
+					Alert.alert('Reservation Handoff Failed', message);
 				} finally {
 					setSubmittingId(null);
 				}
@@ -308,6 +397,12 @@ export default function MarketplaceCartScreen() {
 				</Pressable>
 			</View>
 			<Text style={styles.subtitle}>{totalItems} item{totalItems === 1 ? '' : 's'} in cart</Text>
+			<View style={styles.handoffBanner}>
+				<MaterialIcons name="open-in-browser" size={16} color="#2D4A1E" />
+				<Text style={styles.handoffBannerText}>
+					Farm owner and reseller products continue on landing web form. Cafe owner products are reserved in-app.
+				</Text>
+			</View>
 
 			{cartItems.length === 0 ? (
 				<View style={styles.emptyWrap}>
@@ -454,6 +549,25 @@ const styles = StyleSheet.create({
 		color: theme.colors.textMuted,
 		fontSize: theme.fontSizes.sm,
 		fontFamily: 'PoppinsRegular',
+	},
+	handoffBanner: {
+		marginBottom: 10,
+		flexDirection: 'row',
+		alignItems: 'flex-start',
+		gap: 8,
+		backgroundColor: '#EEF6E6',
+		borderWidth: 1,
+		borderColor: '#C7DBB4',
+		borderRadius: theme.borderRadius.md,
+		paddingVertical: 8,
+		paddingHorizontal: 10,
+	},
+	handoffBannerText: {
+		flex: 1,
+		color: '#2D4A1E',
+		fontFamily: 'PoppinsRegular',
+		fontSize: 12,
+		lineHeight: 17,
 	},
 	emptyWrap: {
 		alignItems: 'center',

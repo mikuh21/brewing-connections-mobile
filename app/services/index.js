@@ -29,5 +29,6 @@ export {
 	resetPasswordWithOtp,
 	sendEmailVerification,
 	verifyEmailOtp,
+	createLandingReservationPrefillToken,
 	authService,
 } from './api';
