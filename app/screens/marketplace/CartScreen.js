@@ -102,7 +102,7 @@ function getSellerDisplayName(source) {
 	}
 
 	if (establishmentName && establishmentName !== sellerName) {
-		return `${sellerName} • ${establishmentName}`;
+		return `${sellerName} | ${establishmentName}`;
 	}
 
 	return sellerName || 'Seller';

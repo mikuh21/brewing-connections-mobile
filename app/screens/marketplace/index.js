@@ -193,7 +193,7 @@ function getSellerDisplayName(source) {
 	}
 
 	if (establishmentName && establishmentName !== sellerName) {
-		return `${sellerName} • ${establishmentName}`;
+		return `${sellerName} | ${establishmentName}`;
 	}
 
 	return sellerName || 'Seller';
@@ -774,6 +774,16 @@ export default function MarketplaceScreen() {
 		const sellerRoleTheme = sellerRole ? ROLE_PILL_THEME[sellerRole] : null;
 		const usesWebCheckout = sellerRole === 'farm' || sellerRole === 'reseller';
 		const sellerDisplayName = getSellerDisplayName(item);
+		const detailParts = [];
+		if (productType) {
+			detailParts.push(String(productType));
+		}
+		if (roastType) {
+			detailParts.push(`Roast: ${roastType}`);
+		}
+		if (grindType) {
+			detailParts.push(`Grind: ${grindType}`);
+		}
 
 		return (
 			<View style={styles.productCard}>
@@ -816,14 +826,17 @@ export default function MarketplaceScreen() {
 						</Text>
 					</View>
 
-					{productType || roastType || grindType ? (
-						<Text style={styles.productRoastGrind}>
-							{productType ? `${productType}` : ''}
-							{productType && (roastType || grindType) ? ' • ' : ''}
-							{roastType ? `Roast: ${roastType}` : ''}
-							{roastType && grindType ? ' • ' : ''}
-							{grindType ? `Grind: ${grindType}` : ''}
-						</Text>
+					{detailParts.length ? (
+						<View style={styles.productDetailRow}>
+							{detailParts.map((part, index) => (
+								<View key={`${part}-${index}`} style={styles.productDetailItem}>
+									{index > 0 ? (
+										<MaterialIcons name="auto-awesome" size={12} color="#8A7D6D" style={styles.productDetailIcon} />
+									) : null}
+									<Text style={styles.productRoastGrind}>{part}</Text>
+								</View>
+							))}
+						</View>
 					) : null}
 
 					<Text numberOfLines={2} style={styles.productDescription}>
@@ -1450,10 +1463,24 @@ const styles = StyleSheet.create({
 		color: '#155E9A',
 	},
 	productRoastGrind: {
-		marginTop: 4,
 		color: '#6B5B4A',
 		fontSize: theme.fontSizes.xs,
 		fontFamily: 'PoppinsMedium',
+	},
+	productDetailRow: {
+		marginTop: 4,
+		flexDirection: 'row',
+		flexWrap: 'wrap',
+		alignItems: 'center',
+	},
+	productDetailItem: {
+		flexDirection: 'row',
+		alignItems: 'center',
+		marginRight: 8,
+		marginBottom: 2,
+	},
+	productDetailIcon: {
+		marginRight: 4,
 	},
 	productDescription: {
 		marginTop: 8,
