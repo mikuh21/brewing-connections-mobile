@@ -334,6 +334,7 @@ export default function MarketplaceScreen() {
 	const [toastState, setToastState] = useState({ visible: false, message: '' });
 	const [receiptModalOpen, setReceiptModalOpen] = useState(false);
 	const [selectedReceiptOrder, setSelectedReceiptOrder] = useState(null);
+	const [receiptSavedNotice, setReceiptSavedNotice] = useState(false);
 	const [confirmState, setConfirmState] = useState({
 		visible: false,
 		title: '',
@@ -403,28 +404,14 @@ export default function MarketplaceScreen() {
 
 	const openReceiptModal = useCallback((order) => {
 		setSelectedReceiptOrder(order || null);
+		setReceiptSavedNotice(false);
 		setReceiptModalOpen(true);
 	}, []);
 
 	const closeReceiptModal = useCallback(() => {
 		setReceiptModalOpen(false);
 		setSelectedReceiptOrder(null);
-	}, []);
-
-	const openReceiptInBrowser = useCallback(async (order) => {
-		const receiptUrl = String(order?.receipt_url || '').trim();
-		if (!receiptUrl) {
-			setError('Receipt URL is not available for this order yet.');
-			return;
-		}
-
-		const canOpen = await Linking.canOpenURL(receiptUrl);
-		if (!canOpen) {
-			setError('Unable to open receipt URL on this device.');
-			return;
-		}
-
-		await Linking.openURL(receiptUrl);
+		setReceiptSavedNotice(false);
 	}, []);
 
 	const saveReceiptAsImage = useCallback(async () => {
@@ -447,6 +434,7 @@ export default function MarketplaceScreen() {
 			});
 
 			await MediaLibrary.createAssetAsync(imageUri);
+			setReceiptSavedNotice(true);
 			showToast('Receipt saved as image to gallery.');
 		} catch (captureError) {
 			const message =
@@ -1281,36 +1269,84 @@ export default function MarketplaceScreen() {
 
 			<Modal visible={receiptModalOpen} transparent animationType="fade" onRequestClose={closeReceiptModal}>
 				<View style={styles.modalBackdrop}>
-					<View style={styles.receiptModalCard}>
+					<ScrollView style={styles.receiptModalCard} contentContainerStyle={styles.receiptModalContent}>
 						<View ref={receiptCardRef} collapsable={false} style={styles.receiptCaptureCard}>
-							<Text style={styles.receiptTitle}>Official Receipt</Text>
-							<Text style={styles.receiptReservationCode}>
-								Reservation ID: BRH-ORDER-{String(selectedReceiptOrder?.id || '').padStart(6, '0')}
-							</Text>
-							<Text style={styles.receiptLine}>{`Product: ${selectedReceiptOrder?.product?.name || 'Product'}`}</Text>
-							<Text style={styles.receiptLine}>{`Seller: ${getSellerDisplayName(selectedReceiptOrder)}`}</Text>
-							<Text style={styles.receiptLine}>{`Quantity: ${selectedReceiptOrder?.quantity || 0}`}</Text>
-							<Text style={styles.receiptLine}>{`Unit Price: ${money(selectedReceiptOrder?.product?.price_per_unit)}`}</Text>
-							<Text style={styles.receiptLine}>{`Total: ${money(selectedReceiptOrder?.total_price)}`}</Text>
-							<Text style={styles.receiptLine}>{`Pickup: ${formatDisplayDateTime(selectedReceiptOrder?.pickup_date, selectedReceiptOrder?.pickup_time)}`}</Text>
-							<Text style={styles.receiptLine}>{`Status: ${String(selectedReceiptOrder?.status || 'pending')}`}</Text>
+							<View style={styles.receiptHeaderBar}>
+								<Text style={styles.receiptBrandText}>BrewHub</Text>
+								<Text style={styles.receiptTitle}>Official Reservation Receipt</Text>
+								<Text style={styles.receiptHeaderSeller}>{`Seller: ${selectedReceiptOrder?.product?.establishment_name || getSellerDisplayName(selectedReceiptOrder)}`}</Text>
+							</View>
+
+							<View style={styles.receiptSummaryGrid}>
+								<View style={styles.receiptSummaryCard}>
+									<Text style={styles.receiptSummaryLabel}>Reservation ID</Text>
+									<Text style={styles.receiptSummaryValue}>BRH-ORDER-{String(selectedReceiptOrder?.id || '').padStart(6, '0')}</Text>
+								</View>
+								<View style={styles.receiptSummaryCard}>
+									<Text style={styles.receiptSummaryLabel}>Order Status</Text>
+									<Text style={styles.receiptSummaryValue}>{String(selectedReceiptOrder?.status || 'pending').replace(/^./, (s) => s.toUpperCase())}</Text>
+								</View>
+							</View>
+
+							<View style={styles.receiptDetailsPanel}>
+								<View style={styles.receiptDetailRow}>
+									<Text style={styles.receiptDetailLabel}>Product</Text>
+									<Text style={styles.receiptDetailValue}>{selectedReceiptOrder?.product?.name || 'N/A'}</Text>
+								</View>
+								<View style={styles.receiptDetailRow}>
+									<Text style={styles.receiptDetailLabel}>Quantity</Text>
+									<Text style={styles.receiptDetailValue}>{String(selectedReceiptOrder?.quantity || 0)}</Text>
+								</View>
+								<View style={styles.receiptDetailRow}>
+									<Text style={styles.receiptDetailLabel}>Total</Text>
+									<Text style={styles.receiptDetailValue}>{money(selectedReceiptOrder?.total_price)}</Text>
+								</View>
+								<View style={styles.receiptDetailRow}>
+									<Text style={styles.receiptDetailLabel}>Customer</Text>
+									<Text style={styles.receiptDetailValue}>{user?.name || 'N/A'}</Text>
+								</View>
+								<View style={styles.receiptDetailRow}>
+									<Text style={styles.receiptDetailLabel}>Address</Text>
+									<Text style={styles.receiptDetailValue}>{user?.address || 'N/A'}</Text>
+								</View>
+								<View style={styles.receiptDetailRow}>
+									<Text style={styles.receiptDetailLabel}>Phone</Text>
+									<Text style={styles.receiptDetailValue}>{user?.contact_number || 'N/A'}</Text>
+								</View>
+								<View style={styles.receiptDetailRow}>
+									<Text style={styles.receiptDetailLabel}>Pickup Date</Text>
+									<Text style={styles.receiptDetailValue}>{selectedReceiptOrder?.pickup_date ? formatDisplayDate(selectedReceiptOrder?.pickup_date) : 'N/A'}</Text>
+								</View>
+								<View style={styles.receiptDetailRow}>
+									<Text style={styles.receiptDetailLabel}>Estimated Pickup Time</Text>
+									<Text style={styles.receiptDetailValue}>{selectedReceiptOrder?.pickup_time ? formatDisplayTime(selectedReceiptOrder?.pickup_time) : 'N/A'}</Text>
+								</View>
+								<View style={[styles.receiptDetailRow, styles.receiptDetailRowLast]}>
+									<Text style={styles.receiptDetailLabel}>Created</Text>
+									<Text style={styles.receiptDetailValue}>{selectedReceiptOrder?.created_at ? new Date(selectedReceiptOrder.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }) : 'N/A'}</Text>
+								</View>
+							</View>
+
+							<Text style={styles.receiptFootnote}>This is an official BrewHub reservation record. Sellers can view this order in their marketplace dashboard in real time.</Text>
 						</View>
 
 						<View style={styles.receiptActionsRow}>
-							<Pressable style={styles.receiptSecondaryButton} onPress={() => openReceiptInBrowser(selectedReceiptOrder)}>
-								<MaterialIcons name="open-in-browser" size={14} color={MARKETPLACE_ACTION_GREEN} />
-								<Text style={styles.receiptSecondaryButtonText}>Open Web Receipt</Text>
-							</Pressable>
 							<Pressable style={styles.receiptPrimaryButton} onPress={saveReceiptAsImage}>
 								<MaterialIcons name="download" size={14} color={theme.colors.white} />
 								<Text style={styles.receiptPrimaryButtonText}>Save as Image</Text>
 							</Pressable>
+							<Pressable style={styles.receiptCloseButton} onPress={closeReceiptModal}>
+								<Text style={styles.receiptCloseButtonText}>Close</Text>
+							</Pressable>
 						</View>
 
-						<Pressable style={styles.receiptCloseButton} onPress={closeReceiptModal}>
-							<Text style={styles.receiptCloseButtonText}>Close</Text>
-						</Pressable>
-					</View>
+						{receiptSavedNotice ? (
+							<View style={styles.receiptSavedBadge}>
+								<MaterialIcons name="check-circle" size={15} color="#2E5A3D" />
+								<Text style={styles.receiptSavedBadgeText}>Image saved to gallery.</Text>
+							</View>
+						) : null}
+					</ScrollView>
 				</View>
 			</Modal>
 
@@ -1955,55 +1991,119 @@ const styles = StyleSheet.create({
 		fontFamily: theme.fonts.body,
 	},
 	receiptModalCard: {
-		backgroundColor: theme.colors.white,
+		backgroundColor: '#F3E9D7',
 		borderRadius: theme.borderRadius.lg,
+		maxHeight: '86%',
+	},
+	receiptModalContent: {
 		padding: theme.spacing.md,
+		gap: 12,
 	},
 	receiptCaptureCard: {
 		borderWidth: 1,
-		borderColor: '#DCCCB4',
-		borderRadius: theme.borderRadius.md,
-		backgroundColor: '#FFFDF8',
-		padding: 12,
-		gap: 4,
+		borderColor: '#E8DCC9',
+		borderRadius: 16,
+		backgroundColor: '#FFFFFF',
+		overflow: 'hidden',
+	},
+	receiptHeaderBar: {
+		backgroundColor: '#3A2E22',
+		paddingHorizontal: 16,
+		paddingVertical: 14,
+	},
+	receiptBrandText: {
+		color: '#F3E9D7',
+		opacity: 0.9,
+		fontFamily: 'PoppinsMedium',
+		fontSize: 11,
+		letterSpacing: 1.4,
+		textTransform: 'uppercase',
 	},
 	receiptTitle: {
-		color: theme.colors.sidebar,
+		marginTop: 4,
+		color: '#FFFFFF',
 		fontFamily: 'PoppinsBold',
-		fontSize: theme.fontSizes.md,
+		fontSize: theme.fontSizes.lg,
 	},
-	receiptReservationCode: {
-		marginTop: 2,
-		color: '#7A6248',
-		fontFamily: 'PoppinsMedium',
+	receiptHeaderSeller: {
+		marginTop: 4,
+		color: '#F3E9D7',
+		opacity: 0.88,
+		fontFamily: 'PoppinsRegular',
 		fontSize: theme.fontSizes.xs,
 	},
-	receiptLine: {
-		color: theme.colors.textMuted,
-		fontFamily: 'PoppinsRegular',
-		fontSize: theme.fontSizes.sm,
-	},
-	receiptActionsRow: {
-		marginTop: 12,
+	receiptSummaryGrid: {
+		paddingHorizontal: 16,
+		paddingTop: 14,
 		flexDirection: 'row',
 		gap: 8,
 	},
-	receiptSecondaryButton: {
+	receiptSummaryCard: {
 		flex: 1,
 		borderWidth: 1,
-		borderColor: MARKETPLACE_ACTION_GREEN,
-		borderRadius: theme.borderRadius.md,
-		backgroundColor: '#EEF4E8',
+		borderColor: '#D7C9B1',
+		backgroundColor: '#F3E9D773',
+		borderRadius: 10,
+		paddingHorizontal: 12,
 		paddingVertical: 10,
-		flexDirection: 'row',
-		alignItems: 'center',
-		justifyContent: 'center',
-		gap: 6,
 	},
-	receiptSecondaryButtonText: {
-		color: MARKETPLACE_ACTION_GREEN,
+	receiptSummaryLabel: {
+		color: '#946042',
+		fontSize: 11,
 		fontFamily: 'PoppinsMedium',
+		textTransform: 'uppercase',
+		letterSpacing: 0.8,
+	},
+	receiptSummaryValue: {
+		marginTop: 4,
+		color: '#3A2E22',
+		fontFamily: 'PoppinsBold',
+		fontSize: theme.fontSizes.sm,
+	},
+	receiptDetailsPanel: {
+		marginTop: 12,
+		marginHorizontal: 16,
+		borderWidth: 1,
+		borderColor: '#E2D5C1',
+		borderRadius: 10,
+		overflow: 'hidden',
+	},
+	receiptDetailRow: {
+		paddingHorizontal: 12,
+		paddingVertical: 9,
+		borderBottomWidth: 1,
+		borderBottomColor: '#E2D5C1',
+		flexDirection: 'row',
+		gap: 10,
+	},
+	receiptDetailRowLast: {
+		borderBottomWidth: 0,
+	},
+	receiptDetailLabel: {
+		width: 120,
+		color: '#946042',
+		fontFamily: 'PoppinsRegular',
+		fontSize: theme.fontSizes.sm,
+	},
+	receiptDetailValue: {
+		flex: 1,
+		color: '#3A2E22',
+		fontFamily: 'PoppinsRegular',
+		fontSize: theme.fontSizes.sm,
+	},
+	receiptFootnote: {
+		paddingHorizontal: 16,
+		paddingTop: 12,
+		paddingBottom: 14,
+		color: '#3A2E22CC',
+		fontFamily: 'PoppinsRegular',
 		fontSize: theme.fontSizes.xs,
+		lineHeight: 18,
+	},
+	receiptActionsRow: {
+		marginTop: 2,
+		flexDirection: 'row',
+		gap: 8,
 	},
 	receiptPrimaryButton: {
 		flex: 1,
@@ -2021,16 +2121,35 @@ const styles = StyleSheet.create({
 		fontSize: theme.fontSizes.xs,
 	},
 	receiptCloseButton: {
-		marginTop: 10,
+		flex: 1,
 		borderWidth: 1,
-		borderColor: theme.colors.border,
+		borderColor: '#C8B69A',
 		borderRadius: theme.borderRadius.md,
 		paddingVertical: 10,
 		alignItems: 'center',
 		justifyContent: 'center',
+		backgroundColor: '#FFFFFF',
 	},
 	receiptCloseButtonText: {
-		color: theme.colors.sidebar,
+		color: '#3A2E22',
+		fontFamily: 'PoppinsMedium',
+		fontSize: theme.fontSizes.sm,
+	},
+	receiptSavedBadge: {
+		marginTop: 4,
+		borderWidth: 1,
+		borderColor: '#9FC3A8',
+		backgroundColor: '#EDF7F0',
+		borderRadius: theme.borderRadius.md,
+		paddingVertical: 9,
+		paddingHorizontal: 12,
+		flexDirection: 'row',
+		alignItems: 'center',
+		justifyContent: 'center',
+		gap: 6,
+	},
+	receiptSavedBadgeText: {
+		color: '#2E5A3D',
 		fontFamily: 'PoppinsMedium',
 		fontSize: theme.fontSizes.sm,
 	},
