@@ -1091,6 +1091,12 @@ export default function MarketplaceScreen() {
 
 											<Text style={styles.modalProductName}>{selectedProduct?.name || ''}</Text>
 											<Text style={styles.modalDetail}>{money(selectedProduct?.price_per_unit)}</Text>
+											{(sellerRole === 'farm' || sellerRole === 'reseller') && (
+												<>
+													<Text style={styles.modalDetail}>{`MOQ: ${selectedProduct?.moq || 1}${selectedProduct?.unit ? ` ${selectedProduct.unit}` : ''}`}</Text>
+													<Text style={styles.modalDetail}>{`Available Stock: ${availableStock}`}</Text>
+												</>
+											)}
 
 											<View style={styles.modalFieldWrap}>
 												<Text style={styles.modalLabel}>Quantity</Text>
@@ -1143,15 +1149,6 @@ export default function MarketplaceScreen() {
 													</Pressable>
 												</View>
 											</View>
-
-											{(sellerRole === 'farm' || sellerRole === 'reseller') && (
-												<View style={styles.modalFieldWrap}>
-													<Text style={styles.modalLabel}>Available Stock</Text>
-													<Text style={styles.modalDetail}>{availableStock}</Text>
-													<Text style={styles.modalLabel}>MOQ</Text>
-													<Text style={styles.modalDetail}>{selectedProduct?.moq || 1}{selectedProduct?.unit ? ` ${selectedProduct.unit}` : ''}</Text>
-												</View>
-											)}
 
 						<View style={styles.modalFieldWrap}>
 							<Text style={styles.modalLabel}>Pickup Date</Text>
