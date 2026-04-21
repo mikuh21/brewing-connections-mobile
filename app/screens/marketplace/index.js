@@ -1158,12 +1158,16 @@ export default function MarketplaceScreen() {
 
 			<Modal visible={reserveModalOpen} transparent animationType="fade" onRequestClose={closeReserveModal}>
 				<KeyboardAvoidingView
-					style={styles.modalBackdrop}
+					style={[styles.modalBackdrop, styles.reserveModalBackdrop]}
 					behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-					keyboardVerticalOffset={Platform.OS === 'ios' ? Math.max(insets.top, 12) : 0}
+					keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
 				>
-					<View style={styles.modalCard}>
-						<ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+					<View style={[styles.modalCard, styles.reserveModalCard]}>
+						<ScrollView
+							keyboardShouldPersistTaps="handled"
+							showsVerticalScrollIndicator={false}
+							contentContainerStyle={styles.reserveModalScrollContent}
+						>
 						{(() => {
 									const sellerRole = normalizeSellerRole(selectedProduct);
 									const minimumQuantity = getMinimumQuantity(selectedProduct);
@@ -1182,33 +1186,6 @@ export default function MarketplaceScreen() {
 												<>
 													<Text style={styles.modalDetail}>{`MOQ: ${selectedProduct?.moq || 1}${selectedProduct?.unit ? ` ${selectedProduct.unit}` : ''}`}</Text>
 													<Text style={styles.modalDetail}>{`Available Stock: ${availableStock}`}</Text>
-												</>
-											)}
-
-											{sellerRole === 'cafe' && modalAction === 'order' && (
-												<>
-													<View style={styles.modalFieldWrap}>
-														<Text style={styles.modalLabel}>Address</Text>
-														<TextInput
-															value={reservationAddress}
-															onChangeText={setReservationAddress}
-															placeholder="Enter complete address"
-															placeholderTextColor={theme.colors.textMuted}
-															style={styles.modalInput}
-														/>
-													</View>
-
-													<View style={styles.modalFieldWrap}>
-														<Text style={styles.modalLabel}>Contact Number</Text>
-														<TextInput
-															value={reservationContactNumber}
-															onChangeText={setReservationContactNumber}
-															placeholder="09XXXXXXXXX"
-															placeholderTextColor={theme.colors.textMuted}
-															keyboardType="number-pad"
-															style={styles.modalInput}
-														/>
-													</View>
 												</>
 											)}
 
@@ -1296,6 +1273,33 @@ export default function MarketplaceScreen() {
 								/>
 							) : null}
 						</View>
+
+						{sellerRole === 'cafe' && modalAction === 'order' && (
+							<>
+								<View style={styles.modalFieldWrap}>
+									<Text style={styles.modalLabel}>Address</Text>
+									<TextInput
+										value={reservationAddress}
+										onChangeText={setReservationAddress}
+										placeholder="Enter complete address"
+										placeholderTextColor={theme.colors.textMuted}
+										style={styles.modalInput}
+									/>
+								</View>
+
+								<View style={styles.modalFieldWrap}>
+									<Text style={styles.modalLabel}>Phone Number</Text>
+									<TextInput
+										value={reservationContactNumber}
+										onChangeText={setReservationContactNumber}
+										placeholder="09XXXXXXXXX"
+										placeholderTextColor={theme.colors.textMuted}
+										keyboardType="number-pad"
+										style={styles.modalInput}
+									/>
+								</View>
+							</>
+						)}
 
 						<View style={styles.modalActionsRow}>
 							<Pressable style={styles.modalCancelButton} onPress={closeReserveModal}>
@@ -1913,10 +1917,21 @@ const styles = StyleSheet.create({
 		justifyContent: 'center',
 		paddingHorizontal: theme.spacing.md,
 	},
+	reserveModalBackdrop: {
+		justifyContent: 'flex-end',
+		paddingTop: theme.spacing.xl,
+		paddingBottom: theme.spacing.sm,
+	},
 	modalCard: {
 		backgroundColor: theme.colors.white,
 		borderRadius: theme.borderRadius.lg,
 		padding: theme.spacing.md,
+	},
+	reserveModalCard: {
+		maxHeight: '86%',
+	},
+	reserveModalScrollContent: {
+		paddingBottom: 4,
 	},
 	modalTitle: {
 		color: theme.colors.sidebar,
