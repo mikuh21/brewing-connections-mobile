@@ -695,48 +695,49 @@ export default function MarketplaceScreen() {
 		const normalizedAddress = String(reservationAddress || '').trim();
 		const normalizedContactNumber = String(reservationContactNumber || '').replace(/\s+/g, '');
 
-	if (requiresInAppContact && normalizedAddress.length < 10) {
-		setError('Enter a complete address (at least 10 characters).');
-		return;
-	}
+		if (requiresInAppContact && normalizedAddress.length < 10) {
+			setError('Enter a complete address (at least 10 characters).');
+			return;
+		}
 
-	if (requiresInAppContact && !/^09\d{9}$/.test(normalizedContactNumber)) {
-		setError('Use a valid PH mobile number format (09XXXXXXXXX).');
-		return;
-	}
+		if (requiresInAppContact && !/^09\d{9}$/.test(normalizedContactNumber)) {
+			setError('Use a valid PH mobile number format (09XXXXXXXXX).');
+			return;
+		}
 
-	const selectedQuantity = quantity;
-	const selectedPickupDate = pickupDate;
-	const selectedPickupTime = pickupTime;
-	const selectedAddress = normalizedAddress;
-	const selectedContactNumber = normalizedContactNumber;
+		const product = latestSelectedProduct;
+		const selectedQuantity = quantity;
+		const selectedPickupDate = pickupDate;
+		const selectedPickupTime = pickupTime;
+		const selectedAddress = normalizedAddress;
+		const selectedContactNumber = normalizedContactNumber;
 
-	// Close native modal first to avoid stacked modal input deadlocks.
-	setReserveModalOpen(false);
-	setSelectedProduct(null);
-	setShowNativeDatePicker(false);
-	setShowNativeTimePicker(false);
-	setReservationAddress(String(user?.address || ''));
-	setReservationContactNumber(String(user?.contact_number || ''));
+		// Close native modal first to avoid stacked modal input deadlocks.
+		setReserveModalOpen(false);
+		setSelectedProduct(null);
+		setShowNativeDatePicker(false);
+		setShowNativeTimePicker(false);
+		setReservationAddress(String(user?.address || ''));
+		setReservationContactNumber(String(user?.contact_number || ''));
 
-	if (action === 'cart') {
-		const cartEntry = {
-			id: `${product.id}-${Date.now()}`,
-			product,
-			quantity: selectedQuantity,
-			pickup_date: selectedPickupDate,
-			pickup_time: selectedPickupTime,
-			added_at: new Date().toISOString(),
-		};
+		if (action === 'cart') {
+			const cartEntry = {
+				id: `${product.id}-${Date.now()}`,
+				product,
+				quantity: selectedQuantity,
+				pickup_date: selectedPickupDate,
+				pickup_time: selectedPickupTime,
+				added_at: new Date().toISOString(),
+			};
 
-		const currentItems = await readCartItems();
-		const nextItems = [...currentItems, cartEntry];
-		await saveCartToStorage(nextItems);
-		showToast('Added to cart');
-		return;
-	}
+			const currentItems = await readCartItems();
+			const nextItems = [...currentItems, cartEntry];
+			await saveCartToStorage(nextItems);
+			showToast('Added to cart');
+			return;
+		}
 
-	openConfirm({
+		openConfirm({
 		title:
 			normalizeSellerRole(product) === 'farm' || normalizeSellerRole(product) === 'reseller'
 				? 'Continue Reservation'
@@ -822,8 +823,8 @@ export default function MarketplaceScreen() {
 				setSubmittingOrder(false);
 			}
 		},
-	});
-};
+		});
+	};
 
 const cancelOrder = async (order) => {
 		if (!order?.id) {
@@ -1344,6 +1345,89 @@ const cancelOrder = async (order) => {
 					</ScrollView>
 				</View>
 			</KeyboardAvoidingView>
+		</Modal>
+
+		<Modal visible={receiptModalOpen} transparent animationType="fade" onRequestClose={closeReceiptModal}>
+			<View style={styles.modalBackdrop}>
+				<ScrollView style={styles.receiptModalCard} contentContainerStyle={styles.receiptModalContent}>
+					<View ref={receiptCardRef} collapsable={false} style={styles.receiptCaptureCard}>
+						<View style={styles.receiptHeaderBar}>
+							<Text style={styles.receiptBrandText}>BrewHub</Text>
+							<Text style={styles.receiptTitle}>Official Reservation Receipt</Text>
+							<Text style={styles.receiptHeaderSeller}>{`Seller: ${selectedReceiptOrder?.product?.establishment_name || getSellerDisplayName(selectedReceiptOrder)}`}</Text>
+						</View>
+
+						<View style={styles.receiptSummaryGrid}>
+							<View style={styles.receiptSummaryCard}>
+								<Text style={styles.receiptSummaryLabel}>Reservation ID</Text>
+								<Text style={styles.receiptSummaryValue}>BRH-ORDER-{String(selectedReceiptOrder?.id || '').padStart(6, '0')}</Text>
+							</View>
+							<View style={styles.receiptSummaryCard}>
+								<Text style={styles.receiptSummaryLabel}>Order Status</Text>
+								<Text style={styles.receiptSummaryValue}>{String(selectedReceiptOrder?.status || 'pending').replace(/^./, (value) => value.toUpperCase())}</Text>
+							</View>
+						</View>
+
+						<View style={styles.receiptDetailsPanel}>
+							<View style={styles.receiptDetailRow}>
+								<Text style={styles.receiptDetailLabel}>Product</Text>
+								<Text style={styles.receiptDetailValue}>{selectedReceiptOrder?.product?.name || 'N/A'}</Text>
+							</View>
+							<View style={styles.receiptDetailRow}>
+								<Text style={styles.receiptDetailLabel}>Quantity</Text>
+								<Text style={styles.receiptDetailValue}>{String(selectedReceiptOrder?.quantity || 0)}</Text>
+							</View>
+							<View style={styles.receiptDetailRow}>
+								<Text style={styles.receiptDetailLabel}>Total</Text>
+								<Text style={styles.receiptDetailValue}>{money(selectedReceiptOrder?.total_price)}</Text>
+							</View>
+							<View style={styles.receiptDetailRow}>
+								<Text style={styles.receiptDetailLabel}>Customer</Text>
+								<Text style={styles.receiptDetailValue}>{selectedReceiptOrder?.customer_name || user?.name || 'N/A'}</Text>
+							</View>
+							<View style={styles.receiptDetailRow}>
+								<Text style={styles.receiptDetailLabel}>Address</Text>
+								<Text style={styles.receiptDetailValue}>{selectedReceiptOrder?.customer_address || user?.address || 'N/A'}</Text>
+							</View>
+							<View style={styles.receiptDetailRow}>
+								<Text style={styles.receiptDetailLabel}>Phone</Text>
+								<Text style={styles.receiptDetailValue}>{selectedReceiptOrder?.customer_contact_number || user?.contact_number || 'N/A'}</Text>
+							</View>
+							<View style={styles.receiptDetailRow}>
+								<Text style={styles.receiptDetailLabel}>Pickup Date</Text>
+								<Text style={styles.receiptDetailValue}>{selectedReceiptOrder?.pickup_date ? formatDisplayDate(selectedReceiptOrder?.pickup_date) : 'N/A'}</Text>
+							</View>
+							<View style={styles.receiptDetailRow}>
+								<Text style={styles.receiptDetailLabel}>Estimated Pickup Time</Text>
+								<Text style={styles.receiptDetailValue}>{selectedReceiptOrder?.pickup_time ? formatDisplayTime(selectedReceiptOrder?.pickup_time) : 'N/A'}</Text>
+							</View>
+							<View style={[styles.receiptDetailRow, styles.receiptDetailRowLast]}>
+								<Text style={styles.receiptDetailLabel}>Created</Text>
+								<Text style={styles.receiptDetailValue}>{selectedReceiptOrder?.created_at ? new Date(selectedReceiptOrder.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }) : 'N/A'}</Text>
+							</View>
+						</View>
+
+						<Text style={styles.receiptFootnote}>This is an official BrewHub reservation record. Sellers can view this order in their marketplace dashboard in real time.</Text>
+					</View>
+
+					<View style={styles.receiptActionsRow}>
+						<Pressable style={styles.receiptPrimaryButton} onPress={saveReceiptAsImage}>
+							<MaterialIcons name="download" size={14} color={theme.colors.white} />
+							<Text style={styles.receiptPrimaryButtonText}>Save as Image</Text>
+						</Pressable>
+						<Pressable style={styles.receiptCloseButton} onPress={closeReceiptModal}>
+							<Text style={styles.receiptCloseButtonText}>Close</Text>
+						</Pressable>
+					</View>
+
+					{receiptSavedNotice ? (
+						<View style={styles.receiptSavedBadge}>
+							<MaterialIcons name="check-circle" size={15} color="#2E5A3D" />
+							<Text style={styles.receiptSavedBadgeText}>Image saved to gallery.</Text>
+						</View>
+					) : null}
+				</ScrollView>
+			</View>
 		</Modal>
 
 			<Pressable
