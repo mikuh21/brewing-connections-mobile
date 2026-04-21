@@ -300,7 +300,7 @@ function getAvailableStock(product) {
 }
 
 function isProductReservable(product) {
-	const minimumQuantity = Math.max(1, Number(product?.moq || 1));
+	const minimumQuantity = 1;
 	const availableStock = getAvailableStock(product);
 
 	return availableStock >= minimumQuantity;
@@ -461,13 +461,20 @@ export default function MarketplaceScreen() {
 		const normalizedQuery = query.trim().toLowerCase();
 
 		return products.filter((product) => {
+			const sellerRole = normalizeSellerRole(product);
 			const productTypeFields = [product?.category, product?.type, product?.product_type]
 				.filter(Boolean)
 				.join(' ')
 				.toLowerCase();
 
-			if (selectedTypeFilter !== 'all' && !productTypeFields.includes(selectedTypeFilter)) {
-				return false;
+			if (selectedTypeFilter !== 'all') {
+				if (selectedTypeFilter === 'cafe menus') {
+					if (sellerRole !== 'cafe') {
+						return false;
+					}
+				} else if (!productTypeFields.includes(selectedTypeFilter)) {
+					return false;
+				}
 			}
 
 			if (!normalizedQuery) {
@@ -507,7 +514,7 @@ export default function MarketplaceScreen() {
 		[orders]
 	);
 
-	const getMinimumQuantity = useCallback((product) => Math.max(1, Number(product?.moq || 1)), []);
+	const getMinimumQuantity = useCallback(() => 1, []);
 
 	const getMaximumQuantity = useCallback((product) => Math.max(0, Number(product?.stock_quantity || 0)), []);
 
@@ -526,7 +533,7 @@ export default function MarketplaceScreen() {
 
 	const openReserveModal = (product, action = 'order') => {
 		if (!isProductReservable(product)) {
-			setError('This product is currently out of stock for its minimum order quantity.');
+			setError('This product is currently unavailable.');
 			return;
 		}
 
@@ -592,7 +599,7 @@ export default function MarketplaceScreen() {
 		const quantity = Number(orderQuantity || 0);
 
 		if (!isProductReservable(latestSelectedProduct)) {
-			setError('This product is currently out of stock.');
+			setError('This product is currently unavailable.');
 			setReserveModalOpen(false);
 			setSelectedProduct(null);
 			return;
@@ -604,7 +611,7 @@ export default function MarketplaceScreen() {
 		}
 
 		if (quantity > maximumQuantity) {
-			setError(`Only ${maximumQuantity} unit(s) are currently available.`);
+			setError('Requested quantity is currently unavailable.');
 			setOrderQuantity(Math.max(minimumQuantity, maximumQuantity));
 			return;
 		}
@@ -767,7 +774,7 @@ export default function MarketplaceScreen() {
 	const renderProductCard = ({ item }) => {
 		const imageUrl = resolveImageUrl(item?.image_url);
 		const stock = getAvailableStock(item);
-		const minimum = Math.max(1, Number(item?.moq || 1));
+		const minimum = 1;
 		const reservable = stock >= minimum;
 		const productType = item?.category || item?.type || item?.product_type || null;
 		const roastType = item?.roast_type || item?.roast_level || item?.roast || null;
@@ -847,13 +854,8 @@ export default function MarketplaceScreen() {
 
 					<View style={styles.productInfoRow}>
 						<Text style={styles.productPrice}>{money(item?.price_per_unit)}</Text>
-						<Text style={[styles.productStock, !reservable && styles.productStockOut]}>
-							Stock: {stock}
-						</Text>
 					</View>
-
-					<Text style={styles.productHint}>MOQ: {minimum} {item?.unit || 'kg'}</Text>
-					{!reservable ? <Text style={styles.unavailableHint}>Out of stock</Text> : null}
+					{!reservable ? <Text style={styles.unavailableHint}>Unavailable</Text> : null}
 
 					<View style={styles.productActionsRow}>
 						<Pressable
@@ -1074,11 +1076,7 @@ export default function MarketplaceScreen() {
 						<Text style={styles.modalTitle}>{modalAction === 'cart' ? 'Add to Cart' : 'Reserve Product'}</Text>
 
 						<Text style={styles.modalProductName}>{selectedProduct?.name || ''}</Text>
-						<Text style={styles.modalDetail}>{money(selectedProduct?.price_per_unit)} / {selectedProduct?.unit || 'kg'}</Text>
-						<Text style={styles.modalDetail}>Minimum order: {minimumQuantity}</Text>
-						<Text style={[styles.modalDetail, !reservable && styles.modalDetailWarning]}>
-							Available stock: {availableStock}
-						</Text>
+						<Text style={styles.modalDetail}>{money(selectedProduct?.price_per_unit)}</Text>
 
 						<View style={styles.modalFieldWrap}>
 							<Text style={styles.modalLabel}>Quantity</Text>

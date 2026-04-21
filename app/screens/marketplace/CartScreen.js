@@ -8,6 +8,7 @@ import {
 	ScrollView,
 	StyleSheet,
 	Text,
+	TextInput,
 	View,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -130,7 +131,7 @@ function getAvailableStock(product) {
 }
 
 function getMinimumQuantity(product) {
-	return Math.max(1, Number(product?.moq || 1));
+	return 1;
 }
 
 function isProductReservable(product) {
@@ -267,6 +268,21 @@ export default function MarketplaceCartScreen() {
 		});
 	};
 
+	const updateCartItemQuantity = useCallback(
+		async (itemId, nextQuantity) => {
+			const parsedQuantity = Math.max(1, Number(String(nextQuantity || '').replace(/[^0-9]/g, '') || 1));
+			const currentItems = await readCartItems();
+			const nextItems = currentItems.map((entry) =>
+				entry.id === itemId ? { ...entry, quantity: parsedQuantity } : entry
+			);
+			await saveCartItems(nextItems);
+			setSelectedItem((current) =>
+				current && current.id === itemId ? { ...current, quantity: parsedQuantity } : current
+			);
+		},
+		[readCartItems, saveCartItems]
+	);
+
 	const orderNow = (item) => {
 		if (!item?.product?.id) return;
 
@@ -275,17 +291,17 @@ export default function MarketplaceCartScreen() {
 		const requestedQuantity = Number(item?.quantity || 0);
 
 		if (!isProductReservable(item?.product)) {
-			Alert.alert('Out of stock', 'This item is currently unavailable.');
+			Alert.alert('Unavailable', 'This item is currently unavailable.');
 			return;
 		}
 
 		if (!Number.isFinite(requestedQuantity) || requestedQuantity < minimumQuantity) {
-			Alert.alert('Invalid quantity', `Quantity must be at least MOQ (${minimumQuantity}).`);
+			Alert.alert('Invalid quantity', 'Quantity must be at least 1.');
 			return;
 		}
 
 		if (requestedQuantity > availableStock) {
-			Alert.alert('Insufficient stock', `Only ${availableStock} unit(s) are currently available.`);
+			Alert.alert('Unavailable quantity', 'Requested quantity is currently unavailable.');
 			return;
 		}
 
@@ -313,12 +329,12 @@ export default function MarketplaceCartScreen() {
 					const latestStock = getAvailableStock(latestProduct);
 
 					if (latestStock < latestMinimum) {
-						Alert.alert('Out of stock', 'This item is currently unavailable. Please remove it from cart.');
+						Alert.alert('Unavailable', 'This item is currently unavailable. Please remove it from cart.');
 						return;
 					}
 
 					if (requestedQuantity > latestStock) {
-						Alert.alert('Insufficient stock', `Only ${latestStock} unit(s) are currently available.`);
+						Alert.alert('Unavailable quantity', 'Requested quantity is currently unavailable.');
 						return;
 					}
 
@@ -437,12 +453,9 @@ export default function MarketplaceCartScreen() {
 										<Text style={styles.cartItemMeta}>{sellerDisplayName}</Text>
 										<Text style={styles.cartItemMeta}>Qty: {item.quantity}</Text>
 										<Text style={styles.cartItemMeta}>Price: {money(item?.product?.price_per_unit)}</Text>
-										<Text style={[styles.cartItemMeta, (!reservable || !stockEnoughForItem) && styles.cartItemMetaWarning]}>
-											Stock: {availableStock}
-										</Text>
-										{!reservable ? <Text style={styles.cartItemMetaWarning}>Out of stock</Text> : null}
+										{!reservable ? <Text style={styles.cartItemMetaWarning}>Unavailable</Text> : null}
 										{reservable && !stockEnoughForItem ? (
-											<Text style={styles.cartItemMetaWarning}>Quantity exceeds current stock</Text>
+											<Text style={styles.cartItemMetaWarning}>Quantity currently unavailable</Text>
 										) : null}
 									</View>
 								</View>
@@ -491,11 +504,42 @@ export default function MarketplaceCartScreen() {
 						<Text style={styles.modalTitle}>Cart Item Details</Text>
 						<Text style={styles.modalDetailName}>{selectedItem?.product?.name || 'Product'}</Text>
 						<Text style={styles.modalDetailText}>Seller: {sellerDisplayName}</Text>
-						<Text style={styles.modalDetailText}>Quantity: {selectedItem?.quantity || 0}</Text>
+						<Text style={styles.modalDetailText}>Quantity</Text>
+
+						<View style={styles.quantitySelectorRow}>
+							<Pressable
+								style={styles.quantityStepButton}
+								onPress={() => {
+									const currentQuantity = Math.max(1, Number(selectedItem?.quantity || 1));
+									void updateCartItemQuantity(selectedItem.id, Math.max(1, currentQuantity - 1));
+								}}
+							>
+								<Text style={styles.quantityStepText}>-</Text>
+							</Pressable>
+
+							<TextInput
+								value={String(Math.max(1, Number(selectedItem?.quantity || 1)))}
+								onChangeText={(value) => {
+									void updateCartItemQuantity(selectedItem.id, value);
+								}}
+								keyboardType="number-pad"
+								style={[styles.modalInput, styles.quantityInput]}
+							/>
+
+							<Pressable
+								style={styles.quantityStepButton}
+								onPress={() => {
+									const currentQuantity = Math.max(1, Number(selectedItem?.quantity || 1));
+									void updateCartItemQuantity(selectedItem.id, currentQuantity + 1);
+								}}
+							>
+								<Text style={styles.quantityStepText}>+</Text>
+							</Pressable>
+						</View>
+
 						<Text style={styles.modalDetailText}>Pickup Date: {formatDisplayDate(selectedItem?.pickup_date)}</Text>
 						<Text style={styles.modalDetailText}>Pickup Time: {formatDisplayTime(selectedItem?.pickup_time)}</Text>
-						<Text style={styles.modalDetailText}>Unit Price: {money(selectedItem?.product?.price_per_unit)}</Text>
-						<Text style={styles.modalDetailText}>MOQ: {selectedItem?.product?.moq || 1}</Text>
+						<Text style={styles.modalDetailText}>Price: {money(selectedItem?.product?.price_per_unit)}</Text>
 						<Pressable style={styles.closeModalButton} onPress={() => setSelectedItem(null)}>
 							<Text style={styles.closeModalButtonText}>Close</Text>
 						</Pressable>
@@ -706,6 +750,44 @@ const styles = StyleSheet.create({
 		color: theme.colors.textMuted,
 		fontFamily: 'PoppinsRegular',
 		fontSize: theme.fontSizes.sm,
+	},
+	quantitySelectorRow: {
+		marginTop: 6,
+		flexDirection: 'row',
+		alignItems: 'center',
+		gap: 8,
+	},
+	quantityStepButton: {
+		width: 34,
+		height: 34,
+		borderRadius: 8,
+		borderWidth: 1,
+		borderColor: '#D7C9B1',
+		alignItems: 'center',
+		justifyContent: 'center',
+		backgroundColor: '#F8F3E9',
+	},
+	quantityStepText: {
+		fontFamily: 'PoppinsBold',
+		fontSize: 18,
+		color: '#2D4A1E',
+		lineHeight: 20,
+	},
+	modalInput: {
+		height: 36,
+		borderWidth: 1,
+		borderColor: '#D7C9B1',
+		borderRadius: 8,
+		paddingHorizontal: 12,
+		fontFamily: 'PoppinsMedium',
+		fontSize: theme.fontSizes.sm,
+		color: theme.colors.sidebar,
+		backgroundColor: '#FFFFFF',
+	},
+	quantityInput: {
+		flex: 1,
+		textAlign: 'center',
+		minWidth: 72,
 	},
 	closeModalButton: {
 		marginTop: 14,
