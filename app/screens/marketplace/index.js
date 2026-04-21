@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
 	ActivityIndicator,
 	FlatList,
@@ -19,6 +19,8 @@ import { MaterialIcons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as MediaLibrary from 'expo-media-library';
+import { captureRef } from 'react-native-view-shot';
 import { ConfirmToastModal, ScreenContainer } from '../../components';
 import {
 	API_CONFIG,
@@ -330,6 +332,8 @@ export default function MarketplaceScreen() {
 	const [submittingOrder, setSubmittingOrder] = useState(false);
 	const [cancellingOrderId, setCancellingOrderId] = useState(null);
 	const [toastState, setToastState] = useState({ visible: false, message: '' });
+	const [receiptModalOpen, setReceiptModalOpen] = useState(false);
+	const [selectedReceiptOrder, setSelectedReceiptOrder] = useState(null);
 	const [confirmState, setConfirmState] = useState({
 		visible: false,
 		title: '',
@@ -337,6 +341,7 @@ export default function MarketplaceScreen() {
 		confirmLabel: 'Yes',
 		onConfirm: null,
 	});
+	const receiptCardRef = useRef(null);
 
 	const showToast = (message) => {
 		setToastState({ visible: true, message });
@@ -395,6 +400,61 @@ export default function MarketplaceScreen() {
 	const closeConfirm = () => {
 		setConfirmState((prev) => ({ ...prev, visible: false, onConfirm: null }));
 	};
+
+	const openReceiptModal = useCallback((order) => {
+		setSelectedReceiptOrder(order || null);
+		setReceiptModalOpen(true);
+	}, []);
+
+	const closeReceiptModal = useCallback(() => {
+		setReceiptModalOpen(false);
+		setSelectedReceiptOrder(null);
+	}, []);
+
+	const openReceiptInBrowser = useCallback(async (order) => {
+		const receiptUrl = String(order?.receipt_url || '').trim();
+		if (!receiptUrl) {
+			setError('Receipt URL is not available for this order yet.');
+			return;
+		}
+
+		const canOpen = await Linking.canOpenURL(receiptUrl);
+		if (!canOpen) {
+			setError('Unable to open receipt URL on this device.');
+			return;
+		}
+
+		await Linking.openURL(receiptUrl);
+	}, []);
+
+	const saveReceiptAsImage = useCallback(async () => {
+		try {
+			if (!receiptCardRef.current) {
+				setError('Receipt preview is not ready yet.');
+				return;
+			}
+
+			const permission = await MediaLibrary.requestPermissionsAsync();
+			if (!permission.granted) {
+				setError('Media permission is required to save receipt image.');
+				return;
+			}
+
+			const imageUri = await captureRef(receiptCardRef, {
+				format: 'png',
+				quality: 1,
+				result: 'tmpfile',
+			});
+
+			await MediaLibrary.createAssetAsync(imageUri);
+			showToast('Receipt saved as image to gallery.');
+		} catch (captureError) {
+			const message =
+				captureError?.message ||
+				'Unable to save receipt image right now.';
+			setError(message);
+		}
+	}, [showToast]);
 
 	const handleConfirm = () => {
 		const action = confirmState.onConfirm;
@@ -938,6 +998,12 @@ export default function MarketplaceScreen() {
 							<MaterialIcons name="chat-bubble-outline" size={14} color={theme.colors.white} />
 							<Text style={styles.chatSellerButtonText}>Chat with seller</Text>
 						</Pressable>
+						{activeTab === TAB_TRACKING ? (
+							<Pressable style={styles.receiptButton} onPress={() => openReceiptModal(item)}>
+								<MaterialIcons name="receipt-long" size={14} color={MARKETPLACE_ACTION_GREEN} />
+								<Text style={styles.receiptButtonText}>View Receipt</Text>
+							</Pressable>
+						) : null}
 
 						{cancellable ? (
 							<Pressable
@@ -1209,6 +1275,41 @@ export default function MarketplaceScreen() {
 								</>
 							);
 						})()}
+					</View>
+				</View>
+			</Modal>
+
+			<Modal visible={receiptModalOpen} transparent animationType="fade" onRequestClose={closeReceiptModal}>
+				<View style={styles.modalBackdrop}>
+					<View style={styles.receiptModalCard}>
+						<View ref={receiptCardRef} collapsable={false} style={styles.receiptCaptureCard}>
+							<Text style={styles.receiptTitle}>Official Receipt</Text>
+							<Text style={styles.receiptReservationCode}>
+								Reservation ID: BRH-ORDER-{String(selectedReceiptOrder?.id || '').padStart(6, '0')}
+							</Text>
+							<Text style={styles.receiptLine}>{`Product: ${selectedReceiptOrder?.product?.name || 'Product'}`}</Text>
+							<Text style={styles.receiptLine}>{`Seller: ${getSellerDisplayName(selectedReceiptOrder)}`}</Text>
+							<Text style={styles.receiptLine}>{`Quantity: ${selectedReceiptOrder?.quantity || 0}`}</Text>
+							<Text style={styles.receiptLine}>{`Unit Price: ${money(selectedReceiptOrder?.product?.price_per_unit)}`}</Text>
+							<Text style={styles.receiptLine}>{`Total: ${money(selectedReceiptOrder?.total_price)}`}</Text>
+							<Text style={styles.receiptLine}>{`Pickup: ${formatDisplayDateTime(selectedReceiptOrder?.pickup_date, selectedReceiptOrder?.pickup_time)}`}</Text>
+							<Text style={styles.receiptLine}>{`Status: ${String(selectedReceiptOrder?.status || 'pending')}`}</Text>
+						</View>
+
+						<View style={styles.receiptActionsRow}>
+							<Pressable style={styles.receiptSecondaryButton} onPress={() => openReceiptInBrowser(selectedReceiptOrder)}>
+								<MaterialIcons name="open-in-browser" size={14} color={MARKETPLACE_ACTION_GREEN} />
+								<Text style={styles.receiptSecondaryButtonText}>Open Web Receipt</Text>
+							</Pressable>
+							<Pressable style={styles.receiptPrimaryButton} onPress={saveReceiptAsImage}>
+								<MaterialIcons name="download" size={14} color={theme.colors.white} />
+								<Text style={styles.receiptPrimaryButtonText}>Save as Image</Text>
+							</Pressable>
+						</View>
+
+						<Pressable style={styles.receiptCloseButton} onPress={closeReceiptModal}>
+							<Text style={styles.receiptCloseButtonText}>Close</Text>
+						</Pressable>
 					</View>
 				</View>
 			</Modal>
@@ -1669,6 +1770,24 @@ const styles = StyleSheet.create({
 		fontFamily: 'PoppinsMedium',
 		fontSize: theme.fontSizes.xs,
 	},
+	receiptButton: {
+		marginTop: 8,
+		alignSelf: 'flex-start',
+		paddingHorizontal: 10,
+		paddingVertical: 6,
+		borderRadius: theme.borderRadius.pill,
+		borderWidth: 1,
+		borderColor: MARKETPLACE_ACTION_GREEN,
+		backgroundColor: '#EEF4E8',
+		flexDirection: 'row',
+		alignItems: 'center',
+		gap: 6,
+	},
+	receiptButtonText: {
+		color: MARKETPLACE_ACTION_GREEN,
+		fontFamily: 'PoppinsMedium',
+		fontSize: theme.fontSizes.xs,
+	},
 	errorText: {
 		marginBottom: theme.spacing.sm,
 		color: '#B00020',
@@ -1834,6 +1953,86 @@ const styles = StyleSheet.create({
 		color: theme.colors.white,
 		fontWeight: '700',
 		fontFamily: theme.fonts.body,
+	},
+	receiptModalCard: {
+		backgroundColor: theme.colors.white,
+		borderRadius: theme.borderRadius.lg,
+		padding: theme.spacing.md,
+	},
+	receiptCaptureCard: {
+		borderWidth: 1,
+		borderColor: '#DCCCB4',
+		borderRadius: theme.borderRadius.md,
+		backgroundColor: '#FFFDF8',
+		padding: 12,
+		gap: 4,
+	},
+	receiptTitle: {
+		color: theme.colors.sidebar,
+		fontFamily: 'PoppinsBold',
+		fontSize: theme.fontSizes.md,
+	},
+	receiptReservationCode: {
+		marginTop: 2,
+		color: '#7A6248',
+		fontFamily: 'PoppinsMedium',
+		fontSize: theme.fontSizes.xs,
+	},
+	receiptLine: {
+		color: theme.colors.textMuted,
+		fontFamily: 'PoppinsRegular',
+		fontSize: theme.fontSizes.sm,
+	},
+	receiptActionsRow: {
+		marginTop: 12,
+		flexDirection: 'row',
+		gap: 8,
+	},
+	receiptSecondaryButton: {
+		flex: 1,
+		borderWidth: 1,
+		borderColor: MARKETPLACE_ACTION_GREEN,
+		borderRadius: theme.borderRadius.md,
+		backgroundColor: '#EEF4E8',
+		paddingVertical: 10,
+		flexDirection: 'row',
+		alignItems: 'center',
+		justifyContent: 'center',
+		gap: 6,
+	},
+	receiptSecondaryButtonText: {
+		color: MARKETPLACE_ACTION_GREEN,
+		fontFamily: 'PoppinsMedium',
+		fontSize: theme.fontSizes.xs,
+	},
+	receiptPrimaryButton: {
+		flex: 1,
+		borderRadius: theme.borderRadius.md,
+		backgroundColor: MARKETPLACE_ACTION_GREEN,
+		paddingVertical: 10,
+		flexDirection: 'row',
+		alignItems: 'center',
+		justifyContent: 'center',
+		gap: 6,
+	},
+	receiptPrimaryButtonText: {
+		color: theme.colors.white,
+		fontFamily: 'PoppinsBold',
+		fontSize: theme.fontSizes.xs,
+	},
+	receiptCloseButton: {
+		marginTop: 10,
+		borderWidth: 1,
+		borderColor: theme.colors.border,
+		borderRadius: theme.borderRadius.md,
+		paddingVertical: 10,
+		alignItems: 'center',
+		justifyContent: 'center',
+	},
+	receiptCloseButtonText: {
+		color: theme.colors.sidebar,
+		fontFamily: 'PoppinsMedium',
+		fontSize: theme.fontSizes.sm,
 	},
 	floatingCartButton: {
 		position: 'absolute',
