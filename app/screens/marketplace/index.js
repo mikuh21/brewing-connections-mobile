@@ -693,6 +693,8 @@ export default function MarketplaceScreen() {
 						const prefillResponse = await createLandingReservationPrefillToken({
 							product_id: product.id,
 							quantity: selectedQuantity,
+							pickup_date: selectedPickupDate || null,
+							pickup_time: selectedPickupTime || null,
 						});
 						prefillToken = String(prefillResponse?.prefill_token || '').trim();
 					} catch (_prefillError) {

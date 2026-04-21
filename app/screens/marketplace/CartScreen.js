@@ -346,6 +346,8 @@ export default function MarketplaceCartScreen() {
 						const prefillResponse = await createLandingReservationPrefillToken({
 							product_id: latestProduct.id,
 							quantity: requestedQuantity,
+							pickup_date: item.pickup_date || null,
+							pickup_time: item.pickup_time || null,
 						});
 						prefillToken = String(prefillResponse?.prefill_token || '').trim();
 					} catch (_prefillError) {
