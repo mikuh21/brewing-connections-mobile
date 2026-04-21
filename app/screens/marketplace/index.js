@@ -1017,24 +1017,25 @@ const cancelOrder = async (order) => {
 							</Pressable>
 						</View>
 
-						{activeTab === TAB_TRACKING || cancellable ? (
+						{activeTab === TAB_TRACKING ? (
+							<View style={styles.orderActionsReceiptRow}>
+								<Pressable style={styles.receiptIconButton} onPress={() => openReceiptModal(item)}>
+									<MaterialIcons name="receipt-long" size={18} color={MARKETPLACE_ACTION_GREEN} />
+								</Pressable>
+							</View>
+						) : null}
+
+						{cancellable ? (
 							<View style={styles.orderActionsBottomRow}>
-								{activeTab === TAB_TRACKING ? (
-									<Pressable style={styles.receiptIconButton} onPress={() => openReceiptModal(item)}>
-										<MaterialIcons name="receipt-long" size={18} color={MARKETPLACE_ACTION_GREEN} />
-									</Pressable>
-								) : null}
-								{cancellable ? (
-									<Pressable
-										style={styles.cancelOrderButton}
-										onPress={() => cancelOrder(item)}
-										disabled={cancellingOrderId === item.id}
-									>
-										<Text style={styles.cancelOrderButtonText}>
-											{cancellingOrderId === item.id ? 'Cancelling...' : 'Cancel Order'}
-										</Text>
-									</Pressable>
-								) : null}
+								<Pressable
+									style={styles.cancelOrderButton}
+									onPress={() => cancelOrder(item)}
+									disabled={cancellingOrderId === item.id}
+								>
+									<Text style={styles.cancelOrderButtonText}>
+										{cancellingOrderId === item.id ? 'Cancelling...' : 'Cancel Order'}
+									</Text>
+								</Pressable>
 							</View>
 						) : null}
 					</View>
@@ -1863,12 +1864,16 @@ const styles = StyleSheet.create({
 		gap: 8,
 		flexWrap: 'wrap',
 	},
-	orderActionsBottomRow: {
+	orderActionsReceiptRow: {
 		marginTop: 10,
+		flexDirection: 'row',
+		justifyContent: 'flex-end',
+	},
+	orderActionsBottomRow: {
+		marginTop: 8,
 		flexDirection: 'row',
 		alignItems: 'center',
 		justifyContent: 'flex-end',
-		gap: 8,
 	},
 	orderProductName: {
 		color: theme.colors.sidebar,
