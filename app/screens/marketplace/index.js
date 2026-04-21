@@ -1079,6 +1079,12 @@ export default function MarketplaceScreen() {
 					<View style={styles.modalCard}>
 						{(() => {
 									const sellerRole = normalizeSellerRole(selectedProduct);
+									const minimumQuantity = getMinimumQuantity(selectedProduct);
+									const availableStock = getMaximumQuantity(selectedProduct);
+									const reservable = availableStock >= minimumQuantity;
+									const normalizedQuantity = clampToOrderableQuantity(orderQuantity, minimumQuantity, availableStock);
+									const canDecreaseQuantity = reservable && normalizedQuantity > minimumQuantity;
+									const canIncreaseQuantity = reservable && normalizedQuantity < availableStock;
 									return (
 										<>
 											<Text style={styles.modalTitle}>{modalAction === 'cart' ? 'Add to Cart' : 'Reserve Product'}</Text>
