@@ -1078,71 +1078,74 @@ export default function MarketplaceScreen() {
 				<View style={styles.modalBackdrop}>
 					<View style={styles.modalCard}>
 						{(() => {
-							const minimumQuantity = getMinimumQuantity(selectedProduct);
-							const availableStock = getMaximumQuantity(selectedProduct);
-							const reservable = availableStock >= minimumQuantity;
-							const normalizedQuantity = clampToOrderableQuantity(orderQuantity, minimumQuantity, availableStock);
-							const canDecreaseQuantity = reservable && normalizedQuantity > minimumQuantity;
-							const canIncreaseQuantity = reservable && normalizedQuantity < availableStock;
+									const sellerRole = normalizeSellerRole(selectedProduct);
+									return (
+										<>
+											<Text style={styles.modalTitle}>{modalAction === 'cart' ? 'Add to Cart' : 'Reserve Product'}</Text>
 
-							return (
-								<>
-						<Text style={styles.modalTitle}>{modalAction === 'cart' ? 'Add to Cart' : 'Reserve Product'}</Text>
+											<Text style={styles.modalProductName}>{selectedProduct?.name || ''}</Text>
+											<Text style={styles.modalDetail}>{money(selectedProduct?.price_per_unit)}</Text>
 
-						<Text style={styles.modalProductName}>{selectedProduct?.name || ''}</Text>
-						<Text style={styles.modalDetail}>{money(selectedProduct?.price_per_unit)}</Text>
+											<View style={styles.modalFieldWrap}>
+												<Text style={styles.modalLabel}>Quantity</Text>
+												<View style={styles.quantitySelectorRow}>
+													<Pressable
+														style={[styles.quantityStepButton, !canDecreaseQuantity && styles.quantityStepButtonDisabled]}
+														onPress={() => {
+															if (!canDecreaseQuantity) {
+																return;
+															}
 
-						<View style={styles.modalFieldWrap}>
-							<Text style={styles.modalLabel}>Quantity</Text>
-							<View style={styles.quantitySelectorRow}>
-								<Pressable
-									style={[styles.quantityStepButton, !canDecreaseQuantity && styles.quantityStepButtonDisabled]}
-									onPress={() => {
-										if (!canDecreaseQuantity) {
-											return;
-										}
+															setOrderQuantity((currentValue) =>
+																clampToOrderableQuantity(Number(currentValue || minimumQuantity) - 1, minimumQuantity, availableStock)
+															);
+														}}
+														disabled={!canDecreaseQuantity}
+													>
+														<Text style={styles.quantityStepText}>-</Text>
+													</Pressable>
 
-										setOrderQuantity((currentValue) =>
-											clampToOrderableQuantity(Number(currentValue || minimumQuantity) - 1, minimumQuantity, availableStock)
-										);
-									}}
-									disabled={!canDecreaseQuantity}
-								>
-									<Text style={styles.quantityStepText}>-</Text>
-								</Pressable>
+													<TextInput
+														value={String(normalizedQuantity)}
+														onChangeText={(value) => {
+															setOrderQuantity(clampToOrderableQuantity(value, minimumQuantity, availableStock));
+														}}
+														onBlur={() => {
+															setOrderQuantity((currentValue) =>
+																clampToOrderableQuantity(currentValue, minimumQuantity, availableStock)
+															);
+														}}
+														keyboardType="number-pad"
+														style={[styles.modalInput, styles.quantityInput]}
+														editable={reservable}
+													/>
 
-								<TextInput
-									value={String(normalizedQuantity)}
-									onChangeText={(value) => {
-										setOrderQuantity(clampToOrderableQuantity(value, minimumQuantity, availableStock));
-									}}
-									onBlur={() => {
-										setOrderQuantity((currentValue) =>
-											clampToOrderableQuantity(currentValue, minimumQuantity, availableStock)
-										);
-									}}
-									keyboardType="number-pad"
-									style={[styles.modalInput, styles.quantityInput]}
-									editable={reservable}
-								/>
+													<Pressable
+														style={[styles.quantityStepButton, !canIncreaseQuantity && styles.quantityStepButtonDisabled]}
+														onPress={() => {
+															if (!canIncreaseQuantity) {
+																return;
+															}
 
-								<Pressable
-									style={[styles.quantityStepButton, !canIncreaseQuantity && styles.quantityStepButtonDisabled]}
-									onPress={() => {
-										if (!canIncreaseQuantity) {
-											return;
-										}
+															setOrderQuantity((currentValue) =>
+																clampToOrderableQuantity(Number(currentValue || minimumQuantity) + 1, minimumQuantity, availableStock)
+															);
+														}}
+														disabled={!canIncreaseQuantity}
+													>
+														<Text style={styles.quantityStepText}>+</Text>
+													</Pressable>
+												</View>
+											</View>
 
-										setOrderQuantity((currentValue) =>
-											clampToOrderableQuantity(Number(currentValue || minimumQuantity) + 1, minimumQuantity, availableStock)
-										);
-									}}
-									disabled={!canIncreaseQuantity}
-								>
-									<Text style={styles.quantityStepText}>+</Text>
-								</Pressable>
-							</View>
-						</View>
+											{(sellerRole === 'farm' || sellerRole === 'reseller') && (
+												<View style={styles.modalFieldWrap}>
+													<Text style={styles.modalLabel}>Available Stock</Text>
+													<Text style={styles.modalDetail}>{availableStock}</Text>
+													<Text style={styles.modalLabel}>MOQ</Text>
+													<Text style={styles.modalDetail}>{selectedProduct?.moq || 1}{selectedProduct?.unit ? ` ${selectedProduct.unit}` : ''}</Text>
+												</View>
+											)}
 
 						<View style={styles.modalFieldWrap}>
 							<Text style={styles.modalLabel}>Pickup Date</Text>
