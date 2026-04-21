@@ -695,138 +695,137 @@ export default function MarketplaceScreen() {
 		const normalizedAddress = String(reservationAddress || '').trim();
 		const normalizedContactNumber = String(reservationContactNumber || '').replace(/\s+/g, '');
 
-		if (requiresInAppContact && normalizedAddress === '') {
-			setError('Address is required for in-app reservation.');
-			return;
-		}
+	if (requiresInAppContact && normalizedAddress.length < 10) {
+		setError('Enter a complete address (at least 10 characters).');
+		return;
+	}
 
-		if (requiresInAppContact && !/^09\d{9}$/.test(normalizedContactNumber)) {
-			setError('Contact number must be a valid 11-digit PH mobile number (09XXXXXXXXX).');
-			return;
-		}
+	if (requiresInAppContact && !/^09\d{9}$/.test(normalizedContactNumber)) {
+		setError('Use a valid PH mobile number format (09XXXXXXXXX).');
+		return;
+	}
 
-		const product = latestSelectedProduct;
-		const selectedQuantity = quantity;
-		const selectedPickupDate = pickupDate;
-		const selectedPickupTime = pickupTime;
-		const selectedAddress = normalizedAddress;
-		const selectedContactNumber = normalizedContactNumber;
+	const selectedQuantity = quantity;
+	const selectedPickupDate = pickupDate;
+	const selectedPickupTime = pickupTime;
+	const selectedAddress = normalizedAddress;
+	const selectedContactNumber = normalizedContactNumber;
 
-		// Close native modal first to avoid stacked modal input deadlocks.
-		setReserveModalOpen(false);
-		setSelectedProduct(null);
-		setShowNativeDatePicker(false);
-		setShowNativeTimePicker(false);
-		setReservationAddress(String(user?.address || ''));
-		setReservationContactNumber(String(user?.contact_number || ''));
+	// Close native modal first to avoid stacked modal input deadlocks.
+	setReserveModalOpen(false);
+	setSelectedProduct(null);
+	setShowNativeDatePicker(false);
+	setShowNativeTimePicker(false);
+	setReservationAddress(String(user?.address || ''));
+	setReservationContactNumber(String(user?.contact_number || ''));
 
-		if (action === 'cart') {
-			const cartEntry = {
-				id: `${product.id}-${Date.now()}`,
-				product,
-				quantity: selectedQuantity,
-				pickup_date: selectedPickupDate,
-				pickup_time: selectedPickupTime,
-				added_at: new Date().toISOString(),
-			};
+	if (action === 'cart') {
+		const cartEntry = {
+			id: `${product.id}-${Date.now()}`,
+			product,
+			quantity: selectedQuantity,
+			pickup_date: selectedPickupDate,
+			pickup_time: selectedPickupTime,
+			added_at: new Date().toISOString(),
+		};
 
-			const currentItems = await readCartItems();
-			const nextItems = [...currentItems, cartEntry];
-			await saveCartToStorage(nextItems);
-			showToast('Added to cart');
-			return;
-		}
+		const currentItems = await readCartItems();
+		const nextItems = [...currentItems, cartEntry];
+		await saveCartToStorage(nextItems);
+		showToast('Added to cart');
+		return;
+	}
 
-		openConfirm({
-			title:
-				normalizeSellerRole(product) === 'farm' || normalizeSellerRole(product) === 'reseller'
-					? 'Continue Reservation'
-					: 'Confirm Reserve',
-			message:
-				normalizeSellerRole(product) === 'farm' || normalizeSellerRole(product) === 'reseller'
-					? 'Continue this reservation on the web form?'
-					: 'Reserve this product now?',
-			confirmLabel:
-				normalizeSellerRole(product) === 'farm' || normalizeSellerRole(product) === 'reseller'
-					? 'Open Web Form'
-					: 'Yes, Confirm',
-			onConfirm: async () => {
-				if (!product?.id) {
+	openConfirm({
+		title:
+			normalizeSellerRole(product) === 'farm' || normalizeSellerRole(product) === 'reseller'
+				? 'Continue Reservation'
+				: 'Confirm Reserve',
+		message:
+			normalizeSellerRole(product) === 'farm' || normalizeSellerRole(product) === 'reseller'
+				? 'Continue this reservation on the web form?'
+				: 'Reserve this product now?',
+		confirmLabel:
+			normalizeSellerRole(product) === 'farm' || normalizeSellerRole(product) === 'reseller'
+				? 'Open Web Form'
+				: 'Yes, Confirm',
+		onConfirm: async () => {
+			if (!product?.id) {
+				return;
+			}
+
+			setSubmittingOrder(true);
+			setError('');
+
+			try {
+				const sellerRole = normalizeSellerRole(product);
+				const requiresWebHandoff = sellerRole === 'farm' || sellerRole === 'reseller';
+
+				if (!requiresWebHandoff) {
+					await placeOrder({
+						product_id: product.id,
+						quantity: selectedQuantity,
+						pickup_date: selectedPickupDate || null,
+						pickup_time: selectedPickupTime || null,
+						address: selectedAddress || null,
+						contact_number: selectedContactNumber || null,
+						notes: null,
+					});
+
+					setActiveTab(TAB_TRACKING);
+					await fetchMarketplaceData(true);
+					showToast('Reservation placed in-app successfully.');
 					return;
 				}
 
-				setSubmittingOrder(true);
-				setError('');
-
+				let prefillToken = '';
 				try {
-					const sellerRole = normalizeSellerRole(product);
-					const requiresWebHandoff = sellerRole === 'farm' || sellerRole === 'reseller';
-
-					if (!requiresWebHandoff) {
-						await placeOrder({
-							product_id: product.id,
-							quantity: selectedQuantity,
-							pickup_date: selectedPickupDate || null,
-							pickup_time: selectedPickupTime || null,
-							address: selectedAddress || null,
-							contact_number: selectedContactNumber || null,
-							notes: null,
-						});
-
-						setActiveTab(TAB_TRACKING);
-						await fetchMarketplaceData(true);
-						showToast('Reservation placed in-app successfully.');
-						return;
-					}
-
-					let prefillToken = '';
-					try {
-						const prefillResponse = await createLandingReservationPrefillToken({
-							product_id: product.id,
-							quantity: selectedQuantity,
-							pickup_date: selectedPickupDate || null,
-							pickup_time: selectedPickupTime || null,
-						});
-						prefillToken = String(prefillResponse?.prefill_token || '').trim();
-					} catch (_prefillError) {
-						prefillToken = '';
-					}
-
-					const landingUrl = buildLandingReservationUrl({
-						productId: product.id,
+					const prefillResponse = await createLandingReservationPrefillToken({
+						product_id: product.id,
 						quantity: selectedQuantity,
-						prefillToken,
+						pickup_date: selectedPickupDate || null,
+						pickup_time: selectedPickupTime || null,
 					});
-
-					if (!landingUrl) {
-						throw new Error('Landing page URL is not configured. Set EXPO_PUBLIC_WEB_URL or EXPO_PUBLIC_API_URL.');
-					}
-
-					const canOpen = await Linking.canOpenURL(landingUrl);
-					if (!canOpen) {
-						throw new Error('Unable to open the landing reservation page on this device.');
-					}
-
-					await Linking.openURL(landingUrl);
-					showToast(
-						prefillToken
-							? 'Landing form opened for farm/reseller reservation. Name/email may be prefilled. Enter address and contact number on web.'
-							: `Landing form opened for farm/reseller reservation. Complete it on web and enter address/contact${user?.email ? ` (${user.email})` : ''}.`
-					);
-				} catch (submitError) {
-					const message =
-						submitError?.response?.data?.message ||
-						submitError?.message ||
-						'Unable to continue reservation on the web form right now.';
-					setError(message);
-				} finally {
-					setSubmittingOrder(false);
+					prefillToken = String(prefillResponse?.prefill_token || '').trim();
+				} catch (_prefillError) {
+					prefillToken = '';
 				}
-			},
-		});
-	};
 
-	const cancelOrder = async (order) => {
+				const landingUrl = buildLandingReservationUrl({
+					productId: product.id,
+					quantity: selectedQuantity,
+					prefillToken,
+				});
+
+				if (!landingUrl) {
+					throw new Error('Landing page URL is not configured. Set EXPO_PUBLIC_WEB_URL or EXPO_PUBLIC_API_URL.');
+				}
+
+				const canOpen = await Linking.canOpenURL(landingUrl);
+				if (!canOpen) {
+					throw new Error('Unable to open the landing reservation page on this device.');
+				}
+
+				await Linking.openURL(landingUrl);
+				showToast(
+					prefillToken
+						? 'Landing form opened for farm/reseller reservation. Name/email may be prefilled. Enter address and contact number on web.'
+						: `Landing form opened for farm/reseller reservation. Complete it on web and enter address/contact${user?.email ? ` (${user.email})` : ''}.`
+				);
+			} catch (submitError) {
+				const message =
+					submitError?.response?.data?.message ||
+					submitError?.message ||
+					'Unable to continue reservation on the web form right now.';
+				setError(message);
+			} finally {
+				setSubmittingOrder(false);
+			}
+		},
+	});
+};
+
+const cancelOrder = async (order) => {
 		if (!order?.id) {
 			return;
 		}
@@ -1042,6 +1041,15 @@ export default function MarketplaceScreen() {
 	const isProductsEmpty = activeTab === TAB_PRODUCTS && !loading && activeList.length === 0;
 	const listBottomSpacing = Math.max(36, insets.bottom + 84);
 
+	const isReserveDataValid = useCallback(() => {
+		if (normalizeSellerRole(selectedProduct) === 'cafe' && modalAction === 'order') {
+			const normalizedAddr = String(reservationAddress || '').trim();
+			const normalizedPhone = String(reservationContactNumber || '').replace(/\s+/g, '');
+			return normalizedAddr.length >= 10 && /^09\d{9}$/.test(normalizedPhone);
+		}
+		return true;
+	}, [selectedProduct, modalAction, reservationAddress, reservationContactNumber]);
+
 	return (
 		<ScreenContainer>
 			<View style={styles.headerWrap}>
@@ -1241,179 +1249,102 @@ export default function MarketplaceScreen() {
 												</View>
 											</View>
 
-						<View style={styles.modalFieldWrap}>
-							<Text style={styles.modalLabel}>Pickup Date</Text>
-							<Pressable style={styles.pickerTrigger} onPress={() => setShowNativeDatePicker(true)}>
-								<MaterialIcons name="calendar-today" size={16} color={theme.colors.primary} />
-								<Text style={styles.pickerTriggerText}>{pickupDate ? formatDisplayDate(pickupDate) : 'Select date'}</Text>
-							</Pressable>
-							{showNativeDatePicker ? (
-								<DateTimePicker
-									value={parseDateValue(pickupDate)}
-									mode="date"
-									display={Platform.OS === 'ios' ? 'compact' : 'default'}
-									onChange={handleNativeDateChange}
-								/>
-							) : null}
-						</View>
+									<View style={styles.modalFieldWrap}>
+										<Text style={styles.modalLabel}>Pickup Date</Text>
+										<Pressable style={styles.pickerTrigger} onPress={() => setShowNativeDatePicker(true)}>
+											<MaterialIcons name="calendar-today" size={16} color={theme.colors.primary} />
+											<Text style={styles.pickerTriggerText}>{pickupDate ? formatDisplayDate(pickupDate) : 'Select date'}</Text>
+										</Pressable>
+										{showNativeDatePicker ? (
+											<DateTimePicker
+												value={parseDateValue(pickupDate)}
+												mode="date"
+												display={Platform.OS === 'ios' ? 'compact' : 'default'}
+												onChange={handleNativeDateChange}
+											/>
+										) : null}
+									</View>
 
-						<View style={styles.modalFieldWrap}>
-							<Text style={styles.modalLabel}>Estimated Pickup Time</Text>
-							<Pressable style={styles.pickerTrigger} onPress={() => setShowNativeTimePicker(true)}>
-								<MaterialIcons name="access-time" size={16} color={theme.colors.primary} />
-								<Text style={styles.pickerTriggerText}>{pickupTime ? formatDisplayTime(pickupTime) : 'Select time'}</Text>
-							</Pressable>
-							{showNativeTimePicker ? (
-								<DateTimePicker
-									value={parseTimeValue(pickupTime)}
-									mode="time"
-									is24Hour
-									display={Platform.OS === 'ios' ? 'compact' : 'default'}
-									onChange={handleNativeTimeChange}
-								/>
-							) : null}
-						</View>
+									<View style={styles.modalFieldWrap}>
+										<Text style={styles.modalLabel}>Estimated Pickup Time</Text>
+										<Pressable style={styles.pickerTrigger} onPress={() => setShowNativeTimePicker(true)}>
+											<MaterialIcons name="access-time" size={16} color={theme.colors.primary} />
+											<Text style={styles.pickerTriggerText}>{pickupTime ? formatDisplayTime(pickupTime) : 'Select time'}</Text>
+										</Pressable>
+										{showNativeTimePicker ? (
+											<DateTimePicker
+												value={parseTimeValue(pickupTime)}
+												mode="time"
+												is24Hour
+												display={Platform.OS === 'ios' ? 'compact' : 'default'}
+												onChange={handleNativeTimeChange}
+											/>
+										) : null}
+									</View>
 
-						{sellerRole === 'cafe' && modalAction === 'order' && (
-							<>
-								<View style={styles.modalFieldWrap}>
-									<Text style={styles.modalLabel}>Address</Text>
-									<TextInput
-										value={reservationAddress}
-										onChangeText={setReservationAddress}
-										placeholder="Enter complete address"
-										placeholderTextColor={theme.colors.textMuted}
-										style={styles.modalInput}
-									/>
-								</View>
+									{sellerRole === 'cafe' && modalAction === 'order' && (
+										<>
+											<View style={styles.modalFieldWrap}>
+												<Text style={styles.modalLabel}>Address</Text>
+												<TextInput
+													value={reservationAddress}
+													onChangeText={setReservationAddress}
+													placeholder="Enter complete address"
+													placeholderTextColor={theme.colors.textMuted}
+													style={styles.modalInput}
+												/>
+												{reservationAddress.trim().length > 0 && reservationAddress.trim().length < 10 && (
+													<Text style={styles.modalFieldError}>Enter a complete address (at least 10 characters).</Text>
+												)}
+											</View>
 
-								<View style={styles.modalFieldWrap}>
-									<Text style={styles.modalLabel}>Phone Number</Text>
-									<TextInput
-										value={reservationContactNumber}
-										onChangeText={setReservationContactNumber}
-										placeholder="09XXXXXXXXX"
-										placeholderTextColor={theme.colors.textMuted}
-										keyboardType="number-pad"
-										style={styles.modalInput}
-									/>
-								</View>
-							</>
-						)}
+											<View style={styles.modalFieldWrap}>
+												<Text style={styles.modalLabel}>Phone Number</Text>
+												<TextInput
+													value={reservationContactNumber}
+													onChangeText={setReservationContactNumber}
+													placeholder="09XXXXXXXXX"
+													placeholderTextColor={theme.colors.textMuted}
+													keyboardType="number-pad"
+													style={styles.modalInput}
+												/>
+												{reservationContactNumber.length > 0 && !/^09\d{9}$/.test(reservationContactNumber) && (
+													<Text style={styles.modalFieldError}>Use a valid PH mobile number format (09XXXXXXXXX).</Text>
+												)}
+											</View>
+										</>
+									)}
 
-						<View style={styles.modalActionsRow}>
-							<Pressable style={styles.modalCancelButton} onPress={closeReserveModal}>
-								<Text style={styles.modalCancelText}>Cancel</Text>
-							</Pressable>
+									<View style={styles.modalActionsRow}>
+										<Pressable style={styles.modalCancelButton} onPress={closeReserveModal}>
+											<Text style={styles.modalCancelText}>Cancel</Text>
+										</Pressable>
 
-							<Pressable
-								style={[styles.modalSubmitButton, (!reservable || submittingOrder) && styles.actionButtonDisabled]}
-								onPress={submitOrder}
-								disabled={!reservable || submittingOrder}
-							>
-								<Text style={styles.modalSubmitText}>
-									{submittingOrder
-										? modalAction === 'cart'
-											? 'Adding...'
-											: 'Reserving...'
-										: !reservable
-											? 'Unavailable'
-										: modalAction === 'cart'
-											? 'Add to Cart'
-											: 'Reserve Now'}
-								</Text>
-							</Pressable>
-						</View>
+										<Pressable
+											style={[styles.modalSubmitButton, (!reservable || submittingOrder || !isReserveDataValid()) && styles.actionButtonDisabled]}
+											onPress={submitOrder}
+											disabled={!reservable || submittingOrder || !isReserveDataValid()}
+										>
+											<Text style={styles.modalSubmitText}>
+												{submittingOrder
+													? modalAction === 'cart'
+														? 'Adding...'
+														: 'Reserving...'
+													: !reservable
+														? 'Unavailable'
+														: modalAction === 'cart'
+															? 'Add to Cart'
+															: 'Reserve Now'}
+											</Text>
+										</Pressable>
+									</View>
 								</>
 							);
 						})()}
-						</ScrollView>
-					</View>
-				</KeyboardAvoidingView>
-			</Modal>
-
-			<Modal visible={receiptModalOpen} transparent animationType="fade" onRequestClose={closeReceiptModal}>
-				<View style={styles.modalBackdrop}>
-					<ScrollView style={styles.receiptModalCard} contentContainerStyle={styles.receiptModalContent}>
-						<View ref={receiptCardRef} collapsable={false} style={styles.receiptCaptureCard}>
-							<View style={styles.receiptHeaderBar}>
-								<Text style={styles.receiptBrandText}>BrewHub</Text>
-								<Text style={styles.receiptTitle}>Official Reservation Receipt</Text>
-								<Text style={styles.receiptHeaderSeller}>{`Seller: ${selectedReceiptOrder?.product?.establishment_name || getSellerDisplayName(selectedReceiptOrder)}`}</Text>
-							</View>
-
-							<View style={styles.receiptSummaryGrid}>
-								<View style={styles.receiptSummaryCard}>
-									<Text style={styles.receiptSummaryLabel}>Reservation ID</Text>
-									<Text style={styles.receiptSummaryValue}>BRH-ORDER-{String(selectedReceiptOrder?.id || '').padStart(6, '0')}</Text>
-								</View>
-								<View style={styles.receiptSummaryCard}>
-									<Text style={styles.receiptSummaryLabel}>Order Status</Text>
-									<Text style={styles.receiptSummaryValue}>{String(selectedReceiptOrder?.status || 'pending').replace(/^./, (s) => s.toUpperCase())}</Text>
-								</View>
-							</View>
-
-							<View style={styles.receiptDetailsPanel}>
-								<View style={styles.receiptDetailRow}>
-									<Text style={styles.receiptDetailLabel}>Product</Text>
-									<Text style={styles.receiptDetailValue}>{selectedReceiptOrder?.product?.name || 'N/A'}</Text>
-								</View>
-								<View style={styles.receiptDetailRow}>
-									<Text style={styles.receiptDetailLabel}>Quantity</Text>
-									<Text style={styles.receiptDetailValue}>{String(selectedReceiptOrder?.quantity || 0)}</Text>
-								</View>
-								<View style={styles.receiptDetailRow}>
-									<Text style={styles.receiptDetailLabel}>Total</Text>
-									<Text style={styles.receiptDetailValue}>{money(selectedReceiptOrder?.total_price)}</Text>
-								</View>
-								<View style={styles.receiptDetailRow}>
-									<Text style={styles.receiptDetailLabel}>Customer</Text>
-									<Text style={styles.receiptDetailValue}>{selectedReceiptOrder?.customer_name || user?.name || 'N/A'}</Text>
-								</View>
-								<View style={styles.receiptDetailRow}>
-									<Text style={styles.receiptDetailLabel}>Address</Text>
-									<Text style={styles.receiptDetailValue}>{selectedReceiptOrder?.customer_address || user?.address || 'N/A'}</Text>
-								</View>
-								<View style={styles.receiptDetailRow}>
-									<Text style={styles.receiptDetailLabel}>Phone</Text>
-									<Text style={styles.receiptDetailValue}>{selectedReceiptOrder?.customer_contact_number || user?.contact_number || 'N/A'}</Text>
-								</View>
-								<View style={styles.receiptDetailRow}>
-									<Text style={styles.receiptDetailLabel}>Pickup Date</Text>
-									<Text style={styles.receiptDetailValue}>{selectedReceiptOrder?.pickup_date ? formatDisplayDate(selectedReceiptOrder?.pickup_date) : 'N/A'}</Text>
-								</View>
-								<View style={styles.receiptDetailRow}>
-									<Text style={styles.receiptDetailLabel}>Estimated Pickup Time</Text>
-									<Text style={styles.receiptDetailValue}>{selectedReceiptOrder?.pickup_time ? formatDisplayTime(selectedReceiptOrder?.pickup_time) : 'N/A'}</Text>
-								</View>
-								<View style={[styles.receiptDetailRow, styles.receiptDetailRowLast]}>
-									<Text style={styles.receiptDetailLabel}>Created</Text>
-									<Text style={styles.receiptDetailValue}>{selectedReceiptOrder?.created_at ? new Date(selectedReceiptOrder.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }) : 'N/A'}</Text>
-								</View>
-							</View>
-
-							<Text style={styles.receiptFootnote}>This is an official BrewHub reservation record. Sellers can view this order in their marketplace dashboard in real time.</Text>
-						</View>
-
-						<View style={styles.receiptActionsRow}>
-							<Pressable style={styles.receiptPrimaryButton} onPress={saveReceiptAsImage}>
-								<MaterialIcons name="download" size={14} color={theme.colors.white} />
-								<Text style={styles.receiptPrimaryButtonText}>Save as Image</Text>
-							</Pressable>
-							<Pressable style={styles.receiptCloseButton} onPress={closeReceiptModal}>
-								<Text style={styles.receiptCloseButtonText}>Close</Text>
-							</Pressable>
-						</View>
-
-						{receiptSavedNotice ? (
-							<View style={styles.receiptSavedBadge}>
-								<MaterialIcons name="check-circle" size={15} color="#2E5A3D" />
-								<Text style={styles.receiptSavedBadgeText}>Image saved to gallery.</Text>
-							</View>
-						) : null}
 					</ScrollView>
 				</View>
-			</Modal>
+			</KeyboardAvoidingView>
+		</Modal>
 
 			<Pressable
 				style={[styles.floatingCartButton, { bottom: Math.max(insets.bottom + 18, 26) }]}
@@ -1918,9 +1849,7 @@ const styles = StyleSheet.create({
 		paddingHorizontal: theme.spacing.md,
 	},
 	reserveModalBackdrop: {
-		justifyContent: 'flex-end',
-		paddingTop: theme.spacing.xl,
-		paddingBottom: theme.spacing.sm,
+		// Uses inherited justifyContent: 'center' from modalBackdrop
 	},
 	modalCard: {
 		backgroundColor: theme.colors.white,
@@ -1963,6 +1892,12 @@ const styles = StyleSheet.create({
 		marginBottom: 4,
 		fontFamily: theme.fonts.body,
 		fontWeight: '600',
+	},
+	modalFieldError: {
+		color: '#B43F3F',
+		fontSize: theme.fontSizes.xs,
+		marginTop: 4,
+		fontFamily: 'PoppinsRegular',
 	},
 	modalInput: {
 		borderWidth: 1,

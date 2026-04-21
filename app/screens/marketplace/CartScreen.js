@@ -441,6 +441,12 @@ export default function MarketplaceCartScreen() {
 		});
 	};
 
+	const isReserveContactValid = () => {
+		const normalizedAddr = String(reserveAddress || '').trim();
+		const normalizedPhone = String(reserveContactNumber || '').replace(/\s+/g, '');
+		return normalizedAddr.length >= 10 && /^09\d{9}$/.test(normalizedPhone);
+	};
+
 	return (
 		<ScreenContainer>
 			<View style={styles.headerRow}>
@@ -623,8 +629,11 @@ export default function MarketplaceCartScreen() {
 							placeholderTextColor={theme.colors.textMuted}
 							style={styles.modalInput}
 						/>
+						{reserveAddress.trim().length > 0 && reserveAddress.trim().length < 10 && (
+							<Text style={styles.modalFieldError}>Enter a complete address (at least 10 characters).</Text>
+						)}
 
-						<Text style={[styles.modalDetailText, { marginTop: 10 }]}>Contact Number</Text>
+						<Text style={[styles.modalDetailText, { marginTop: 10 }]}>Phone Number</Text>
 						<TextInput
 							value={reserveContactNumber}
 							onChangeText={setReserveContactNumber}
@@ -633,6 +642,9 @@ export default function MarketplaceCartScreen() {
 							keyboardType="number-pad"
 							style={styles.modalInput}
 						/>
+						{reserveContactNumber.length > 0 && !/^09\d{9}$/.test(reserveContactNumber) && (
+							<Text style={styles.modalFieldError}>Use a valid PH mobile number format (09XXXXXXXXX).</Text>
+						)}
 
 						<View style={styles.cartItemActions}>
 							<Pressable
@@ -645,7 +657,7 @@ export default function MarketplaceCartScreen() {
 								<Text style={styles.viewDetailsButtonText}>Cancel</Text>
 							</Pressable>
 							<Pressable
-								style={styles.orderNowButton}
+								style={[styles.orderNowButton, !isReserveContactValid() && styles.orderNowButtonDisabled]}
 								onPress={() => {
 									const currentItem = pendingReserveItem;
 									setReserveContactModalOpen(false);
@@ -657,8 +669,9 @@ export default function MarketplaceCartScreen() {
 										});
 									}
 								}}
+								disabled={!isReserveContactValid()}
 							>
-								<Text style={styles.orderNowButtonText}>Continue</Text>
+								<Text style={[styles.orderNowButtonText, !isReserveContactValid() && styles.orderNowButtonTextDisabled]}>Continue</Text>
 							</Pressable>
 						</View>
 					</View>
@@ -898,6 +911,12 @@ const styles = StyleSheet.create({
 		fontSize: theme.fontSizes.sm,
 		color: theme.colors.sidebar,
 		backgroundColor: '#FFFFFF',
+	},
+	modalFieldError: {
+		color: '#B43F3F',
+		fontSize: theme.fontSizes.xs,
+		marginTop: 4,
+		fontFamily: 'PoppinsRegular',
 	},
 	quantityInput: {
 		flex: 1,
