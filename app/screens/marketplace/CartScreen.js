@@ -16,6 +16,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { ConfirmToastModal, ScreenContainer } from '../../components';
 import { API_CONFIG, createLandingReservationPrefillToken, getProducts, placeOrder } from '../../services';
+import { useAuth } from '../../context';
 import theme from '../../theme';
 
 const CART_STORAGE_KEY = 'marketplace_cart_items';
@@ -185,9 +186,14 @@ function buildLandingReservationUrl({ productId, quantity, prefillToken }) {
 
 export default function MarketplaceCartScreen() {
 	const navigation = useNavigation();
+	const { user } = useAuth();
 	const [cartItems, setCartItems] = useState([]);
 	const [selectedItem, setSelectedItem] = useState(null);
 	const [submittingId, setSubmittingId] = useState(null);
+	const [reserveContactModalOpen, setReserveContactModalOpen] = useState(false);
+	const [pendingReserveItem, setPendingReserveItem] = useState(null);
+	const [reserveAddress, setReserveAddress] = useState('');
+	const [reserveContactNumber, setReserveContactNumber] = useState('');
 	const [confirmState, setConfirmState] = useState({
 		visible: false,
 		title: '',
@@ -285,12 +291,13 @@ export default function MarketplaceCartScreen() {
 		[readCartItems, saveCartItems]
 	);
 
-	const orderNow = (item) => {
+	const reserveNow = (item, contactDetails = null) => {
 		if (!item?.product?.id) return;
 
 		const minimumQuantity = getMinimumQuantity(item?.product);
 		const availableStock = getAvailableStock(item?.product);
 		const requestedQuantity = Number(item?.quantity || 0);
+		const sellerRole = normalizeSellerRole(item?.product);
 
 		if (!isProductReservable(item?.product)) {
 			Alert.alert('Unavailable', 'This item is currently unavailable.');
@@ -307,19 +314,44 @@ export default function MarketplaceCartScreen() {
 			return;
 		}
 
+		if (sellerRole === 'cafe' && !contactDetails) {
+			setPendingReserveItem(item);
+			setReserveAddress(String(item?.address || user?.address || ''));
+			setReserveContactNumber(String(item?.contact_number || user?.contact_number || ''));
+			setReserveContactModalOpen(true);
+			return;
+		}
+
+		const submittedAddress = String(contactDetails?.address || item?.address || user?.address || '').trim();
+		const submittedContactNumber = String(
+			contactDetails?.contact_number || item?.contact_number || user?.contact_number || ''
+		)
+			.replace(/\s+/g, '')
+			.trim();
+
+		if (sellerRole === 'cafe' && submittedAddress === '') {
+			Alert.alert('Required Field', 'Address is required before reserving this item.');
+			return;
+		}
+
+		if (sellerRole === 'cafe' && !/^09\d{9}$/.test(submittedContactNumber)) {
+			Alert.alert('Invalid Contact Number', 'Contact number must be a valid 11-digit PH mobile number (09XXXXXXXXX).');
+			return;
+		}
+
 		openConfirm({
 			title:
 				normalizeSellerRole(item?.product) === 'farm' || normalizeSellerRole(item?.product) === 'reseller'
 					? 'Continue Reservation'
-					: 'Confirm Order',
+					: 'Confirm Reservation',
 			message:
 				normalizeSellerRole(item?.product) === 'farm' || normalizeSellerRole(item?.product) === 'reseller'
 					? 'Continue this cart reservation on the web form?'
-					: 'Place this cart item as an in-app order now?',
+					: 'Reserve this cart item now in-app?',
 			confirmLabel:
 				normalizeSellerRole(item?.product) === 'farm' || normalizeSellerRole(item?.product) === 'reseller'
 					? 'Open Web Form'
-					: 'Yes, Order',
+					: 'Yes, Reserve',
 			onConfirm: async () => {
 				setSubmittingId(item.id);
 				try {
@@ -340,8 +372,8 @@ export default function MarketplaceCartScreen() {
 						return;
 					}
 
-					const sellerRole = normalizeSellerRole(latestProduct);
-					const requiresWebHandoff = sellerRole === 'farm' || sellerRole === 'reseller';
+					const latestSellerRole = normalizeSellerRole(latestProduct);
+					const requiresWebHandoff = latestSellerRole === 'farm' || latestSellerRole === 'reseller';
 
 					if (!requiresWebHandoff) {
 						await placeOrder({
@@ -349,13 +381,15 @@ export default function MarketplaceCartScreen() {
 							quantity: requestedQuantity,
 							pickup_date: item.pickup_date || null,
 							pickup_time: item.pickup_time || null,
+							address: submittedAddress || null,
+							contact_number: submittedContactNumber || null,
 							notes: null,
 						});
 
 						const currentItems = await readCartItems();
 						const nextItems = currentItems.filter((entry) => entry.id !== item.id);
 						await saveCartItems(nextItems);
-						Alert.alert('Order Placed', 'Your cart item was ordered in-app successfully.');
+						Alert.alert('Reserved', 'Your cart item was reserved in-app successfully.');
 						return;
 					}
 
@@ -438,7 +472,7 @@ export default function MarketplaceCartScreen() {
 						const availableStock = getAvailableStock(item?.product);
 						const reservable = availableStock >= minimumQuantity;
 						const stockEnoughForItem = Number(item?.quantity || 0) <= availableStock;
-						const orderDisabled = !reservable || !stockEnoughForItem || submittingId === item.id;
+						const reserveDisabled = !reservable || !stockEnoughForItem || submittingId === item.id;
 						const sellerRole = normalizeSellerRole(item?.product);
 
 						return (
@@ -477,18 +511,18 @@ export default function MarketplaceCartScreen() {
 									<Text style={styles.removeButtonText}>Remove</Text>
 								</Pressable>
 								<Pressable
-									style={[styles.orderNowButton, orderDisabled && styles.orderNowButtonDisabled]}
-									onPress={() => orderNow(item)}
-									disabled={orderDisabled}
+									style={[styles.orderNowButton, reserveDisabled && styles.orderNowButtonDisabled]}
+									onPress={() => reserveNow(item)}
+									disabled={reserveDisabled}
 								>
-									<Text style={[styles.orderNowButtonText, orderDisabled && styles.orderNowButtonTextDisabled]}>
+									<Text style={[styles.orderNowButtonText, reserveDisabled && styles.orderNowButtonTextDisabled]}>
 										{submittingId === item.id
-											? 'Ordering...'
+											? 'Reserving...'
 											: !reservable
 												? 'Unavailable'
 											: !stockEnoughForItem
 												? (sellerRole === 'cafe' ? 'Adjust Quantity' : 'Adjust to available stock')
-												: 'Order Now'}
+												: 'Reserve Now'}
 									</Text>
 								</Pressable>
 							</View>
@@ -565,6 +599,68 @@ export default function MarketplaceCartScreen() {
 							</>
 							);
 						})()}
+					</View>
+				</View>
+			</Modal>
+
+			<Modal
+				visible={reserveContactModalOpen}
+				transparent
+				animationType="slide"
+				onRequestClose={() => {
+					setReserveContactModalOpen(false);
+					setPendingReserveItem(null);
+				}}
+			>
+				<View style={styles.modalBackdrop}>
+					<View style={styles.modalCard}>
+						<Text style={styles.modalTitle}>Reservation Details</Text>
+						<Text style={styles.modalDetailText}>Address</Text>
+						<TextInput
+							value={reserveAddress}
+							onChangeText={setReserveAddress}
+							placeholder="Enter your pickup address"
+							placeholderTextColor={theme.colors.textMuted}
+							style={styles.modalInput}
+						/>
+
+						<Text style={[styles.modalDetailText, { marginTop: 10 }]}>Contact Number</Text>
+						<TextInput
+							value={reserveContactNumber}
+							onChangeText={setReserveContactNumber}
+							placeholder="09XXXXXXXXX"
+							placeholderTextColor={theme.colors.textMuted}
+							keyboardType="number-pad"
+							style={styles.modalInput}
+						/>
+
+						<View style={styles.cartItemActions}>
+							<Pressable
+								style={styles.viewDetailsButton}
+								onPress={() => {
+									setReserveContactModalOpen(false);
+									setPendingReserveItem(null);
+								}}
+							>
+								<Text style={styles.viewDetailsButtonText}>Cancel</Text>
+							</Pressable>
+							<Pressable
+								style={styles.orderNowButton}
+								onPress={() => {
+									const currentItem = pendingReserveItem;
+									setReserveContactModalOpen(false);
+									setPendingReserveItem(null);
+									if (currentItem) {
+										reserveNow(currentItem, {
+											address: reserveAddress,
+											contact_number: reserveContactNumber,
+										});
+									}
+								}}
+							>
+								<Text style={styles.orderNowButtonText}>Continue</Text>
+							</Pressable>
+						</View>
 					</View>
 				</View>
 			</Modal>

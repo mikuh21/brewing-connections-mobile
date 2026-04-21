@@ -14,6 +14,8 @@ function normalizeUser(userData) {
     id: userData.id ?? null,
     name: userData.name ?? '',
     email: userData.email ?? '',
+    address: userData.address ?? '',
+    contact_number: userData.contact_number ?? '',
     profile_photo_url: userData.profile_photo_url ?? userData.profile_photo ?? userData.avatar ?? null,
     role: userData.role ?? null,
     email_verified_at: userData.email_verified_at ?? null,

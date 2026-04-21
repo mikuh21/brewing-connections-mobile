@@ -325,6 +325,8 @@ export default function MarketplaceScreen() {
 	const [orderQuantity, setOrderQuantity] = useState(1);
 	const [pickupDate, setPickupDate] = useState('');
 	const [pickupTime, setPickupTime] = useState('');
+	const [reservationAddress, setReservationAddress] = useState(String(user?.address || ''));
+	const [reservationContactNumber, setReservationContactNumber] = useState(String(user?.contact_number || ''));
 	const [showNativeDatePicker, setShowNativeDatePicker] = useState(false);
 	const [showNativeTimePicker, setShowNativeTimePicker] = useState(false);
 	const [modalAction, setModalAction] = useState('order');
@@ -599,6 +601,8 @@ export default function MarketplaceScreen() {
 		const now = new Date();
 		setPickupDate(formatDateValue(now));
 		setPickupTime(formatTimeValue(now));
+		setReservationAddress(String(user?.address || ''));
+		setReservationContactNumber(String(user?.contact_number || ''));
 		setReserveModalOpen(true);
 	};
 
@@ -611,6 +615,8 @@ export default function MarketplaceScreen() {
 		setSelectedProduct(null);
 		setShowNativeDatePicker(false);
 		setShowNativeTimePicker(false);
+		setReservationAddress(String(user?.address || ''));
+		setReservationContactNumber(String(user?.contact_number || ''));
 	};
 
 	const handleNativeDateChange = (event, selectedDate) => {
@@ -682,17 +688,36 @@ export default function MarketplaceScreen() {
 			return;
 		}
 
+		const sellerRoleForValidation = normalizeSellerRole(latestSelectedProduct);
+		const requiresInAppContact = sellerRoleForValidation === 'cafe';
+		const normalizedAddress = String(reservationAddress || '').trim();
+		const normalizedContactNumber = String(reservationContactNumber || '').replace(/\s+/g, '');
+
+		if (requiresInAppContact && normalizedAddress === '') {
+			setError('Address is required for in-app reservation.');
+			return;
+		}
+
+		if (requiresInAppContact && !/^09\d{9}$/.test(normalizedContactNumber)) {
+			setError('Contact number must be a valid 11-digit PH mobile number (09XXXXXXXXX).');
+			return;
+		}
+
 		const product = latestSelectedProduct;
 		const action = modalAction;
 		const selectedQuantity = quantity;
 		const selectedPickupDate = pickupDate;
 		const selectedPickupTime = pickupTime;
+		const selectedAddress = normalizedAddress;
+		const selectedContactNumber = normalizedContactNumber;
 
 		// Close native modal first to avoid stacked modal input deadlocks.
 		setReserveModalOpen(false);
 		setSelectedProduct(null);
 		setShowNativeDatePicker(false);
 		setShowNativeTimePicker(false);
+		setReservationAddress(String(user?.address || ''));
+		setReservationContactNumber(String(user?.contact_number || ''));
 
 		if (action === 'cart') {
 			const cartEntry = {
@@ -701,6 +726,8 @@ export default function MarketplaceScreen() {
 				quantity: selectedQuantity,
 				pickup_date: selectedPickupDate,
 				pickup_time: selectedPickupTime,
+				address: selectedAddress,
+				contact_number: selectedContactNumber,
 				added_at: new Date().toISOString(),
 			};
 
@@ -742,6 +769,8 @@ export default function MarketplaceScreen() {
 							quantity: selectedQuantity,
 							pickup_date: selectedPickupDate || null,
 							pickup_time: selectedPickupTime || null,
+							address: selectedAddress || null,
+							contact_number: selectedContactNumber || null,
 							notes: null,
 						});
 
@@ -1152,6 +1181,33 @@ export default function MarketplaceScreen() {
 												</>
 											)}
 
+											{sellerRole === 'cafe' && (
+												<>
+													<View style={styles.modalFieldWrap}>
+														<Text style={styles.modalLabel}>Address</Text>
+														<TextInput
+															value={reservationAddress}
+															onChangeText={setReservationAddress}
+															placeholder="Enter your pickup address"
+															placeholderTextColor={theme.colors.textMuted}
+															style={styles.modalInput}
+														/>
+													</View>
+
+													<View style={styles.modalFieldWrap}>
+														<Text style={styles.modalLabel}>Contact Number</Text>
+														<TextInput
+															value={reservationContactNumber}
+															onChangeText={setReservationContactNumber}
+															placeholder="09XXXXXXXXX"
+															placeholderTextColor={theme.colors.textMuted}
+															keyboardType="number-pad"
+															style={styles.modalInput}
+														/>
+													</View>
+												</>
+											)}
+
 											<View style={styles.modalFieldWrap}>
 												<Text style={styles.modalLabel}>Quantity</Text>
 												<View style={styles.quantitySelectorRow}>
@@ -1303,15 +1359,15 @@ export default function MarketplaceScreen() {
 								</View>
 								<View style={styles.receiptDetailRow}>
 									<Text style={styles.receiptDetailLabel}>Customer</Text>
-									<Text style={styles.receiptDetailValue}>{user?.name || 'N/A'}</Text>
+									<Text style={styles.receiptDetailValue}>{selectedReceiptOrder?.customer_name || user?.name || 'N/A'}</Text>
 								</View>
 								<View style={styles.receiptDetailRow}>
 									<Text style={styles.receiptDetailLabel}>Address</Text>
-									<Text style={styles.receiptDetailValue}>{user?.address || 'N/A'}</Text>
+									<Text style={styles.receiptDetailValue}>{selectedReceiptOrder?.customer_address || user?.address || 'N/A'}</Text>
 								</View>
 								<View style={styles.receiptDetailRow}>
 									<Text style={styles.receiptDetailLabel}>Phone</Text>
-									<Text style={styles.receiptDetailValue}>{user?.contact_number || 'N/A'}</Text>
+									<Text style={styles.receiptDetailValue}>{selectedReceiptOrder?.customer_contact_number || user?.contact_number || 'N/A'}</Text>
 								</View>
 								<View style={styles.receiptDetailRow}>
 									<Text style={styles.receiptDetailLabel}>Pickup Date</Text>
