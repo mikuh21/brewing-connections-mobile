@@ -103,6 +103,10 @@ function isPromoStillActive(item) {
   return parsed.getTime() >= Date.now();
 }
 
+function isPromoExpiringSoon(item) {
+  return isPromoStillActive(item) && isExpiringSoon(item?.validUntil);
+}
+
 function distanceLabel(distanceKm) {
   if (typeof distanceKm !== 'number' || Number.isNaN(distanceKm)) {
     return 'Unknown distance';
@@ -860,6 +864,7 @@ export default function CouponPromosScreen({ route, navigation }) {
   const renderCard = ({ item, index, showNearestBadge, isFocused }) => {
     const claimStatus = getClaimStatus(item);
     const isViewEnabled = claimStatus.status === CLAIM_CLAIMED || claimStatus.status === CLAIM_PENDING;
+    const isExpiringPromo = isPromoExpiringSoon(item);
     const focusedScale = focusedPulseAnim.interpolate({
       inputRange: [0, 1],
       outputRange: [1, 1.03],
@@ -944,8 +949,8 @@ export default function CouponPromosScreen({ route, navigation }) {
 
         <View style={styles.cardBottom}>
           <View>
-            <Text style={styles.validLabel}>Valid until</Text>
-            <Text style={[styles.validDate, isExpiringSoon(item.validUntil) && styles.validDateExpiring]}>
+            <Text style={[styles.validLabel, isExpiringPromo && styles.validLabelExpiring]}>Valid until</Text>
+            <Text style={[styles.validDate, isExpiringPromo && styles.validDateExpiring]}>
               {formatDate(item.validUntil)}
             </Text>
           </View>
@@ -996,6 +1001,8 @@ export default function CouponPromosScreen({ route, navigation }) {
     outputRange: [-180, 240],
   });
 
+  const isExpiringTabActive = activeTab === TAB_EXPIRING;
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
@@ -1024,8 +1031,10 @@ export default function CouponPromosScreen({ route, navigation }) {
                   {activeTab === TAB_NEAR ? <View style={styles.tabIndicator} /> : null}
                 </Pressable>
                 <Pressable style={styles.tabButton} onPress={() => setActiveTab(TAB_EXPIRING)}>
-                  <Text style={[styles.tabText, activeTab === TAB_EXPIRING && styles.tabTextActive]}>Expiring Soon</Text>
-                  {activeTab === TAB_EXPIRING ? <View style={styles.tabIndicator} /> : null}
+                  <Text style={[styles.tabText, isExpiringTabActive && styles.tabTextActive, isExpiringTabActive && styles.tabTextExpiringActive]}>
+                    Expiring Soon
+                  </Text>
+                  {isExpiringTabActive ? <View style={[styles.tabIndicator, styles.tabIndicatorExpiring]} /> : null}
                 </Pressable>
                 <Pressable style={styles.tabButton} onPress={() => setActiveTab(TAB_REDEEMED)}>
                   <Text style={[styles.tabText, activeTab === TAB_REDEEMED && styles.tabTextActive]}>Redeemed</Text>
@@ -1050,7 +1059,7 @@ export default function CouponPromosScreen({ route, navigation }) {
                 </View>
               ) : (activeTab === TAB_ALL || activeTab === TAB_NEAR) && nearYou.length ? (
                 <View style={styles.nearYouSection}>
-                  <Text style={styles.nearYouTitle}>{sectionTitle}</Text>
+                  <Text style={[styles.nearYouTitle, isExpiringTabActive && styles.nearYouTitleExpiring]}>{sectionTitle}</Text>
                   {nearYou.map((item, idx) => (
                     <View key={`near-${item.id}`}>
                       {renderCard({ item, index: idx, showNearestBadge: true, isFocused: item.id === focusedPromoId })}
@@ -1061,7 +1070,7 @@ export default function CouponPromosScreen({ route, navigation }) {
 
               {!loading && (activeTab === TAB_EXPIRING || activeTab === TAB_REDEEMED) ? (
                 <View style={styles.filteredLabelWrap}>
-                  <Text style={styles.nearYouTitle}>{sectionTitle}</Text>
+                  <Text style={[styles.nearYouTitle, isExpiringTabActive && styles.nearYouTitleExpiring]}>{sectionTitle}</Text>
                 </View>
               ) : null}
 
@@ -1222,11 +1231,17 @@ const styles = StyleSheet.create({
     color: GREEN,
     fontFamily: 'PoppinsBold',
   },
+  tabTextExpiringActive: {
+    color: '#DC2626',
+  },
   tabIndicator: {
     marginTop: 6,
     height: 2,
     width: '100%',
     backgroundColor: GREEN,
+  },
+  tabIndicatorExpiring: {
+    backgroundColor: '#DC2626',
   },
   loadingWrap: {
     gap: 12,
@@ -1258,6 +1273,9 @@ const styles = StyleSheet.create({
     color: BROWN,
     fontFamily: 'PoppinsBold',
     marginBottom: 8,
+  },
+  nearYouTitleExpiring: {
+    color: '#B91C1C',
   },
   couponCard: {
     backgroundColor: '#FFFFFF',
@@ -1470,6 +1488,9 @@ const styles = StyleSheet.create({
     color: MUTED,
     fontFamily: 'PoppinsRegular',
     fontSize: 11,
+  },
+  validLabelExpiring: {
+    color: '#B91C1C',
   },
   validDate: {
     color: MUTED,
