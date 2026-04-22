@@ -1015,15 +1015,12 @@ const cancelOrder = async (order) => {
 								<MaterialIcons name="chat-bubble-outline" size={14} color={theme.colors.white} />
 								<Text style={styles.chatSellerButtonText}>Chat with seller</Text>
 							</Pressable>
-						</View>
-
-						{activeTab === TAB_TRACKING ? (
-							<View style={styles.orderActionsReceiptRow}>
+							{activeTab === TAB_TRACKING ? (
 								<Pressable style={styles.receiptIconButton} onPress={() => openReceiptModal(item)}>
 									<MaterialIcons name="receipt-long" size={18} color={MARKETPLACE_ACTION_GREEN} />
 								</Pressable>
-							</View>
-						) : null}
+							) : null}
+						</View>
 
 						{cancellable ? (
 							<View style={styles.orderActionsBottomRow}>
@@ -1863,12 +1860,6 @@ const styles = StyleSheet.create({
 		alignItems: 'center',
 		gap: 8,
 		flexWrap: 'wrap',
-	},
-	orderActionsReceiptRow: {
-		marginTop: 10,
-		flexDirection: 'row',
-		alignSelf: 'flex-start',
-		justifyContent: 'flex-start',
 	},
 	orderActionsBottomRow: {
 		marginTop: 8,
