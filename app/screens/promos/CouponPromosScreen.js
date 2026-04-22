@@ -85,7 +85,7 @@ function isExpiringSoon(value) {
   }
   parsed.setHours(23, 59, 59, 999);
   const daysLeft = (parsed.getTime() - Date.now()) / (1000 * 60 * 60 * 24);
-  return daysLeft >= 0 && daysLeft <= 3;
+  return daysLeft >= 0 && daysLeft <= 2;
 }
 
 function isPromoStillActive(item) {
