@@ -83,8 +83,24 @@ function isExpiringSoon(value) {
   if (!parsed) {
     return false;
   }
+  parsed.setHours(23, 59, 59, 999);
   const daysLeft = (parsed.getTime() - Date.now()) / (1000 * 60 * 60 * 24);
   return daysLeft >= 0 && daysLeft <= 3;
+}
+
+function isPromoStillActive(item) {
+  const status = String(item?.status || '').trim().toLowerCase();
+  if (['expired', 'inactive', 'draft', 'disabled', 'archived'].includes(status)) {
+    return false;
+  }
+
+  const parsed = dateFromAny(item?.validUntil);
+  if (!parsed) {
+    return true;
+  }
+
+  parsed.setHours(23, 59, 59, 999);
+  return parsed.getTime() >= Date.now();
 }
 
 function distanceLabel(distanceKm) {
@@ -485,7 +501,7 @@ export default function CouponPromosScreen({ route, navigation }) {
 
         const normalized = items
           .map((item, index) => normalizePromo(item, index, location || userLocation))
-          .filter((item) => item.establishmentType.includes('cafe') && item.status !== 'draft')
+          .filter((item) => item.establishmentType.includes('cafe') && isPromoStillActive(item))
           .sort((a, b) => {
             const aDistance = typeof a.distanceKm === 'number' ? a.distanceKm : Number.POSITIVE_INFINITY;
             const bDistance = typeof b.distanceKm === 'number' ? b.distanceKm : Number.POSITIVE_INFINITY;
