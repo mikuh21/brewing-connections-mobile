@@ -18,6 +18,7 @@ import {
 import { MaterialIcons } from '@expo/vector-icons';
 import QRCode from 'react-native-qrcode-svg';
 import { getCouponPromos, getEstablishments } from '../../services';
+import { useAuth } from '../../context';
 
 const BACKGROUND = '#F5F0E8';
 const GREEN = '#2D4A1E';
@@ -256,6 +257,7 @@ function formatRemaining(ms) {
 }
 
 export default function CouponPromosScreen({ route, navigation }) {
+  const { user } = useAuth();
   const [promos, setPromos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -1114,12 +1116,27 @@ export default function CouponPromosScreen({ route, navigation }) {
                 </Pressable>
 
                 <View style={styles.qrWrap}>
+                  {(() => {
+                    const fallbackToken = String(claimTarget.qrPayload || claimTarget.code || claimTarget.id);
+                    const consumerId = Number(user?.id || 0);
+                    const qrValue = consumerId > 0
+                      ? JSON.stringify({
+                          type: 'coupon_claim',
+                          promo_id: claimTarget.id,
+                          promo_token: fallbackToken,
+                          consumer_id: consumerId,
+                        })
+                      : fallbackToken;
+
+                    return (
                   <QRCode
-                    value={String(claimTarget.qrPayload || claimTarget.code || claimTarget.id)}
+                    value={qrValue}
                     size={160}
                     color={GREEN}
                     backgroundColor="#FFFFFF"
                   />
+                    );
+                  })()}
                 </View>
 
                 <Text style={styles.claimInstruction}>Show this QR at the cafe to redeem</Text>
