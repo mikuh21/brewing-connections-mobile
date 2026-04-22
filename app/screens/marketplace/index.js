@@ -1858,8 +1858,7 @@ const styles = StyleSheet.create({
 		marginTop: 8,
 		flexDirection: 'row',
 		alignItems: 'center',
-		gap: 8,
-		flexWrap: 'wrap',
+		justifyContent: 'space-between',
 	},
 	orderActionsBottomRow: {
 		marginTop: 8,
