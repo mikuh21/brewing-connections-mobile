@@ -22,7 +22,7 @@ import * as Location from 'expo-location';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { API_CONFIG, api, getCouponPromos, getEstablishments } from '../../services';
+import { API_CONFIG, api, getCouponPromos, getEstablishments, trackMapMarkerView } from '../../services';
 
 const LIPA_REGION = {
   latitude: 13.9411,
@@ -880,6 +880,8 @@ export default function MapScreen({ navigation, route }) {
   const mapRef = useRef(null);
   const sheetScrollRef = useRef(null);
   const ignoreMapPressUntilRef = useRef(0);
+  const mapSessionIdRef = useRef(`map-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`);
+  const lastTrackedMarkerRef = useRef({ id: null, at: 0 });
   const [isLoading, setIsLoading] = useState(true);
   const [isLocationBusy, setIsLocationBusy] = useState(true);
   const [isNavigating, setIsNavigating] = useState(false);
@@ -1682,6 +1684,31 @@ export default function MapScreen({ navigation, route }) {
     setSelectedEstablishmentId(item.id);
     setIsDetailsExpanded(false);
     setOpenFilterMenu(null);
+
+    const establishmentId = Number(item?.raw?.id ?? item?.id);
+    if (!Number.isFinite(establishmentId) || establishmentId <= 0) {
+      return;
+    }
+
+    const now = Date.now();
+    if (
+      String(lastTrackedMarkerRef.current.id) === String(establishmentId)
+      && now - Number(lastTrackedMarkerRef.current.at || 0) < 1500
+    ) {
+      return;
+    }
+
+    lastTrackedMarkerRef.current = {
+      id: establishmentId,
+      at: now,
+    };
+
+    trackMapMarkerView({
+      establishment_id: establishmentId,
+      map_session_id: mapSessionIdRef.current,
+    }).catch(() => {
+      // Keep map UX responsive even when analytics logging fails.
+    });
   };
 
   const handleDismissSheet = () => {

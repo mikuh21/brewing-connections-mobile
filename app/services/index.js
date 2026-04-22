@@ -9,6 +9,7 @@ export {
 	getCoffeeTrail,
 	getCoffeeTrailPreview,
 	getCoffeeTrailHistory,
+	trackMapMarkerView,
 	getCouponPromos,
 	verifyCouponPromoQr,
 	getProducts,

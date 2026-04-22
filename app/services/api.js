@@ -136,6 +136,11 @@ export const getCoffeeTrailHistory = async () => {
   return unwrap(response);
 };
 
+export const trackMapMarkerView = async (data) => {
+  const response = await api.post('/api/coffee-trail/marker-view', data);
+  return unwrap(response);
+};
+
 export const getCouponPromos = async (params = {}) => {
   const response = await api.get('/api/coupon-promos', {
     params,
