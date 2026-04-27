@@ -32,6 +32,7 @@ import {
 	updateOrderStatus,
 } from '../../services';
 import { useAuth } from '../../context';
+import { getImageUrl } from '../../utils/imageHelper';
 import theme from '../../theme';
 
 const TAB_PRODUCTS = 'products';
@@ -247,37 +248,6 @@ function getSellerRecipientId(source) {
 	}
 
 	return null;
-}
-
-function resolveImageUrl(pathOrUrl) {
-	if (!pathOrUrl) {
-		return null;
-	}
-
-	const raw = String(pathOrUrl).trim();
-	if (!raw) {
-		return null;
-	}
-
-	const runtimeApiBase = process.env.EXPO_PUBLIC_API_URL || API_CONFIG?.baseUrl;
-	const baseUrl = String(runtimeApiBase || '').replace(/\/+$/, '');
-	const apiOriginMatch = baseUrl.match(/^(https?:\/\/[^/]+)/i);
-	const apiOrigin = apiOriginMatch ? apiOriginMatch[1] : baseUrl;
-
-	if (/^https?:\/\//i.test(raw)) {
-		return raw;
-	}
-
-	if (!apiOrigin) {
-		return raw;
-	}
-
-	const normalizedPath = raw.startsWith('/') ? raw : `/${raw}`;
-	if (/^\/storage\//i.test(normalizedPath)) {
-		return `${apiOrigin}${normalizedPath}`;
-	}
-
-	return `${apiOrigin}/storage/${raw.replace(/^\/+/, '')}`;
 }
 
 function orderStatusStyle(status) {
@@ -856,7 +826,7 @@ const cancelOrder = async (order) => {
 	};
 
 	const renderProductCard = ({ item }) => {
-		const imageUrl = resolveImageUrl(item?.image_url);
+		const imageUrl = getImageUrl(item?.image_url);
 		const sellerRole = normalizeSellerRole(item);
 		const stock = getAvailableStock(item);
 		const minimum = getMinimumQuantity(item);
@@ -980,7 +950,7 @@ const cancelOrder = async (order) => {
 		const status = String(item?.status || 'pending');
 		const normalizedStatus = status.toLowerCase();
 		const statusStyle = orderStatusStyle(status);
-		const imageUrl = resolveImageUrl(item?.product?.image_url);
+		const imageUrl = getImageUrl(item?.product?.image_url);
 		const cancellable = activeTab === TAB_TRACKING && normalizedStatus === 'pending';
 		const sellerDisplayName = getSellerDisplayName(item);
 

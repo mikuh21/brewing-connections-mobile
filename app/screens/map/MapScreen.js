@@ -23,6 +23,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { API_CONFIG, api, getCouponPromos, getEstablishments, trackMapMarkerView } from '../../services';
+import { getImageUrl } from '../../utils/imageHelper';
 
 const LIPA_REGION = {
   latitude: 13.9411,
@@ -140,45 +141,6 @@ const ABOUT_VARIETY_CONTENT = [
     reference: 'Philippine Coffee Board; CoffeeBeans.ph',
   },
 ];
-
-function resolveMapImageUrl(pathOrUrl) {
-  if (!pathOrUrl) {
-    return null;
-  }
-
-  const raw = String(pathOrUrl).trim();
-  if (!raw) {
-    return null;
-  }
-
-  const runtimeApiBase = process.env.EXPO_PUBLIC_API_URL || API_CONFIG?.baseUrl;
-  const baseUrl = String(runtimeApiBase || '').replace(/\/+$/, '');
-  const apiOriginMatch = baseUrl.match(/^(https?:\/\/[^/]+)/i);
-  const apiOrigin = apiOriginMatch ? apiOriginMatch[1] : baseUrl;
-
-  if (/^https?:\/\//i.test(raw)) {
-    const isLocalhostUrl = /^https?:\/\/(localhost|127\.0\.0\.1|0\.0\.0\.0)(:\d+)?\//i.test(raw);
-    if (!isLocalhostUrl || !apiOrigin) {
-      return raw;
-    }
-
-    const pathOnly = raw.replace(/^https?:\/\/[^/]+/i, '');
-    const normalizedPath = pathOnly.startsWith('/') ? pathOnly : `/${pathOnly}`;
-    return `${apiOrigin}${normalizedPath}`;
-  }
-
-  if (!apiOrigin) {
-    return raw;
-  }
-
-  const normalizedPath = raw.startsWith('/') ? raw : `/${raw}`;
-  if (/^\/storage\//i.test(normalizedPath)) {
-    return `${apiOrigin}${normalizedPath}`;
-  }
-
-  const storagePath = raw.replace(/^\/+/, '');
-  return `${apiOrigin}/storage/${storagePath}`;
-}
 
 function resolveMapImageCandidates(...possibleValues) {
   const values = possibleValues.filter((value) => value !== null && value !== undefined && String(value).trim() !== '');
@@ -375,7 +337,7 @@ function normalizeEstablishment(item, index, promoIndexByEstablishment) {
     longitude,
     address: `${source.address || 'No address provided'}${barangay}`,
     rating: Number(source.rating_average ?? source.average_rating ?? 0),
-    image: resolveMapImageUrl(
+    image: getImageUrl(
       source.image ||
       source.photo_url ||
       source.image_url ||

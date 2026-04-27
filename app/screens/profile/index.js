@@ -19,6 +19,7 @@ import {
   sendEmailVerification,
   verifyEmailOtp,
 } from '../../services';
+import { getImageUrl } from '../../utils/imageHelper';
 import theme from '../../theme';
 
 const SAVED_TRAILS_KEY = 'saved_coffee_trails';
@@ -224,7 +225,7 @@ export default function ProfileScreen({ navigation }) {
         <View style={styles.heroCard}>
           <View style={styles.avatarWrap}>
             {user?.profile_photo_url ? (
-              <Image source={{ uri: user.profile_photo_url }} style={styles.avatarImage} />
+              <Image source={{ uri: getImageUrl(user.profile_photo_url) }} style={styles.avatarImage} />
             ) : (
               <Text style={styles.avatarText}>{initials}</Text>
             )}

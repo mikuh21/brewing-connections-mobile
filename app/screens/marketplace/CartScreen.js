@@ -16,6 +16,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { ConfirmToastModal, ScreenContainer } from '../../components';
 import { API_CONFIG, createLandingReservationPrefillToken, getProducts, placeOrder } from '../../services';
+import { getImageUrl } from '../../utils/imageHelper';
 import { useAuth } from '../../context';
 import theme from '../../theme';
 
@@ -141,26 +142,6 @@ function isProductReservable(product) {
 	return getAvailableStock(product) >= getMinimumQuantity(product);
 }
 
-function resolveImageUrl(pathOrUrl) {
-	if (!pathOrUrl) return null;
-	const raw = String(pathOrUrl).trim();
-	if (!raw) return null;
-
-	const runtimeApiBase = process.env.EXPO_PUBLIC_API_URL || API_CONFIG?.baseUrl;
-	const baseUrl = String(runtimeApiBase || '').replace(/\/+$/, '');
-	const apiOriginMatch = baseUrl.match(/^(https?:\/\/[^/]+)/i);
-	const apiOrigin = apiOriginMatch ? apiOriginMatch[1] : baseUrl;
-
-	if (/^https?:\/\//i.test(raw)) return raw;
-	if (!apiOrigin) return raw;
-
-	const normalizedPath = raw.startsWith('/') ? raw : `/${raw}`;
-	if (/^\/storage\//i.test(normalizedPath)) {
-		return `${apiOrigin}${normalizedPath}`;
-	}
-
-	return `${apiOrigin}/storage/${raw.replace(/^\/+/, '')}`;
-}
 
 function buildLandingReservationUrl({ productId, quantity, prefillToken }) {
 	const runtimeWebBase = process.env.EXPO_PUBLIC_WEB_URL || API_CONFIG?.baseUrl || '';
@@ -472,7 +453,7 @@ export default function MarketplaceCartScreen() {
 			) : (
 				<ScrollView contentContainerStyle={styles.listWrap} showsVerticalScrollIndicator={false}>
 					{cartItems.map((item) => {
-						const imageUrl = resolveImageUrl(item?.product?.image_url);
+						const imageUrl = getImageUrl(item?.product?.image_url);
 						const sellerDisplayName = getSellerDisplayName(item);
 						const minimumQuantity = getMinimumQuantity(item?.product);
 						const availableStock = getAvailableStock(item?.product);

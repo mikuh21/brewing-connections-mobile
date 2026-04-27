@@ -18,7 +18,8 @@ import { useFocusEffect } from '@react-navigation/native';
 import { MaterialIcons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { ConfirmToastModal } from '../../components';
-import { API_CONFIG, getRatingsFeed, submitRating } from '../../services';
+import { getRatingsFeed, submitRating } from '../../services';
+import { getImageUrl } from '../../utils/imageHelper';
 
 const INITIAL_RATINGS = {
 	taste: 0,
@@ -51,45 +52,6 @@ function buildDraft(ratings, photo) {
 		},
 		photo: photo || null,
 	};
-}
-
-function resolvePhotoUrl(pathOrUrl) {
-	if (!pathOrUrl) {
-		return null;
-	}
-
-	const raw = String(pathOrUrl).trim();
-	if (!raw) {
-		return null;
-	}
-
-	const runtimeApiBase = process.env.EXPO_PUBLIC_API_URL || API_CONFIG?.baseUrl;
-	const baseUrl = String(runtimeApiBase || '').replace(/\/+$/, '');
-	const apiOriginMatch = baseUrl.match(/^(https?:\/\/[^/]+)/i);
-	const apiOrigin = apiOriginMatch ? apiOriginMatch[1] : baseUrl;
-
-	if (/^https?:\/\//i.test(raw)) {
-		const isLocalhostUrl = /^https?:\/\/(localhost|127\.0\.0\.1|0\.0\.0\.0)(:\d+)?\//i.test(raw);
-		if (!isLocalhostUrl || !apiOrigin) {
-			return raw;
-		}
-
-		const pathOnly = raw.replace(/^https?:\/\/[^/]+/i, '');
-		const normalizedPath = pathOnly.startsWith('/') ? pathOnly : `/${pathOnly}`;
-		return `${apiOrigin}${normalizedPath}`;
-	}
-
-	if (!apiOrigin) {
-		return raw;
-	}
-
-	const normalizedPath = raw.startsWith('/') ? raw : `/${raw}`;
-	if (/^\/storage\//i.test(normalizedPath)) {
-		return `${apiOrigin}${normalizedPath}`;
-	}
-
-	const storagePath = raw.replace(/^\/+/, '');
-	return `${apiOrigin}/storage/${storagePath}`;
 }
 
 function toFeedItem(item) {
@@ -134,7 +96,7 @@ function toFeedItem(item) {
 		environment,
 		cleanliness,
 		service,
-		photoUrl: resolvePhotoUrl(item?.photo_url || item?.photo || item?.photo_path || item?.image_url || item?.image),
+			photoUrl: getImageUrl(item?.photo_url || item?.photo || item?.photo_path || item?.image_url || item?.image),
 	};
 }
 
