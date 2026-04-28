@@ -548,7 +548,19 @@ export default function CouponPromosScreen({ route, navigation }) {
           const sameTitle = !claimTitle || !promoTitle || claimTitle === promoTitle;
 
           if (sameCode && sameTitle) {
-            acc[promoId] = claim;
+            const serverClaimedAt = dateFromAny(match.claimedAt);
+
+            if (serverClaimedAt) {
+              acc[promoId] = {
+                ...claim,
+                status: CLAIM_CLAIMED,
+                claimedAt: serverClaimedAt.getTime(),
+                countdownEndsAt: null,
+                failedAt: null,
+              };
+            } else {
+              acc[promoId] = claim;
+            }
           }
 
           return acc;
@@ -794,7 +806,8 @@ export default function CouponPromosScreen({ route, navigation }) {
           ...existing,
           status: CLAIM_CLAIMED,
           claimedAt: claimedMs,
-          countdownEndsAt: claimedMs + COUNTDOWN_MS,
+          countdownEndsAt: null,
+          failedAt: null,
           code: promo.code,
           title: promo.title,
         },
@@ -809,10 +822,11 @@ export default function CouponPromosScreen({ route, navigation }) {
     (promo) => {
       const claim = claimedCoupons[promo.id];
       if (claim) {
-        const remainingMs = Math.max(0, Number(claim.countdownEndsAt || 0) - timerNow);
         if (claim.status === CLAIM_CLAIMED) {
-          return { status: CLAIM_CLAIMED, isClaimed: true, isPending: false, isFailed: false, remainingMs, claimedAt: claim.claimedAt || null };
+          return { status: CLAIM_CLAIMED, isClaimed: true, isPending: false, isFailed: false, remainingMs: 0, claimedAt: claim.claimedAt || null };
         }
+
+        const remainingMs = Math.max(0, Number(claim.countdownEndsAt || 0) - timerNow);
 
         if (claim.status === CLAIM_FAILED) {
           const failedAt = Number(claim?.failedAt || claim?.countdownEndsAt || 0);
@@ -845,8 +859,7 @@ export default function CouponPromosScreen({ route, navigation }) {
         return { status: null, isClaimed: false, isPending: false, isFailed: false, remainingMs: 0, resetRemainingMs: 0, claimedAt: null };
       }
 
-      const remainingMs = Math.max(0, serverClaimedAt.getTime() + COUNTDOWN_MS - timerNow);
-      return { status: CLAIM_CLAIMED, isClaimed: true, isPending: false, isFailed: false, remainingMs, resetRemainingMs: 0, claimedAt: serverClaimedAt.toISOString() };
+      return { status: CLAIM_CLAIMED, isClaimed: true, isPending: false, isFailed: false, remainingMs: 0, resetRemainingMs: 0, claimedAt: serverClaimedAt.toISOString() };
     },
     [claimedCoupons, timerNow]
   );
@@ -968,12 +981,9 @@ export default function CouponPromosScreen({ route, navigation }) {
               </Text>
             </View>
           ) : claimStatus.isPending ? (
-            <View style={styles.cardActionStack}>
-              <Text style={styles.pendingText}>{formatRemaining(claimStatus.remainingMs)}</Text>
-              <Pressable style={styles.viewActionButton} onPress={() => openClaimModal(item)}>
-                <Text style={styles.viewActionButtonText}>View</Text>
-              </Pressable>
-            </View>
+            <Pressable style={styles.viewActionButton} onPress={() => openClaimModal(item)}>
+              <Text style={styles.viewActionButtonText}>{formatRemaining(claimStatus.remainingMs)}</Text>
+            </Pressable>
           ) : (
             <Pressable
               style={({ pressed }) => [styles.claimButton, pressed && styles.claimButtonPressed]}
@@ -1147,8 +1157,6 @@ export default function CouponPromosScreen({ route, navigation }) {
                   <Text style={styles.claimModalStatus}>
                     {claimStatus.isPending
                       ? `Claim in ${formatRemaining(claimStatus.remainingMs)}`
-                      : claimStatus.remainingMs > 0
-                      ? `Redeemed • Redeem in ${formatRemaining(claimStatus.remainingMs)}`
                       : 'Redeemed ✓'}
                   </Text>
                 ) : null}
