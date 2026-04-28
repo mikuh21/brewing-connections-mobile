@@ -79,6 +79,20 @@ function formatDate(value) {
   });
 }
 
+function formatDateTime(value) {
+  const parsed = dateFromAny(value);
+  if (!parsed) {
+    return 'Date unavailable';
+  }
+  return parsed.toLocaleString(undefined, {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
+
 function isExpiringSoon(value) {
   const parsed = dateFromAny(value);
   if (!parsed) {
@@ -998,9 +1012,6 @@ export default function CouponPromosScreen({ route, navigation }) {
           {claimStatus.isClaimed ? (
             <View style={styles.cardActionStack}>
               <Text style={styles.claimedText}>Redeemed ✓</Text>
-              <Pressable style={styles.viewActionButton} onPress={() => openClaimModal(item)}>
-                <Text style={styles.viewActionButtonText}>View</Text>
-              </Pressable>
             </View>
           ) : claimStatus.isFailed ? (
             <View style={styles.cardActionStack}>
@@ -1191,7 +1202,7 @@ export default function CouponPromosScreen({ route, navigation }) {
                   </Text>
                 ) : null}
                 {claimStatus.claimedAt ? (
-                  <Text style={styles.claimedAtTextCenter}>Redeemed on {formatDate(claimStatus.claimedAt)}</Text>
+                  <Text style={styles.claimedAtTextCenter}>Redeemed on {formatDateTime(claimStatus.claimedAt)}</Text>
                 ) : null}
                 {claimStatus.isFailed ? (
                   <Text style={styles.claimModalFailed}>Failed to claim coupon promo within the allotted time.</Text>
