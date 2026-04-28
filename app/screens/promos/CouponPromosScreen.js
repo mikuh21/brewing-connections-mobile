@@ -583,12 +583,13 @@ export default function CouponPromosScreen({ route, navigation }) {
 
   const filteredPromos = useMemo(() => {
     const getStatus = (item) => {
+      if (item.claimedAt) {
+        return CLAIM_CLAIMED;
+      }
+
       const localClaim = claimedCoupons[item.id];
       if (localClaim?.status) {
         return localClaim.status;
-      }
-      if (item.claimedAt) {
-        return CLAIM_CLAIMED;
       }
       return null;
     };
@@ -598,6 +599,10 @@ export default function CouponPromosScreen({ route, navigation }) {
     };
 
     const getSortRank = (item) => {
+      if (item.claimedAt) {
+        return 0;
+      }
+
       const localClaim = claimedCoupons[item.id];
       if (localClaim?.status === CLAIM_PENDING) {
         const remainingMs = Math.max(0, Number(localClaim.countdownEndsAt || 0) - timerNow);
@@ -752,6 +757,32 @@ export default function CouponPromosScreen({ route, navigation }) {
     await fetchPromos({ location, isRefresh: true });
   }, [fetchPromos, locationPermissionDenied, requestLocation, userLocation]);
 
+  useEffect(() => {
+    const hasPendingClaim = Object.values(claimedCoupons).some((entry) => {
+      return entry?.status === CLAIM_PENDING && Number(entry?.countdownEndsAt || 0) > Date.now();
+    });
+
+    if (!hasPendingClaim) {
+      return undefined;
+    }
+
+    const interval = setInterval(() => {
+      let location = userLocation;
+
+      const refreshPendingClaims = async () => {
+        if (!locationPermissionDenied && !location) {
+          location = await requestLocation();
+        }
+
+        await fetchPromos({ location, isRefresh: false });
+      };
+
+      refreshPendingClaims();
+    }, 10000);
+
+    return () => clearInterval(interval);
+  }, [claimedCoupons, fetchPromos, locationPermissionDenied, requestLocation, userLocation]);
+
   const openClaimModal = useCallback((promo) => {
     setClaimTarget(promo);
     setIsClaimModalVisible(true);
@@ -820,6 +851,11 @@ export default function CouponPromosScreen({ route, navigation }) {
 
   const getClaimStatus = useCallback(
     (promo) => {
+      const serverClaimedAt = dateFromAny(promo.claimedAt);
+      if (serverClaimedAt) {
+        return { status: CLAIM_CLAIMED, isClaimed: true, isPending: false, isFailed: false, remainingMs: 0, resetRemainingMs: 0, claimedAt: serverClaimedAt.toISOString() };
+      }
+
       const claim = claimedCoupons[promo.id];
       if (claim) {
         if (claim.status === CLAIM_CLAIMED) {
@@ -853,13 +889,7 @@ export default function CouponPromosScreen({ route, navigation }) {
 
         return { status: CLAIM_PENDING, isClaimed: false, isPending: true, isFailed: false, remainingMs, resetRemainingMs: 0, claimedAt: null };
       }
-
-      const serverClaimedAt = dateFromAny(promo.claimedAt);
-      if (!serverClaimedAt) {
-        return { status: null, isClaimed: false, isPending: false, isFailed: false, remainingMs: 0, resetRemainingMs: 0, claimedAt: null };
-      }
-
-      return { status: CLAIM_CLAIMED, isClaimed: true, isPending: false, isFailed: false, remainingMs: 0, resetRemainingMs: 0, claimedAt: serverClaimedAt.toISOString() };
+      return { status: null, isClaimed: false, isPending: false, isFailed: false, remainingMs: 0, resetRemainingMs: 0, claimedAt: null };
     },
     [claimedCoupons, timerNow]
   );
