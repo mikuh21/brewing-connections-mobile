@@ -42,9 +42,7 @@ async function clearStoredToken() {
 }
 
 export const api = axios.create({
-  baseURL: __DEV__ 
-  ? (process.env.EXPO_PUBLIC_API_URL || 'https://brewing-hub.online')
-  : 'https://brewing-hub.online',
+  baseURL: 'https://brewing-hub.online',
   headers: {
     'Content-Type': 'application/json',
     Accept: 'application/json',

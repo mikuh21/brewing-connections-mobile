@@ -1,4 +1,4 @@
-const runtimeBaseUrl = process.env.EXPO_PUBLIC_API_URL || 'https://brewing-hub.online';
+const runtimeBaseUrl = 'https://brewing-hub.online';
 
 export const API_CONFIG = {
   baseUrl: runtimeBaseUrl,
