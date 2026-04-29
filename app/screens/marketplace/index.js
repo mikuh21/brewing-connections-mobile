@@ -24,7 +24,6 @@ import * as MediaLibrary from 'expo-media-library';
 import { captureRef } from 'react-native-view-shot';
 import { ConfirmToastModal, ScreenContainer } from '../../components';
 import {
-	API_CONFIG,
 	createLandingReservationPrefillToken,
 	getMyOrders,
 	getProducts,
@@ -33,6 +32,7 @@ import {
 } from '../../services';
 import { useAuth } from '../../context';
 import { getImageUrl } from '../../utils/imageHelper';
+import { buildMarketplaceLandingReservationUrl } from '../../utils/marketplaceWeb';
 import theme from '../../theme';
 
 const TAB_PRODUCTS = 'products';
@@ -135,28 +135,6 @@ function formatDisplayDateTime(dateValue, timeValue) {
 
 function normalizeBusinessName(name) {
 	return String(name || '').replace(/Cafe and Restaurant/gi, 'Cafe & Restaurant').trim();
-}
-
-function buildLandingReservationUrl({ productId, quantity, prefillToken }) {
-	const runtimeWebBase = process.env.EXPO_PUBLIC_WEB_URL || API_CONFIG?.baseUrl || '';
-	const baseUrl = String(runtimeWebBase || '').replace(/\/+$/, '');
-	if (!baseUrl) {
-		return '';
-	}
-
-	const params = new URLSearchParams();
-	if (Number.isInteger(Number(productId)) && Number(productId) > 0) {
-		params.set('product_id', String(Number(productId)));
-	}
-	if (Number.isFinite(Number(quantity)) && Number(quantity) > 0) {
-		params.set('quantity', String(Math.floor(Number(quantity))));
-	}
-	if (prefillToken) {
-		params.set('prefill_token', String(prefillToken));
-	}
-
-	const query = params.toString();
-	return `${baseUrl}/${query ? `?${query}` : ''}#farm-products`;
 }
 
 function getSellerDisplayName(source) {
@@ -762,7 +740,7 @@ export default function MarketplaceScreen() {
 					prefillToken = '';
 				}
 
-				const landingUrl = buildLandingReservationUrl({
+				const landingUrl = buildMarketplaceLandingReservationUrl({
 					productId: product.id,
 					quantity: selectedQuantity,
 					prefillToken,

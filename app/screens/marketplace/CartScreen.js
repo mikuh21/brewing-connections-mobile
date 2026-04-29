@@ -15,8 +15,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { ConfirmToastModal, ScreenContainer } from '../../components';
-import { API_CONFIG, createLandingReservationPrefillToken, getProducts, placeOrder } from '../../services';
+import { createLandingReservationPrefillToken, getProducts, placeOrder } from '../../services';
 import { getImageUrl } from '../../utils/imageHelper';
+import { buildMarketplaceLandingReservationUrl } from '../../utils/marketplaceWeb';
 import { useAuth } from '../../context';
 import theme from '../../theme';
 
@@ -142,28 +143,6 @@ function isProductReservable(product) {
 	return getAvailableStock(product) >= getMinimumQuantity(product);
 }
 
-
-function buildLandingReservationUrl({ productId, quantity, prefillToken }) {
-	const runtimeWebBase = process.env.EXPO_PUBLIC_WEB_URL || API_CONFIG?.baseUrl || '';
-	const baseUrl = String(runtimeWebBase || '').replace(/\/+$/, '');
-	if (!baseUrl) {
-		return '';
-	}
-
-	const params = new URLSearchParams();
-	if (Number.isInteger(Number(productId)) && Number(productId) > 0) {
-		params.set('product_id', String(Number(productId)));
-	}
-	if (Number.isFinite(Number(quantity)) && Number(quantity) > 0) {
-		params.set('quantity', String(Math.floor(Number(quantity))));
-	}
-	if (prefillToken) {
-		params.set('prefill_token', String(prefillToken));
-	}
-
-	const query = params.toString();
-	return `${baseUrl}/${query ? `?${query}` : ''}#farm-products`;
-}
 
 export default function MarketplaceCartScreen() {
 	const navigation = useNavigation();
@@ -387,7 +366,7 @@ export default function MarketplaceCartScreen() {
 						prefillToken = '';
 					}
 
-					const landingUrl = buildLandingReservationUrl({
+					const landingUrl = buildMarketplaceLandingReservationUrl({
 						productId: latestProduct.id,
 						quantity: requestedQuantity,
 						prefillToken,
