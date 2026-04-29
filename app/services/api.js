@@ -51,6 +51,19 @@ export const api = axios.create({
 });
 
 api.interceptors.request.use(async (config) => {
+  const resolvedBaseUrl = String(config?.baseURL || api.defaults.baseURL || '').replace(/\/+$/, '');
+  const resolvedPath = String(config?.url || '');
+  const resolvedUrl = /^https?:\/\//i.test(resolvedPath)
+    ? resolvedPath
+    : `${resolvedBaseUrl}${resolvedPath.startsWith('/') ? resolvedPath : `/${resolvedPath}`}`;
+
+  console.log('[API REQUEST]', {
+    method: String(config?.method || 'get').toUpperCase(),
+    url: resolvedUrl,
+    baseURL: config?.baseURL || api.defaults.baseURL || '',
+    path: resolvedPath,
+  });
+
   const token = await readStoredToken();
   if (token) {
     config.headers = config.headers || {};
@@ -63,6 +76,23 @@ api.interceptors.request.use(async (config) => {
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
+    console.log('[API RESPONSE ERROR]', {
+      message: error?.message,
+      code: error?.code,
+      method: String(error?.config?.method || '').toUpperCase(),
+      url: error?.config?.url || '',
+      baseURL: error?.config?.baseURL || '',
+      fullUrl:
+        error?.config?.url && /^https?:\/\//i.test(String(error.config.url))
+          ? error.config.url
+          : `${String(error?.config?.baseURL || api.defaults.baseURL || '').replace(/\/+$/, '')}${String(error?.config?.url || '').startsWith('/') ? String(error?.config?.url || '') : `/${String(error?.config?.url || '')}`}`,
+      status: error?.response?.status,
+      statusText: error?.response?.statusText,
+      data: error?.response?.data,
+      headers: error?.response?.headers,
+      requestHeaders: error?.config?.headers,
+    });
+
     if (error?.response?.status === 401) {
       await clearStoredToken();
     }
@@ -97,8 +127,33 @@ async function postWithFallback(paths, payload, config) {
 }
 
 export const login = async (email, password) => {
-  const response = await api.post('/api/login', { email, password });
-  return unwrap(response);
+  const payload = { email, password };
+  const resolvedBaseUrl = String(api.defaults.baseURL || '').replace(/\/+$/, '');
+  const resolvedUrl = `${resolvedBaseUrl}/api/login`;
+
+  console.log('[LOGIN REQUEST]', {
+    url: resolvedUrl,
+    payload,
+  });
+
+  try {
+    const response = await api.post('/api/login', payload);
+    return unwrap(response);
+  } catch (error) {
+    console.log('[LOGIN ERROR]', {
+      message: error?.message,
+      code: error?.code,
+      url: resolvedUrl,
+      payload,
+      status: error?.response?.status,
+      statusText: error?.response?.statusText,
+      data: error?.response?.data,
+      headers: error?.response?.headers,
+      requestHeaders: error?.config?.headers,
+    });
+
+    throw error;
+  }
 };
 
 export const register = async (name, email, password) => {
