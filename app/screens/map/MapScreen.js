@@ -756,10 +756,122 @@ function estimateEtaFromDistance(distanceKm) {
   return Math.max(1, Math.round(minutes));
 }
 
+const ROUTE_CONSUME_MAX_SNAP_DISTANCE_KM = 0.15;
+const ROUTE_CONSUME_ARRIVAL_DISTANCE_KM = 0.05;
 const TRAIL_REROUTE_MIN_DISTANCE_KM = 0.05;
 const TRAIL_REROUTE_MIN_INTERVAL_MS = 10000;
 const TRAIL_RESET_SIGNAL_KEY = 'trail_reset_signal_at';
 const SAVED_ESTABLISHMENTS_KEY = 'saved_establishments';
+
+function clamp(value, min, max) {
+  return Math.min(Math.max(value, min), max);
+}
+
+function projectPointOnSegment(point, start, end) {
+  const segmentLat = end.latitude - start.latitude;
+  const segmentLng = end.longitude - start.longitude;
+  const segmentLengthSquared = segmentLat * segmentLat + segmentLng * segmentLng;
+
+  if (segmentLengthSquared <= 0) {
+    return start;
+  }
+
+  const projectedRatio = clamp(
+    ((point.latitude - start.latitude) * segmentLat +
+      (point.longitude - start.longitude) * segmentLng) /
+      segmentLengthSquared,
+    0,
+    1
+  );
+
+  return {
+    latitude: start.latitude + segmentLat * projectedRatio,
+    longitude: start.longitude + segmentLng * projectedRatio,
+  };
+}
+
+function getNearestRouteProjection(route, point) {
+  if (!Array.isArray(route) || route.length < 2 || !point) {
+    return null;
+  }
+
+  let bestMatch = null;
+
+  for (let index = 0; index < route.length - 1; index += 1) {
+    const start = route[index];
+    const end = route[index + 1];
+    const projectedPoint = projectPointOnSegment(point, start, end);
+    const distanceKm = getDistance(
+      point.latitude,
+      point.longitude,
+      projectedPoint.latitude,
+      projectedPoint.longitude
+    );
+
+    if (!bestMatch || distanceKm < bestMatch.distanceKm) {
+      bestMatch = {
+        segmentIndex: index,
+        projectedPoint,
+        distanceKm,
+      };
+    }
+  }
+
+  return bestMatch;
+}
+
+function dedupeConsecutiveCoordinates(coordinates) {
+  return coordinates.filter((point, index, collection) => {
+    if (!point) {
+      return false;
+    }
+
+    if (index === 0) {
+      return true;
+    }
+
+    const previous = collection[index - 1];
+    return (
+      Math.abs(point.latitude - previous.latitude) > 0.000001 ||
+      Math.abs(point.longitude - previous.longitude) > 0.000001
+    );
+  });
+}
+
+function trimConsumedRoute(route, currentLocation, destination) {
+  if (!Array.isArray(route) || route.length < 2 || !currentLocation) {
+    return route;
+  }
+
+  const nearestMatch = getNearestRouteProjection(route, currentLocation);
+  if (!nearestMatch || nearestMatch.distanceKm > ROUTE_CONSUME_MAX_SNAP_DISTANCE_KM) {
+    return route;
+  }
+
+  const remainingRoute = dedupeConsecutiveCoordinates([
+    currentLocation,
+    ...route.slice(nearestMatch.segmentIndex + 1),
+  ]);
+
+  if (!destination || !remainingRoute.length) {
+    return remainingRoute.length > 1 ? remainingRoute : route;
+  }
+
+  const lastPoint = remainingRoute[remainingRoute.length - 1];
+  const destinationDistanceKm = getDistance(
+    lastPoint.latitude,
+    lastPoint.longitude,
+    destination.latitude,
+    destination.longitude
+  );
+
+  if (destinationDistanceKm <= 0.005) {
+    return remainingRoute.length > 1 ? remainingRoute : route;
+  }
+
+  const completedRoute = dedupeConsecutiveCoordinates([...remainingRoute, destination]);
+  return completedRoute.length > 1 ? completedRoute : route;
+}
 
 function shouldRefreshTrailLeg(previousPoint, nextPoint, lastRefreshAt) {
   if (!previousPoint || !lastRefreshAt) {
@@ -876,6 +988,7 @@ export default function MapScreen({ navigation, route }) {
     at: 0,
   });
   const savedToastTimeoutRef = useRef(null);
+  const navigationDestinationRef = useRef(null);
 
   const locationWatchRef = useRef(null);
   const trailPulseAnim = useRef(new Animated.Value(1)).current;
@@ -1270,7 +1383,18 @@ export default function MapScreen({ navigation, route }) {
   }, [isTrailMode, trailState, currentTrailStop, trailLegOrigin, trailOrigin, userLocation]);
 
   useEffect(() => {
-    if (!(isTrailMode && trailState === 'navigating')) {
+    const trailDestination =
+      isTrailMode && trailState === 'navigating' && currentTrailStop
+        ? {
+            latitude: currentTrailStop.latitude,
+            longitude: currentTrailStop.longitude,
+          }
+        : null;
+    const normalDestination =
+      !isTrailMode && routeCoordinates.length > 1 ? navigationDestinationRef.current : null;
+    const activeDestination = trailDestination || normalDestination;
+
+    if (!activeDestination) {
       if (locationWatchRef.current) {
         locationWatchRef.current.remove();
         locationWatchRef.current = null;
@@ -1296,7 +1420,24 @@ export default function MapScreen({ navigation, route }) {
         };
         setUserLocation(nextUser);
 
-        if (shouldRefreshTrailLeg(lastRerouteRef.current.point, nextUser, lastRerouteRef.current.at)) {
+        const distanceToDestinationKm = getDistance(
+          nextUser.latitude,
+          nextUser.longitude,
+          activeDestination.latitude,
+          activeDestination.longitude
+        );
+
+        if (!isTrailMode && distanceToDestinationKm < ROUTE_CONSUME_ARRIVAL_DISTANCE_KM) {
+          setRouteCoordinates([]);
+          return;
+        }
+
+        setRouteCoordinates((currentRoute) => trimConsumedRoute(currentRoute, nextUser, activeDestination));
+
+        if (
+          isTrailMode &&
+          shouldRefreshTrailLeg(lastRerouteRef.current.point, nextUser, lastRerouteRef.current.at)
+        ) {
           setTrailLegOrigin(nextUser);
           lastRerouteRef.current = {
             point: nextUser,
@@ -1304,16 +1445,11 @@ export default function MapScreen({ navigation, route }) {
           };
         }
 
-        if (!currentTrailStop) {
+        if (!(isTrailMode && currentTrailStop)) {
           return;
         }
 
-        const remainingKm = getDistance(
-          nextUser.latitude,
-          nextUser.longitude,
-          currentTrailStop.latitude,
-          currentTrailStop.longitude
-        );
+        const remainingKm = distanceToDestinationKm;
 
         setDistanceRemaining(formatDistanceKm(remainingKm));
         setEtaRemaining(formatEtaMinutes(estimateEtaFromDistance(remainingKm)));
@@ -1342,7 +1478,7 @@ export default function MapScreen({ navigation, route }) {
         locationWatchRef.current = null;
       }
     };
-  }, [isTrailMode, trailState, currentTrailStop]);
+  }, [isTrailMode, trailState, currentTrailStop, routeCoordinates.length]);
 
   useEffect(() => {
     if (!(isTrailMode && trailState === 'navigating')) {
@@ -1607,6 +1743,10 @@ export default function MapScreen({ navigation, route }) {
     }
 
     setIsNavigating(true);
+    navigationDestinationRef.current = {
+      latitude: item.latitude,
+      longitude: item.longitude,
+    };
 
     try {
       const nextRoute = await fetchDirectionPolyline(userLocation, {
@@ -1778,6 +1918,7 @@ export default function MapScreen({ navigation, route }) {
   };
 
   const handleClearRoute = () => {
+    navigationDestinationRef.current = null;
     setRouteCoordinates([]);
 
     if (!mapRef.current || !selectedEstablishment) {
