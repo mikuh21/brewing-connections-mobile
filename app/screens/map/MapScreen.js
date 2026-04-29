@@ -763,10 +763,6 @@ const TRAIL_REROUTE_MIN_INTERVAL_MS = 10000;
 const TRAIL_RESET_SIGNAL_KEY = 'trail_reset_signal_at';
 const SAVED_ESTABLISHMENTS_KEY = 'saved_establishments';
 
-function clamp(value, min, max) {
-  return Math.min(Math.max(value, min), max);
-}
-
 function projectPointOnSegment(point, start, end) {
   const segmentLat = end.latitude - start.latitude;
   const segmentLng = end.longitude - start.longitude;
