@@ -354,6 +354,7 @@ export default function MarketplaceCartScreen() {
 					}
 
 					let prefillToken = '';
+					let landingUrl = '';
 					try {
 						const prefillResponse = await createLandingReservationPrefillToken({
 							product_id: latestProduct.id,
@@ -362,15 +363,19 @@ export default function MarketplaceCartScreen() {
 							pickup_time: item.pickup_time || null,
 						});
 						prefillToken = String(prefillResponse?.prefill_token || '').trim();
+						landingUrl = String(prefillResponse?.landing_url || '').trim();
 					} catch (_prefillError) {
 						prefillToken = '';
+						landingUrl = '';
 					}
 
-					const landingUrl = buildMarketplaceLandingReservationUrl({
-						productId: latestProduct.id,
-						quantity: requestedQuantity,
-						prefillToken,
-					});
+					if (!landingUrl) {
+						landingUrl = buildMarketplaceLandingReservationUrl({
+							productId: latestProduct.id,
+							quantity: requestedQuantity,
+							prefillToken,
+						});
+					}
 
 					if (!landingUrl) {
 						throw new Error('Landing page URL is not configured. Set EXPO_PUBLIC_WEB_URL or EXPO_PUBLIC_API_URL.');
