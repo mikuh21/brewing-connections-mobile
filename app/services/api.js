@@ -103,6 +103,67 @@ api.interceptors.response.use(
 
 const unwrap = (response) => response.data;
 
+function shouldUseNetworkFallback(error) {
+  return error?.code === 'ERR_NETWORK' && !error?.response;
+}
+
+async function getWithFetchFallback(path) {
+  const resolvedBaseUrl = String(api.defaults.baseURL || '').replace(/\/+$/, '');
+  const resolvedPath = String(path || '');
+  const resolvedUrl = /^https?:\/\//i.test(resolvedPath)
+    ? resolvedPath
+    : `${resolvedBaseUrl}${resolvedPath.startsWith('/') ? resolvedPath : `/${resolvedPath}`}`;
+
+  const headers = {
+    Accept: 'application/json',
+    'Content-Type': 'application/json',
+  };
+
+  const token = await readStoredToken();
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
+  const response = await fetch(resolvedUrl, {
+    method: 'GET',
+    headers,
+  });
+
+  const rawBody = await response.text();
+  const parsedBody = rawBody ? JSON.parse(rawBody) : null;
+
+  if (!response.ok) {
+    const fallbackError = new Error(parsedBody?.message || `Request failed with status ${response.status}`);
+    fallbackError.response = {
+      status: response.status,
+      statusText: response.statusText,
+      data: parsedBody,
+      headers: {},
+    };
+    throw fallbackError;
+  }
+
+  return parsedBody;
+}
+
+async function getWithNetworkFallback(path) {
+  try {
+    const response = await api.get(path);
+    return unwrap(response);
+  } catch (error) {
+    if (!shouldUseNetworkFallback(error)) {
+      throw error;
+    }
+
+    console.log('[API FETCH FALLBACK]', {
+      method: 'GET',
+      path,
+    });
+
+    return getWithFetchFallback(path);
+  }
+}
+
 async function postWithFallback(paths, payload, config) {
   let lastError = null;
 
@@ -270,18 +331,15 @@ export const getRatingsFeed = async () => {
 };
 
 export const getMessages = async () => {
-  const response = await api.get('/api/conversations');
-  return unwrap(response);
+  return getWithNetworkFallback('/api/conversations');
 };
 
 export const getConversationMessages = async (conversationId) => {
-  const response = await api.get(`/api/conversations/${conversationId}/messages`);
-  return unwrap(response);
+  return getWithNetworkFallback(`/api/conversations/${conversationId}/messages`);
 };
 
 export const getChatRecipients = async () => {
-  const response = await api.get('/api/chat/recipients');
-  return unwrap(response);
+  return getWithNetworkFallback('/api/chat/recipients');
 };
 
 export const createConversation = async (recipientId) => {
