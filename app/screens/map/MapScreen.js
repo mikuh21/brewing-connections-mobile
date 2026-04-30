@@ -308,6 +308,17 @@ function normalizeEstablishment(item, index, promoIndexByEstablishment) {
   const recentReviews = Array.isArray(source.recent_reviews)
     ? source.recent_reviews.filter(Boolean)
     : [];
+  const productRatings = Array.isArray(source.product_ratings)
+    ? source.product_ratings
+      .filter((item) => item && item.name)
+      .map((item) => ({
+        id: item.id,
+        name: item.name,
+        averageRating: Number(item.average_rating ?? 0),
+        ratingCount: Number(item.rating_count ?? 0),
+        isActive: item.is_active !== false,
+      }))
+    : [];
   const sourcePromoDetails = getActivePromoDetailsFromSource(source);
   const promoLookupId = String(source.id ?? '').trim();
   const promoLookupName = toLowerTrim(source.name);
@@ -366,6 +377,7 @@ function normalizeEstablishment(item, index, promoIndexByEstablishment) {
     cleanlinessAvg: Number(source.cleanliness_avg ?? 0),
     serviceAvg: Number(source.service_avg ?? 0),
     coffeeVarieties: varieties,
+    productRatings,
     recentReviews,
     activePromoDetails,
     activePromos,
@@ -608,6 +620,8 @@ function getProductsByType(type) {
 
   return ['Coffee Beans', 'Ground Coffee'];
 }
+
+const BREWING_HUB_INFO_URL = 'https://brewing-hub.online';
 
 function getEstablishmentRecipientId(source) {
   const candidates = [
@@ -2130,6 +2144,20 @@ export default function MapScreen({ navigation, route }) {
     }
   };
 
+  const handleOpenBrewHubInfo = async () => {
+    try {
+      const canOpen = await Linking.canOpenURL(BREWING_HUB_INFO_URL);
+      if (!canOpen) {
+        Alert.alert('Unable to open link', 'This website link is not supported on this device.');
+        return;
+      }
+
+      await Linking.openURL(BREWING_HUB_INFO_URL);
+    } catch {
+      Alert.alert('Unable to open link', 'Could not open the BrewHub website.');
+    }
+  };
+
   const handleOpenMarketplace = () => {
     try {
       const parentNavigation = navigation?.getParent?.();
@@ -2895,13 +2923,37 @@ export default function MapScreen({ navigation, route }) {
 
                   <View style={styles.sectionBlock}>
                     <Text style={styles.sectionTitle}>Products</Text>
-                    <View style={styles.productsChipsWrap}>
-                      {getProductsByType(selectedEstablishment.type).map((product) => (
-                        <View key={product} style={styles.productChip}>
-                          <Text style={styles.productChipText}>{product}</Text>
+                    {selectedEstablishment.type === 'farm' ? (
+                      selectedEstablishment.productRatings.length ? (
+                        <View style={styles.productRatingsList}>
+                          {selectedEstablishment.productRatings.map((product) => (
+                            <View key={`${product.id || product.name}`} style={styles.productRatingRow}>
+                              <Text style={styles.productRatingName} numberOfLines={1}>
+                                {product.name}
+                              </Text>
+                              <Text
+                                style={[
+                                  styles.productRatingStars,
+                                  product.ratingCount > 0 ? null : styles.productRatingStarsMuted,
+                                ]}
+                              >
+                                {product.ratingCount > 0 ? formatStars(product.averageRating) : 'No ratings yet'}
+                              </Text>
+                            </View>
+                          ))}
                         </View>
-                      ))}
-                    </View>
+                      ) : (
+                        <Text style={styles.detailText}>No rated farm products available yet.</Text>
+                      )
+                    ) : (
+                      <View style={styles.productsChipsWrap}>
+                        {getProductsByType(selectedEstablishment.type).map((product) => (
+                          <View key={product} style={styles.productChip}>
+                            <Text style={styles.productChipText}>{product}</Text>
+                          </View>
+                        ))}
+                      </View>
+                    )}
 
                     <Pressable
                       style={styles.marketplaceInlineButton}
@@ -2910,6 +2962,18 @@ export default function MapScreen({ navigation, route }) {
                       <MaterialIcons name="shopping-bag" size={15} color="#FFFFFF" />
                       <Text style={styles.marketplaceInlineButtonText}>Open Marketplace</Text>
                     </Pressable>
+
+                    {selectedEstablishment.type === 'farm' ? (
+                      <Pressable
+                        style={styles.infoLinkButton}
+                        onPress={handleOpenBrewHubInfo}
+                        accessibilityRole="link"
+                        accessibilityLabel="Open BrewHub website for more details"
+                      >
+                        <MaterialIcons name="open-in-new" size={15} color="#2D4A1E" />
+                        <Text style={styles.infoLinkButtonText}>More details on brewing-hub.online</Text>
+                      </Pressable>
+                    ) : null}
                   </View>
 
                   {selectedEstablishment.type === 'cafe' ? (
@@ -4185,6 +4249,35 @@ const styles = StyleSheet.create({
     gap: 8,
     marginTop: 2,
   },
+  productRatingsList: {
+    marginTop: 2,
+    gap: 8,
+  },
+  productRatingRow: {
+    minHeight: 46,
+    borderWidth: 1,
+    borderColor: '#D2C5B3',
+    backgroundColor: '#F7F2EA',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    gap: 3,
+  },
+  productRatingName: {
+    color: '#3A2E22',
+    fontFamily: 'PoppinsSemiBold',
+    fontSize: 13,
+    lineHeight: 17,
+  },
+  productRatingStars: {
+    color: '#7A5A18',
+    fontFamily: 'PoppinsMedium',
+    fontSize: 12,
+    lineHeight: 16,
+  },
+  productRatingStarsMuted: {
+    color: '#8E7E6D',
+  },
   productChip: {
     borderWidth: 1,
     borderColor: '#D2C5B3',
@@ -4213,6 +4306,25 @@ const styles = StyleSheet.create({
   marketplaceInlineButtonText: {
     color: '#FFFFFF',
     fontFamily: 'PoppinsBold',
+    fontSize: 13,
+    lineHeight: 16,
+  },
+  infoLinkButton: {
+    marginTop: 8,
+    minHeight: 40,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#B7C7AF',
+    backgroundColor: '#EFF5EC',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 8,
+    paddingHorizontal: 12,
+  },
+  infoLinkButtonText: {
+    color: '#2D4A1E',
+    fontFamily: 'PoppinsSemiBold',
     fontSize: 13,
     lineHeight: 16,
   },
