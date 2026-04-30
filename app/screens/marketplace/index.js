@@ -365,6 +365,41 @@ export default function MarketplaceScreen() {
 		setReceiptSavedNotice(false);
 	}, []);
 
+	const openProductRating = useCallback(
+		(order) => {
+			const ratingUrl = String(order?.rating_url || '').trim();
+
+			if (!ratingUrl) {
+				setError('Product rating link is not available for this order yet.');
+				return;
+			}
+
+			openConfirm({
+				title: 'Open Product Rating',
+				message: 'Continue to the BrewHub website to rate this reserved product?',
+				confirmLabel: 'Open Website',
+				onConfirm: async () => {
+					try {
+						const canOpen = await Linking.canOpenURL(ratingUrl);
+
+						if (!canOpen) {
+							throw new Error('Unable to open the product rating page on this device.');
+						}
+
+						await Linking.openURL(ratingUrl);
+						showToast('Product rating opened in web view.');
+					} catch (openError) {
+						const message =
+							openError?.message ||
+							'Unable to open the product rating page right now.';
+						setError(message);
+					}
+				},
+			});
+		},
+		[showToast]
+	);
+
 	const saveReceiptAsImage = useCallback(async () => {
 		try {
 			if (!receiptCardRef.current) {
@@ -936,6 +971,12 @@ const cancelOrder = async (order) => {
 		const imageUrl = getImageUrl(item?.product?.image_url);
 		const cancellable = activeTab === TAB_TRACKING && normalizedStatus === 'pending';
 		const sellerDisplayName = getSellerDisplayName(item);
+		const hasProductRating = Boolean(item?.product_rating_submitted_at);
+		const canRateProduct =
+			activeTab === TAB_HISTORY &&
+			Boolean(item?.can_rate_product) &&
+			Boolean(item?.rating_url) &&
+			!hasProductRating;
 
 		return (
 			<View style={styles.orderCard}>
@@ -985,6 +1026,28 @@ const cancelOrder = async (order) => {
 									<Text style={styles.cancelOrderButtonText}>
 										{cancellingOrderId === item.id ? 'Cancelling...' : 'Cancel Order'}
 									</Text>
+								</Pressable>
+							</View>
+						) : null}
+
+						{activeTab === TAB_HISTORY ? (
+							<View style={styles.orderHistoryActionsRow}>
+								{canRateProduct ? (
+									<Pressable style={styles.rateProductButton} onPress={() => openProductRating(item)}>
+										<MaterialIcons name="star-rate" size={15} color={theme.colors.white} />
+										<Text style={styles.rateProductButtonText}>Rate Product</Text>
+									</Pressable>
+								) : hasProductRating ? (
+									<View style={styles.ratedBadge}>
+										<MaterialIcons name="check-circle" size={14} color="#2E5A3D" />
+										<Text style={styles.ratedBadgeText}>Rated</Text>
+									</View>
+								) : (
+									<View />
+								)}
+
+								<Pressable style={styles.receiptIconButton} onPress={() => openReceiptModal(item)}>
+									<MaterialIcons name="receipt-long" size={18} color={MARKETPLACE_ACTION_GREEN} />
 								</Pressable>
 							</View>
 						) : null}
@@ -1819,6 +1882,13 @@ const styles = StyleSheet.create({
 		alignItems: 'center',
 		justifyContent: 'flex-end',
 	},
+	orderHistoryActionsRow: {
+		marginTop: 10,
+		flexDirection: 'row',
+		alignItems: 'center',
+		justifyContent: 'space-between',
+		gap: 10,
+	},
 	orderProductName: {
 		color: theme.colors.sidebar,
 		fontWeight: '700',
@@ -1864,6 +1934,38 @@ const styles = StyleSheet.create({
 		flexDirection: 'row',
 		alignItems: 'center',
 		justifyContent: 'center',
+	},
+	rateProductButton: {
+		flexDirection: 'row',
+		alignItems: 'center',
+		justifyContent: 'center',
+		gap: 6,
+		paddingHorizontal: 12,
+		paddingVertical: 8,
+		borderRadius: theme.borderRadius.pill,
+		backgroundColor: MARKETPLACE_ACTION_GREEN,
+		flexShrink: 1,
+	},
+	rateProductButtonText: {
+		color: theme.colors.white,
+		fontFamily: 'PoppinsMedium',
+		fontSize: theme.fontSizes.xs,
+	},
+	ratedBadge: {
+		flexDirection: 'row',
+		alignItems: 'center',
+		gap: 6,
+		paddingHorizontal: 12,
+		paddingVertical: 8,
+		borderRadius: theme.borderRadius.pill,
+		borderWidth: 1,
+		borderColor: '#B7D2BF',
+		backgroundColor: '#EDF7F0',
+	},
+	ratedBadgeText: {
+		color: '#2E5A3D',
+		fontFamily: 'PoppinsMedium',
+		fontSize: theme.fontSizes.xs,
 	},
 	errorText: {
 		marginBottom: theme.spacing.sm,
