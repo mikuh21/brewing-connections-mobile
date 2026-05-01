@@ -776,6 +776,7 @@ const TRAIL_REROUTE_MIN_DISTANCE_KM = 0.05;
 const TRAIL_REROUTE_MIN_INTERVAL_MS = 10000;
 const TRAIL_RESET_SIGNAL_KEY = 'trail_reset_signal_at';
 const SAVED_ESTABLISHMENTS_KEY = 'saved_establishments';
+const DOWNLOADED_VARIETIES_KEY = 'offline_saved_varieties';
 
 function projectPointOnSegment(point, start, end) {
   const segmentLat = end.latitude - start.latitude;
@@ -989,7 +990,9 @@ export default function MapScreen({ navigation, route }) {
   const [activeSheetImageUri, setActiveSheetImageUri] = useState(null);
   const [activeSheetImageIndex, setActiveSheetImageIndex] = useState(0);
   const [savedEstablishments, setSavedEstablishments] = useState([]);
+  const [downloadedVarieties, setDownloadedVarieties] = useState([]);
   const [showSavedToast, setShowSavedToast] = useState(false);
+  const [savedToastMessage, setSavedToastMessage] = useState('Saved to Favorites');
   const [showAboutModal, setShowAboutModal] = useState(false);
   const [showBeanPreviewModal, setShowBeanPreviewModal] = useState(false);
   const [beanPreviewSource, setBeanPreviewSource] = useState(ABOUT_VARIETY_CONTENT[0]?.imageSource || null);
@@ -1218,6 +1221,32 @@ export default function MapScreen({ navigation, route }) {
     };
 
     loadSavedEstablishments();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadDownloadedVarieties = async () => {
+      try {
+        const raw = await AsyncStorage.getItem(DOWNLOADED_VARIETIES_KEY);
+        if (!isMounted) {
+          return;
+        }
+
+        const parsed = JSON.parse(raw || '[]');
+        setDownloadedVarieties(Array.isArray(parsed) ? parsed : []);
+      } catch {
+        if (isMounted) {
+          setDownloadedVarieties([]);
+        }
+      }
+    };
+
+    loadDownloadedVarieties();
 
     return () => {
       isMounted = false;
@@ -1840,6 +1869,23 @@ export default function MapScreen({ navigation, route }) {
     });
   };
 
+  const handleToggleVarietyOffline = async (varietyTitle) => {
+    const key = String(varietyTitle || '').trim();
+    if (!key) {
+      return;
+    }
+
+    const willDownload = !downloadedVarieties.includes(key);
+
+    const next = downloadedVarieties.includes(key)
+      ? downloadedVarieties.filter((item) => item !== key)
+      : [...downloadedVarieties, key];
+
+    setDownloadedVarieties(next);
+    await AsyncStorage.setItem(DOWNLOADED_VARIETIES_KEY, JSON.stringify(next));
+    showTransientToast(willDownload ? 'Saved to Profile' : 'Removed from Profile');
+  };
+
   const handleMapPress = () => {
     Keyboard.dismiss();
     setOpenFilterMenu(null);
@@ -1868,11 +1914,12 @@ export default function MapScreen({ navigation, route }) {
     ]).start();
   };
 
-  const showSavedToFavoritesToast = () => {
+  const showTransientToast = (message) => {
     if (savedToastTimeoutRef.current) {
       clearTimeout(savedToastTimeoutRef.current);
     }
 
+    setSavedToastMessage(String(message || 'Saved'));
     setShowSavedToast(true);
     savedToastOpacity.setValue(0);
     Animated.timing(savedToastOpacity, {
@@ -1920,7 +1967,7 @@ export default function MapScreen({ navigation, route }) {
     });
 
     if (willSave) {
-      showSavedToFavoritesToast();
+      showTransientToast('Saved to Favorites');
     } else {
       setShowSavedToast(false);
       savedToastOpacity.setValue(0);
@@ -2789,7 +2836,7 @@ export default function MapScreen({ navigation, route }) {
 
                   {showSavedToast ? (
                     <Animated.View style={[styles.savedToastWrap, { opacity: savedToastOpacity }]}>
-                      <Text style={styles.savedToastText}>Saved to Favorites</Text>
+                      <Text style={styles.savedToastText}>{savedToastMessage}</Text>
                     </Animated.View>
                   ) : null}
                 </View>
@@ -3220,6 +3267,11 @@ export default function MapScreen({ navigation, route }) {
               <View style={styles.aboutHeaderTextWrap}>
                 <Text style={styles.aboutTitle}>Coffee Variety Guide</Text>
                 <Text style={styles.aboutSubtitle}>Explore the flavor identity and traits of each variety.</Text>
+                {showSavedToast ? (
+                  <Animated.View style={[styles.aboutToastWrap, { opacity: savedToastOpacity }]}>
+                    <Text style={styles.aboutToastText}>{savedToastMessage}</Text>
+                  </Animated.View>
+                ) : null}
               </View>
 
               <Pressable style={styles.aboutCloseButton} onPress={() => setShowAboutModal(false)}>
@@ -3232,7 +3284,10 @@ export default function MapScreen({ navigation, route }) {
               contentContainerStyle={styles.aboutScrollContent}
               showsVerticalScrollIndicator={false}
             >
-              {ABOUT_VARIETY_CONTENT.map((variety) => (
+              {ABOUT_VARIETY_CONTENT.map((variety) => {
+                const isDownloaded = downloadedVarieties.includes(variety.title);
+
+                return (
                 <View
                   key={variety.key}
                   style={[
@@ -3245,14 +3300,32 @@ export default function MapScreen({ navigation, route }) {
                 >
                   <View style={styles.aboutVarietyHeaderRow}>
                     <Text style={styles.aboutVarietyTitle}>{variety.title}</Text>
-                    <Pressable
-                      style={styles.aboutBeanPreviewButton}
-                      onPress={() => handleOpenBeanPreview(variety.imageSource || null)}
-                      accessibilityRole="button"
-                      accessibilityLabel={`Preview ${variety.title} coffee bean image`}
-                    >
-                      <Image source={variety.imageSource} style={styles.aboutBeanPreviewImage} resizeMode="contain" />
-                    </Pressable>
+                    <View style={styles.aboutVarietyHeaderActions}>
+                      <Pressable
+                        style={[
+                          styles.aboutOfflineButton,
+                          isDownloaded && styles.aboutOfflineButtonActive,
+                        ]}
+                        onPress={() => handleToggleVarietyOffline(variety.title)}
+                        accessibilityRole="button"
+                        accessibilityLabel={`${isDownloaded ? 'Remove' : 'Download'} ${variety.title} for offline access`}
+                      >
+                        <MaterialIcons
+                          name={isDownloaded ? 'check-circle' : 'download'}
+                          size={19}
+                          color={isDownloaded ? '#24563B' : '#6E6254'}
+                        />
+                      </Pressable>
+
+                      <Pressable
+                        style={styles.aboutBeanPreviewButton}
+                        onPress={() => handleOpenBeanPreview(variety.imageSource || null)}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Preview ${variety.title} coffee bean image`}
+                      >
+                        <Image source={variety.imageSource} style={styles.aboutBeanPreviewImage} resizeMode="contain" />
+                      </Pressable>
+                    </View>
                   </View>
                   <Text style={styles.aboutScientificName}>{variety.scientificName}</Text>
 
@@ -3271,7 +3344,8 @@ export default function MapScreen({ navigation, route }) {
 
                   <Text style={styles.aboutReference}>Reference: {variety.reference}</Text>
                 </View>
-              ))}
+                );
+              })}
             </ScrollView>
           </Animated.View>
 
@@ -4513,6 +4587,22 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 17,
   },
+  aboutToastWrap: {
+    alignSelf: 'flex-start',
+    marginTop: 8,
+    borderWidth: 1,
+    borderColor: '#D8CCBE',
+    backgroundColor: '#FFFCF8',
+    borderRadius: 999,
+    paddingHorizontal: 9,
+    paddingVertical: 3,
+  },
+  aboutToastText: {
+    color: '#6E6254',
+    fontFamily: 'PoppinsMedium',
+    fontSize: 10,
+    lineHeight: 12,
+  },
   aboutCloseButton: {
     width: 30,
     height: 30,
@@ -4544,11 +4634,30 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: 8,
   },
+  aboutVarietyHeaderActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   aboutVarietyTitle: {
     color: '#3A2E22',
     fontFamily: 'PoppinsBold',
     fontSize: 15,
     lineHeight: 20,
+  },
+  aboutOfflineButton: {
+    width: 42,
+    height: 42,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#D8CCBC',
+    backgroundColor: 'rgba(255, 255, 255, 0.65)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  aboutOfflineButtonActive: {
+    backgroundColor: '#E2F1D8',
+    borderColor: '#B8D1A8',
   },
   aboutBeanPreviewButton: {
     width: 42,

@@ -73,7 +73,10 @@ export default function ProfileScreen({ navigation }) {
   const accountName = user?.name || '';
   const accountEmail = user?.email || '';
 
-  const savedVarieties = useMemo(() => [], []);
+  const savedVarieties = useMemo(
+    () => Array.from(new Set(downloadedVarieties.map((item) => String(item || '').trim()).filter(Boolean))),
+    [downloadedVarieties]
+  );
 
   const initials = getInitials(user?.name, user?.email);
 
