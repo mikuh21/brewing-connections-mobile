@@ -338,7 +338,7 @@ export default function ProfileScreen({ navigation }) {
               );
             })
           ) : (
-            <Text style={styles.emptyText}>No saved varieties yet. This will be available in Coffee Variety About soon.</Text>
+            <Text style={styles.emptyText}>No saved varieties yet.</Text>
           )}
         </View>
 

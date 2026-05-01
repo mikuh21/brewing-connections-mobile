@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -22,6 +22,7 @@ import * as Location from 'expo-location';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
 import { API_CONFIG, api, getCouponPromos, getEstablishments, trackMapMarkerView } from '../../services';
 import { getImageUrl } from '../../utils/imageHelper';
 
@@ -1227,31 +1228,31 @@ export default function MapScreen({ navigation, route }) {
     };
   }, []);
 
-  useEffect(() => {
-    let isMounted = true;
-
-    const loadDownloadedVarieties = async () => {
-      try {
-        const raw = await AsyncStorage.getItem(DOWNLOADED_VARIETIES_KEY);
-        if (!isMounted) {
-          return;
-        }
-
-        const parsed = JSON.parse(raw || '[]');
-        setDownloadedVarieties(Array.isArray(parsed) ? parsed : []);
-      } catch {
-        if (isMounted) {
-          setDownloadedVarieties([]);
-        }
-      }
-    };
-
-    loadDownloadedVarieties();
-
-    return () => {
-      isMounted = false;
-    };
+  const loadDownloadedVarieties = useCallback(async () => {
+    try {
+      const raw = await AsyncStorage.getItem(DOWNLOADED_VARIETIES_KEY);
+      const parsed = JSON.parse(raw || '[]');
+      setDownloadedVarieties(Array.isArray(parsed) ? parsed : []);
+    } catch {
+      setDownloadedVarieties([]);
+    }
   }, []);
+
+  useEffect(() => {
+    loadDownloadedVarieties();
+  }, [loadDownloadedVarieties]);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadDownloadedVarieties();
+    }, [loadDownloadedVarieties])
+  );
+
+  useEffect(() => {
+    if (showAboutModal) {
+      loadDownloadedVarieties();
+    }
+  }, [showAboutModal, loadDownloadedVarieties]);
 
   useEffect(() => {
     return () => {
