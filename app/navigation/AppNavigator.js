@@ -12,6 +12,7 @@ import MarketplaceCartScreen from '../screens/marketplace/CartScreen';
 import MessagesScreen from '../screens/messages';
 import ProfileScreen from '../screens/profile';
 import SavedTrailsScreen from '../screens/profile/SavedTrailsScreen';
+import SavedCoffeeVarietiesScreen from '../screens/profile/SavedCoffeeVarietiesScreen';
 import RatingScreen from '../screens/ratings';
 import { useChat } from '../context';
 
@@ -193,6 +194,14 @@ export default function AppNavigator() {
       <Stack.Screen
         name="SavedTrails"
         component={SavedTrailsScreen}
+        options={{
+          gestureDirection: 'horizontal',
+          cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
+        }}
+      />
+      <Stack.Screen
+        name="SavedCoffeeVarieties"
+        component={SavedCoffeeVarietiesScreen}
         options={{
           gestureDirection: 'horizontal',
           cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,

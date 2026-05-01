@@ -119,20 +119,6 @@ export default function ProfileScreen({ navigation }) {
     }, [refreshUnreadCount, restoreProfileAndStorage])
   );
 
-  const toggleVarietyOffline = async (varietyName) => {
-    const key = String(varietyName || '').trim();
-    if (!key) {
-      return;
-    }
-
-    const next = downloadedVarieties.includes(key)
-      ? downloadedVarieties.filter((item) => item !== key)
-      : [...downloadedVarieties, key];
-
-    setDownloadedVarieties(next);
-    await AsyncStorage.setItem(DOWNLOADED_VARIETIES_KEY, JSON.stringify(next));
-  };
-
   const toggleEstablishmentOffline = async (establishmentId) => {
     const key = String(establishmentId || '');
     if (!key) {
@@ -308,39 +294,16 @@ export default function ProfileScreen({ navigation }) {
           </View>
         </Pressable>
 
-        <View style={styles.offlineBlock}>
-          <View style={styles.offlineHeader}>
-            <Text style={styles.offlineTitle}>Saved Coffee Varieties</Text>
-            <Text style={styles.offlineMeta}>{savedVarieties.length} saved</Text>
+        <Pressable style={[styles.actionRow, styles.actionRowSpaced]} onPress={() => navigation.navigate('SavedCoffeeVarieties')}>
+          <View style={styles.actionLeft}>
+            <MaterialIcons name="coffee" size={18} color="#2D4A1E" />
+            <Text style={styles.actionLabel}>Saved Coffee Varieties</Text>
           </View>
-
-          {savedVarieties.length ? (
-            savedVarieties.map((variety) => {
-              const downloaded = downloadedVarieties.includes(variety);
-              return (
-                <Pressable
-                  key={variety}
-                  style={styles.offlineItem}
-                  onPress={() => toggleVarietyOffline(variety)}
-                >
-                  <Text style={styles.offlineItemLabel}>{variety}</Text>
-                  <View style={[styles.offlineBadge, downloaded && styles.offlineBadgeActive]}>
-                    <MaterialIcons
-                      name={downloaded ? 'check-circle' : 'download'}
-                      size={14}
-                      color={downloaded ? '#24563B' : '#6E6254'}
-                    />
-                    <Text style={[styles.offlineBadgeText, downloaded && styles.offlineBadgeTextActive]}>
-                      {downloaded ? 'Offline' : 'Download'}
-                    </Text>
-                  </View>
-                </Pressable>
-              );
-            })
-          ) : (
-            <Text style={styles.emptyText}>No saved varieties yet.</Text>
-          )}
-        </View>
+          <View style={styles.actionRight}>
+            <Text style={styles.actionCount}>{savedVarieties.length}</Text>
+            <MaterialIcons name="chevron-right" size={20} color="#6E6254" />
+          </View>
+        </Pressable>
 
         <View style={styles.offlineBlock}>
           <View style={styles.offlineHeader}>
@@ -652,6 +615,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+  },
+  actionRowSpaced: {
+    marginTop: theme.spacing.sm,
   },
   actionLeft: {
     flexDirection: 'row',
