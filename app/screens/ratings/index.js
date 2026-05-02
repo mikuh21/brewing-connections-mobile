@@ -28,6 +28,10 @@ const INITIAL_RATINGS = {
 	service: 0,
 };
 const TRAIL_RESET_SIGNAL_KEY = 'trail_reset_signal_at';
+const FEED_TABS = [
+	{ id: 'cafe', label: 'Cafes' },
+	{ id: 'farm_product', label: 'Farm Products' },
+];
 
 function toEstablishmentId(stop) {
 	const raw = stop?.establishment_id ?? stop?.id ?? null;
@@ -59,6 +63,7 @@ function toFeedItem(item) {
 	const environment = Number(item?.environment_rating ?? item?.environment ?? item?.environmentScore ?? 0) || 0;
 	const cleanliness = Number(item?.cleanliness_rating ?? item?.cleanliness ?? item?.cleanlinessScore ?? 0) || 0;
 	const service = Number(item?.service_rating ?? item?.service ?? item?.serviceScore ?? 0) || 0;
+	const feedType = item?.feed_type === 'farm_product' || item?.product_id ? 'farm_product' : 'cafe';
 	const establishmentName =
 		item?.establishment?.name ||
 		item?.establishment_name ||
@@ -66,12 +71,24 @@ function toFeedItem(item) {
 		item?.cafe_name ||
 		item?.cafeName ||
 		'Unknown Place';
+	const productName =
+		item?.product?.name ||
+		item?.product_name ||
+		item?.productName ||
+		'Unknown Product';
+	const farmName =
+		item?.farm_name ||
+		item?.product?.establishment?.name ||
+		item?.product?.seller?.name ||
+		'Unknown Farm';
 	const address =
+		item?.farm_address ||
 		item?.establishment?.address ||
 		item?.establishment_address ||
 		item?.address ||
 		'';
 	const barangay =
+		item?.farm_barangay ||
 		item?.establishment?.barangay ||
 		item?.establishment_barangay ||
 		item?.barangay ||
@@ -89,7 +106,12 @@ function toFeedItem(item) {
 	return {
 		id: item?.id,
 		createdAt: item?.created_at || item?.createdAt || item?.timestamp || null,
-		establishmentName,
+		feedType,
+		title: feedType === 'farm_product' ? productName : establishmentName,
+		subtitle: feedType === 'farm_product' ? `Farm: ${farmName}` : establishmentName,
+		placeName: establishmentName,
+		farmName,
+		productName,
 		locationDisplay,
 		userName,
 		taste,
@@ -97,6 +119,7 @@ function toFeedItem(item) {
 		cleanliness,
 		service,
 		photoUrl: getImageUrl(item?.image_url || item?.photo_url || item?.photo || item?.photo_path || item?.image),
+		productImageUrl: getImageUrl(item?.product_image_url || item?.product?.image_url),
 	};
 }
 
@@ -147,6 +170,7 @@ function RatingsFeedView({ navigation, onSwitchToForm }) {
 	const [error, setError] = useState(null);
 	const [sortBy, setSortBy] = useState('newest');
 	const [showSortMenu, setShowSortMenu] = useState(false);
+	const [activeFeedTab, setActiveFeedTab] = useState('cafe');
 	const [currentPage, setCurrentPage] = useState(0);
 	const [confirmState, setConfirmState] = useState({
 		visible: false,
@@ -217,10 +241,14 @@ function RatingsFeedView({ navigation, onSwitchToForm }) {
 
 	useEffect(() => {
 		setCurrentPage(0);
-	}, [feedItems]);
+	}, [feedItems, activeFeedTab, sortBy]);
+
+	const filteredFeedItems = useMemo(() => {
+		return feedItems.filter((item) => item.feedType === activeFeedTab);
+	}, [feedItems, activeFeedTab]);
 
 	const sortedRatings = useMemo(() => {
-		const sorted = [...feedItems];
+		const sorted = [...filteredFeedItems];
 
 		if (sortBy === 'highest') {
 			sorted.sort((a, b) => {
@@ -235,7 +263,7 @@ function RatingsFeedView({ navigation, onSwitchToForm }) {
 		}
 
 		return sorted;
-	}, [feedItems, sortBy]);
+	}, [filteredFeedItems, sortBy]);
 
 	const paginatedRatings = useMemo(() => {
 		const startIdx = currentPage * RATINGS_PER_PAGE;
@@ -245,6 +273,7 @@ function RatingsFeedView({ navigation, onSwitchToForm }) {
 
 	const totalPages = Math.ceil(sortedRatings.length / RATINGS_PER_PAGE);
 	const selectedSort = SORT_OPTIONS.find(opt => opt.id === sortBy);
+	const selectedFeedTab = FEED_TABS.find((tab) => tab.id === activeFeedTab);
 
 	const renderItem = useCallback(({ item }) => {
 		const avgRating =
@@ -254,16 +283,26 @@ function RatingsFeedView({ navigation, onSwitchToForm }) {
 
 		return (
 			<View style={styles.feedCard}>
-				{item.photoUrl ? (
-					<Image source={{ uri: item.photoUrl }} style={styles.feedCardPhoto} resizeMode="cover" />
+				{item.photoUrl || item.productImageUrl ? (
+					<Image source={{ uri: item.photoUrl || item.productImageUrl }} style={styles.feedCardPhoto} resizeMode="cover" />
 				) : null}
 				<View style={styles.feedCardBody}>
+					<View style={styles.feedCardBadgeRow}>
+						<View style={[styles.feedCardBadge, item.feedType === 'farm_product' ? styles.feedCardBadgeFarm : styles.feedCardBadgeCafe]}>
+							<Text style={[styles.feedCardBadgeText, item.feedType === 'farm_product' ? styles.feedCardBadgeTextFarm : styles.feedCardBadgeTextCafe]}>
+								{item.feedType === 'farm_product' ? 'Farm Product' : 'Cafe'}
+							</Text>
+						</View>
+					</View>
 					<View style={styles.feedCardHeaderRow}>
-						<Text style={styles.feedCardEstablishment} numberOfLines={1}>
-							{item.establishmentName}
+						<Text style={styles.feedCardEstablishment} numberOfLines={2}>
+							{item.title}
 						</Text>
 						<Text style={styles.feedCardTime}>{timeAgo(item.createdAt)}</Text>
 					</View>
+					<Text style={styles.feedCardSubtitle} numberOfLines={1}>
+						{item.feedType === 'farm_product' ? item.subtitle : item.placeName}
+					</Text>
 					{item.locationDisplay ? (
 						<View style={styles.feedCardLocationRow}>
 							<MaterialIcons name="location-on" size={14} color="#6B7280" />
@@ -302,7 +341,7 @@ function RatingsFeedView({ navigation, onSwitchToForm }) {
 		<SafeAreaView style={styles.screen}>
 			<FlatList
 				data={paginatedRatings}
-				keyExtractor={(item, index) => String(item.id ?? `${item.createdAt ?? 'rating'}-${index}`)}
+				keyExtractor={(item, index) => String(`${item.feedType}-${item.id ?? `${item.createdAt ?? 'rating'}-${index}`}`)}
 				renderItem={renderItem}
 				contentContainerStyle={styles.feedContainer}
 				showsVerticalScrollIndicator={false}
@@ -319,6 +358,20 @@ function RatingsFeedView({ navigation, onSwitchToForm }) {
 						<ViewModeSwitch mode="feed" onChange={onSwitchToForm} />
 						<Text style={styles.title}>Ratings Feed</Text>
 						<Text style={styles.subtitle}>Your recent ratings and from the community</Text>
+						<View style={styles.feedTabsWrap}>
+							{FEED_TABS.map((tab) => {
+								const selected = tab.id === activeFeedTab;
+								return (
+									<Pressable
+										key={tab.id}
+										style={[styles.feedTabChip, selected && styles.feedTabChipActive]}
+										onPress={() => setActiveFeedTab(tab.id)}
+									>
+										<Text style={[styles.feedTabChipText, selected && styles.feedTabChipTextActive]}>{tab.label}</Text>
+									</Pressable>
+								);
+							})}
+						</View>
 						<Pressable
 							style={styles.feedActionButton}
 							onPress={() => {
@@ -356,7 +409,11 @@ function RatingsFeedView({ navigation, onSwitchToForm }) {
 					) : (
 						<View style={styles.feedEmptyWrap}>
 							<MaterialIcons name="star-border" size={36} color="#B9AB96" />
-							<Text style={styles.feedEmptyText}>No ratings yet. Be the first!</Text>
+							<Text style={styles.feedEmptyText}>
+								{selectedFeedTab?.id === 'farm_product'
+									? 'No farm product ratings yet. Be the first!'
+									: 'No cafe ratings yet. Be the first!'}
+							</Text>
 						</View>
 					)
 				}
@@ -1307,6 +1364,32 @@ const styles = StyleSheet.create({
 	feedCardBody: {
 		padding: 12,
 	},
+	feedCardBadgeRow: {
+		marginBottom: 8,
+		flexDirection: 'row',
+	},
+	feedCardBadge: {
+		borderRadius: 999,
+		paddingHorizontal: 10,
+		paddingVertical: 5,
+	},
+	feedCardBadgeCafe: {
+		backgroundColor: '#EEF6E6',
+	},
+	feedCardBadgeFarm: {
+		backgroundColor: '#F4EBDD',
+	},
+	feedCardBadgeText: {
+		fontFamily: 'PoppinsBold',
+		fontSize: 11,
+		lineHeight: 14,
+	},
+	feedCardBadgeTextCafe: {
+		color: '#2D4A1E',
+	},
+	feedCardBadgeTextFarm: {
+		color: '#8A5A20',
+	},
 	feedCardHeaderRow: {
 		flexDirection: 'row',
 		alignItems: 'flex-start',
@@ -1319,6 +1402,13 @@ const styles = StyleSheet.create({
 		fontFamily: 'PoppinsBold',
 		fontSize: 15,
 		lineHeight: 20,
+	},
+	feedCardSubtitle: {
+		marginTop: 4,
+		color: '#3A2E22',
+		fontFamily: 'PoppinsMedium',
+		fontSize: 13,
+		lineHeight: 18,
 	},
 	feedCardLocationRow: {
 		marginTop: 4,
@@ -1376,6 +1466,37 @@ const styles = StyleSheet.create({
 	feedCardMetricSep: {
 		color: '#B9AB96',
 		fontSize: 12,
+	},
+	feedTabsWrap: {
+		marginTop: 12,
+		flexDirection: 'row',
+		gap: 8,
+	},
+	feedTabChip: {
+		flex: 1,
+		minHeight: 42,
+		borderRadius: 12,
+		borderWidth: 1,
+		borderColor: '#D7CFC4',
+		backgroundColor: '#FFFFFF',
+		alignItems: 'center',
+		justifyContent: 'center',
+		paddingHorizontal: 12,
+	},
+	feedTabChipActive: {
+		borderColor: '#2D4A1E',
+		backgroundColor: '#EEF6E6',
+	},
+	feedTabChipText: {
+		color: '#6B7280',
+		fontFamily: 'PoppinsMedium',
+		fontSize: 12,
+		lineHeight: 16,
+		textAlign: 'center',
+	},
+	feedTabChipTextActive: {
+		color: '#2D4A1E',
+		fontFamily: 'PoppinsBold',
 	},
 	modeSwitchWrap: {
 		marginTop: 8,
