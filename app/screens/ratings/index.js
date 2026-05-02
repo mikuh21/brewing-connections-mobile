@@ -96,7 +96,7 @@ function toFeedItem(item) {
 		environment,
 		cleanliness,
 		service,
-			photoUrl: getImageUrl(item?.photo_url || item?.photo || item?.photo_path || item?.image_url || item?.image),
+		photoUrl: getImageUrl(item?.image_url || item?.photo_url || item?.photo || item?.photo_path || item?.image),
 	};
 }
 
