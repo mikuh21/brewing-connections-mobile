@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import { getMessages } from '../services';
 import { useAuth } from './AuthContext';
 
-const CHAT_POLL_INTERVAL_MS = 10000;
+const CHAT_POLL_INTERVAL_MS = 30000;
 const ChatContext = createContext(null);
 
 function safeConversationArray(payload) {
@@ -39,9 +39,9 @@ export function ChatProvider({ children }) {
       setUnreadCount(totalUnread);
       return totalUnread;
     } catch {
-      return unreadCount;
+      return 0;
     }
-  }, [isAuthenticated, unreadCount]);
+  }, [isAuthenticated]);
 
   useEffect(() => {
     if (!isAuthenticated) {
