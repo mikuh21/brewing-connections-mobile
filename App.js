@@ -5,6 +5,7 @@ import {
   Poppins_400Regular,
   Poppins_400Regular_Italic,
   Poppins_500Medium,
+  Poppins_600SemiBold,
   Poppins_700Bold,
 } from '@expo-google-fonts/poppins';
 import {
@@ -46,6 +47,7 @@ export default function App() {
     PoppinsRegular: Poppins_400Regular,
     PoppinsItalic: Poppins_400Regular_Italic,
     PoppinsMedium: Poppins_500Medium,
+    PoppinsSemiBold: Poppins_600SemiBold,
     PoppinsBold: Poppins_700Bold,
     PlayfairDisplay: PlayfairDisplay_500Medium,
     PlayfairDisplayMedium: PlayfairDisplay_500Medium,
