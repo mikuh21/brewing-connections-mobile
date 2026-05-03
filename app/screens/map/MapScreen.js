@@ -1151,6 +1151,15 @@ export default function MapScreen({ navigation, route }) {
     return `${uniqueNames[0]}, ${uniqueNames[1]} +${uniqueNames.length - 2}`;
   }, [selectedVarieties, availableVarieties]);
 
+  const markerRenderScope = useMemo(() => {
+    const varietiesKey = selectedVarieties
+      .map((item) => String(item).toLowerCase())
+      .sort()
+      .join('|');
+
+    return [filter, varietiesKey, searchQuery.trim().toLowerCase()].join('::');
+  }, [filter, selectedVarieties, searchQuery]);
+
   const filteredEstablishments = useMemo(() => {
     const activeVarieties = selectedVarieties.map((v) => String(v).toLowerCase());
     const normalizedSearch = searchQuery.trim().toLowerCase();
@@ -2506,7 +2515,7 @@ export default function MapScreen({ navigation, route }) {
             })
           : filteredEstablishments.map((item) => (
           <Marker
-            key={item.id}
+            key={`${markerRenderScope}-${item.id}`}
             coordinate={{ latitude: item.latitude, longitude: item.longitude }}
             tracksViewChanges={false}
             onPress={() => handleMarkerSelect(item)}
