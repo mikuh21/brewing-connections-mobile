@@ -1579,10 +1579,11 @@ export default function MapScreen({ navigation, route }) {
       return;
     }
 
+    beanPreviewAnim.stopAnimation();
     beanPreviewAnim.setValue(0);
     Animated.timing(beanPreviewAnim, {
       toValue: 1,
-      duration: 220,
+      duration: 180,
       useNativeDriver: true,
     }).start();
   }, [beanPreviewAnim, showBeanPreviewModal]);
@@ -1597,6 +1598,7 @@ export default function MapScreen({ navigation, route }) {
   };
 
   const handleCloseBeanPreview = () => {
+    beanPreviewAnim.stopAnimation();
     Animated.timing(beanPreviewAnim, {
       toValue: 0,
       duration: 160,
@@ -3351,7 +3353,7 @@ export default function MapScreen({ navigation, route }) {
           </Animated.View>
 
           {showBeanPreviewModal ? (
-            <View style={styles.aboutBeanModalBackdrop}>
+            <Animated.View style={[styles.aboutBeanModalBackdrop, { opacity: beanPreviewAnim }]}>
               <Pressable style={styles.aboutBeanModalBackdropTap} onPress={handleCloseBeanPreview} />
               <Animated.View
                 style={[
@@ -3362,7 +3364,7 @@ export default function MapScreen({ navigation, route }) {
                       {
                         scale: beanPreviewAnim.interpolate({
                           inputRange: [0, 1],
-                          outputRange: [0.86, 1],
+                          outputRange: [0.94, 1],
                         }),
                       },
                     ],
@@ -3370,12 +3372,12 @@ export default function MapScreen({ navigation, route }) {
                 ]}
               >
                 {beanPreviewSource ? (
-                  <Image source={beanPreviewSource} style={styles.aboutBeanModalImage} resizeMode="contain" />
+                  <Image source={beanPreviewSource} style={styles.aboutBeanModalImage} resizeMode="contain" fadeDuration={0} />
                 ) : (
                   <MaterialCommunityIcons name="coffee-bean" size={128} color="#7A5D3A" />
                 )}
               </Animated.View>
-            </View>
+            </Animated.View>
           ) : null}
         </View>
       </Modal>
