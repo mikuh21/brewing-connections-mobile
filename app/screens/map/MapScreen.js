@@ -34,10 +34,10 @@ const LIPA_REGION = {
 };
 
 const LIPA_BOUNDS = {
-  minLatitude: 13.5,
-  maxLatitude: 14.4,
-  minLongitude: 120.7,
-  maxLongitude: 121.8,
+  minLatitude: 4.5,
+  maxLatitude: 21.5,
+  minLongitude: 116.0,
+  maxLongitude: 127.0,
 };
 
 const MAP_DELTA_LIMITS = {
@@ -422,6 +422,59 @@ function constrainRegion(region) {
     latitudeDelta,
     longitudeDelta,
   };
+}
+
+async function geocodePhilippines(rawQuery) {
+  const cleaned = String(rawQuery || '').trim();
+  if (!cleaned) {
+    return null;
+  }
+
+  const query = encodeURIComponent(`${cleaned}, Philippines`);
+  const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=5&countrycodes=ph&q=${query}`;
+
+  try {
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        Accept: 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      return null;
+    }
+
+    const items = await response.json();
+    if (!Array.isArray(items) || items.length === 0) {
+      return null;
+    }
+
+    const best = items[0];
+    const lat = Number(best?.lat);
+    const lng = Number(best?.lon);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+      return null;
+    }
+
+    const bounds = Array.isArray(best?.boundingbox) && best.boundingbox.length === 4
+      ? {
+          south: Number(best.boundingbox[0]),
+          north: Number(best.boundingbox[1]),
+          west: Number(best.boundingbox[2]),
+          east: Number(best.boundingbox[3]),
+        }
+      : null;
+
+    return {
+      lat,
+      lng,
+      bounds,
+      placeName: best?.display_name || cleaned,
+    };
+  } catch {
+    return null;
+  }
 }
 
 function regionHasMeaningfulDiff(a, b) {
@@ -2021,37 +2074,68 @@ export default function MapScreen({ navigation, route }) {
     mapRef.current.animateToRegion(fallbackRegion, 220);
   };
 
-  const handleSearchSubmit = () => {
+  const handleSearchSubmit = async () => {
     Keyboard.dismiss();
     setOpenFilterMenu(null);
 
-    const query = searchQuery.trim().toLowerCase();
+    const query = searchQuery.trim();
     if (!query) {
       return;
     }
 
+    const normalizedQuery = query.toLowerCase();
     const rankedMatches = filteredEstablishments
-      .map((item) => ({ item, score: getSearchMatchScore(item, query) }))
+      .map((item) => ({ item, score: getSearchMatchScore(item, normalizedQuery) }))
       .filter((entry) => entry.score > 0)
       .sort((a, b) => b.score - a.score);
 
     const bestMatch = rankedMatches[0]?.item;
 
-    if (!bestMatch || !mapRef.current) {
+    if (bestMatch && mapRef.current) {
+      setRouteCoordinates([]);
+      setNavigationError('');
+      setSelectedEstablishmentId(bestMatch.id);
+      setIsDetailsExpanded(false);
+      ignoreMapPressUntilRef.current = Date.now() + 360;
+
+      const targetRegion = constrainRegion({
+        latitude: bestMatch.latitude,
+        longitude: bestMatch.longitude,
+        latitudeDelta: 0.022,
+        longitudeDelta: 0.022,
+      });
+
+      mapRef.current.animateToRegion(targetRegion, 360);
+      return;
+    }
+
+    if (!mapRef.current) {
+      return;
+    }
+
+    const geocodeResult = await geocodePhilippines(query);
+    if (!geocodeResult) {
+      setNavigationError('No results found for that location.');
       return;
     }
 
     setRouteCoordinates([]);
     setNavigationError('');
-    setSelectedEstablishmentId(bestMatch.id);
+    setSelectedEstablishmentId(null);
     setIsDetailsExpanded(false);
-    ignoreMapPressUntilRef.current = Date.now() + 360;
+
+    const latitudeDelta = geocodeResult.bounds
+      ? clamp(Math.abs(geocodeResult.bounds.north - geocodeResult.bounds.south) * 1.5, 0.02, 0.36)
+      : 0.18;
+    const longitudeDelta = geocodeResult.bounds
+      ? clamp(Math.abs(geocodeResult.bounds.east - geocodeResult.bounds.west) * 1.5, 0.02, 0.36)
+      : 0.18;
 
     const targetRegion = constrainRegion({
-      latitude: bestMatch.latitude,
-      longitude: bestMatch.longitude,
-      latitudeDelta: 0.022,
-      longitudeDelta: 0.022,
+      latitude: geocodeResult.lat,
+      longitude: geocodeResult.lng,
+      latitudeDelta,
+      longitudeDelta,
     });
 
     mapRef.current.animateToRegion(targetRegion, 360);
