@@ -438,6 +438,8 @@ async function geocodePhilippines(rawQuery) {
       method: 'GET',
       headers: {
         Accept: 'application/json',
+        'User-Agent': 'BrewHub/1.0 (https://brewing-hub.online)',
+        Referer: 'https://brewing-hub.online',
       },
     });
 
