@@ -2,6 +2,7 @@
   "expo": {
     "name": "BrewHub",
     "slug": "brewhub",
+    "scheme": "brewhub",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -30,10 +31,11 @@
     "web": {
       "favicon": "./assets/favicon.png"
     },
-   "plugins": [
+    "plugins": [
       "expo-font",
       "expo-camera",
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      "expo-web-browser"
     ],
     "extra": {
       "eas": {

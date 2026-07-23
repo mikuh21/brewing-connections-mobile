@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Image,
   KeyboardAvoidingView,
   Platform,
@@ -12,10 +13,14 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import * as WebBrowser from 'expo-web-browser';
+import * as Google from 'expo-auth-session/providers/google';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useAuth } from '../../context';
-import { login as loginRequest } from '../../services';
+import { api, login as loginRequest } from '../../services';
 import theme from '../../theme';
+
+WebBrowser.maybeCompleteAuthSession();
 
 const logoImage = require('../../../assets/auth/brewing-connections-logo.png');
 const googleIcon = require('../../../assets/auth/google-icon.png');
@@ -27,6 +32,41 @@ export default function LoginScreen({ navigation }) {
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [googleLoading, setGoogleLoading] = useState(false);
+  const [googleRequest, googleResponse, googlePromptAsync] =
+    Google.useAuthRequest({
+      iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
+      androidClientId: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID,
+      scopes: ['profile', 'email'],
+    });
+
+  const handleGoogleSignIn = async (token) => {
+    setGoogleLoading(true);
+    try {
+      const response = await api.post('/api/auth/google', {
+        id_token: token,
+      });
+      const { token: authToken, user } = response.data;
+      await login(authToken, user);
+    } catch (submitError) {
+      const message =
+        submitError?.response?.data?.message || 'Google sign in failed. Please try again.';
+      Alert.alert('Google Sign In Failed', message);
+    } finally {
+      setGoogleLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (googleResponse?.type === 'success') {
+      const idToken =
+        googleResponse.authentication?.idToken || googleResponse.authentication?.accessToken;
+
+      if (idToken) {
+        handleGoogleSignIn(idToken);
+      }
+    }
+  }, [googleResponse]);
 
   const onSubmit = async () => {
     setIsSubmitting(true);
@@ -124,9 +164,34 @@ export default function LoginScreen({ navigation }) {
                 <View style={styles.dividerLine} />
               </View>
 
-              <Pressable style={styles.googleButton}>
-                <Image source={googleIcon} style={styles.googleIcon} resizeMode="contain" />
-                <Text style={styles.googleText}>Google</Text>
+              <Pressable
+                disabled={googleLoading}
+                onPress={async () => {
+                  if (Platform.OS !== 'ios' && Platform.OS !== 'android') {
+                    Alert.alert('Unavailable', 'Google sign-in is available on iOS and Android only.');
+                    return;
+                  }
+
+                  if (!googleRequest) {
+                    return;
+                  }
+
+                  await googlePromptAsync();
+                }}
+                style={({ pressed }) => [
+                  styles.googleButton,
+                  googleLoading && styles.buttonDisabled,
+                  pressed && styles.buttonPressed,
+                ]}
+              >
+                {googleLoading ? (
+                  <ActivityIndicator color={theme.colors.white} />
+                ) : (
+                  <>
+                    <Image source={googleIcon} style={styles.googleIcon} resizeMode="contain" />
+                    <Text style={styles.googleText}>Google</Text>
+                  </>
+                )}
               </Pressable>
 
               <Pressable onPress={() => navigation.navigate('Register')} style={styles.signupWrap}>
