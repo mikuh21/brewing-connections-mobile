@@ -13,6 +13,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import * as AuthSession from 'expo-auth-session';
 import * as WebBrowser from 'expo-web-browser';
 import * as Google from 'expo-auth-session/providers/google';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -34,11 +35,20 @@ export default function LoginScreen({ navigation }) {
   const [error, setError] = useState('');
   const [googleLoading, setGoogleLoading] = useState(false);
   const [googleRequest, googleResponse, googlePromptAsync] =
-    Google.useAuthRequest({
-      iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
-      androidClientId: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID,
-      scopes: ['profile', 'email'],
-    });
+    Google.useAuthRequest(
+      {
+        iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
+        androidClientId: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID,
+        webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
+        scopes: ['profile', 'email'],
+      },
+      {
+        useProxy: true,
+        redirectUri: AuthSession.makeRedirectUri({
+          useProxy: true,
+        }),
+      }
+    );
 
   const handleGoogleSignIn = async (token) => {
     setGoogleLoading(true);
@@ -176,7 +186,7 @@ export default function LoginScreen({ navigation }) {
                     return;
                   }
 
-                  await googlePromptAsync();
+                  await googlePromptAsync({ useProxy: true });
                 }}
                 style={({ pressed }) => [
                   styles.googleButton,
