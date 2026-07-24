@@ -37,8 +37,19 @@ export function AuthProvider({ children }) {
           AsyncStorage.getItem(AUTH_USER_KEY),
         ]);
 
+        let parsedUser = null;
+
+        if (storedUser) {
+          try {
+            parsedUser = JSON.parse(storedUser);
+          } catch (parseError) {
+            console.warn('Failed to parse stored auth user', parseError);
+            await AsyncStorage.removeItem(AUTH_USER_KEY);
+          }
+        }
+
         setToken(storedToken ?? null);
-        setUser(storedUser ? normalizeUser(JSON.parse(storedUser)) : null);
+        setUser(parsedUser ? normalizeUser(parsedUser) : null);
       } catch (error) {
         console.warn('Failed to read auth session', error);
       } finally {

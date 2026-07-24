@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -13,15 +13,17 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import * as AuthSession from 'expo-auth-session';
-import * as WebBrowser from 'expo-web-browser';
-import * as Google from 'expo-auth-session/providers/google';
+import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useAuth } from '../../context';
 import { api, login as loginRequest } from '../../services';
 import theme from '../../theme';
 
-WebBrowser.maybeCompleteAuthSession();
+GoogleSignin.configure({
+  webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
+  iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
+  offlineAccess: true,
+});
 
 const logoImage = require('../../../assets/auth/brewing-connections-logo.png');
 const googleIcon = require('../../../assets/auth/google-icon.png');
@@ -34,49 +36,38 @@ export default function LoginScreen({ navigation }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [googleLoading, setGoogleLoading] = useState(false);
-  const [googleRequest, googleResponse, googlePromptAsync] =
-    Google.useAuthRequest(
-      {
-        iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
-        androidClientId: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID,
-        webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
-        scopes: ['profile', 'email'],
-      },
-      {
-        useProxy: true,
-        redirectUri: AuthSession.makeRedirectUri({
-          useProxy: true,
-        }),
-      }
-    );
 
-  const handleGoogleSignIn = async (token) => {
+  const handleGoogleSignIn = async () => {
     setGoogleLoading(true);
     try {
-      const response = await api.post('/api/auth/google', {
-        id_token: token,
-      });
+      await GoogleSignin.hasPlayServices();
+      const userInfo = await GoogleSignin.signIn();
+      const idToken = userInfo.idToken || userInfo.data?.idToken || null;
+
+      if (!idToken) {
+        throw new Error('No ID token received from Google');
+      }
+
+      const response = await api.post('/api/auth/google', { id_token: idToken });
       const { token: authToken, user } = response.data;
       await login(authToken, user);
-    } catch (submitError) {
-      const message =
-        submitError?.response?.data?.message || 'Google sign in failed. Please try again.';
-      Alert.alert('Google Sign In Failed', message);
+    } catch (err) {
+      const code = err?.code;
+      let message = err?.response?.data?.message || err?.message || 'Google sign in failed';
+
+      if (code === statusCodes.SIGN_IN_CANCELLED) {
+        message = 'Sign in cancelled';
+      } else if (code === statusCodes.IN_PROGRESS) {
+        message = 'Sign in already in progress';
+      } else if (code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
+        message = 'Google Play Services not available';
+      }
+
+      Alert.alert('Google Sign In', message);
     } finally {
       setGoogleLoading(false);
     }
   };
-
-  useEffect(() => {
-    if (googleResponse?.type === 'success') {
-      const idToken =
-        googleResponse.authentication?.idToken || googleResponse.authentication?.accessToken;
-
-      if (idToken) {
-        handleGoogleSignIn(idToken);
-      }
-    }
-  }, [googleResponse]);
 
   const onSubmit = async () => {
     setIsSubmitting(true);
@@ -176,18 +167,7 @@ export default function LoginScreen({ navigation }) {
 
               <Pressable
                 disabled={googleLoading}
-                onPress={async () => {
-                  if (Platform.OS !== 'ios' && Platform.OS !== 'android') {
-                    Alert.alert('Unavailable', 'Google sign-in is available on iOS and Android only.');
-                    return;
-                  }
-
-                  if (!googleRequest) {
-                    return;
-                  }
-
-                  await googlePromptAsync({ useProxy: true });
-                }}
+                onPress={handleGoogleSignIn}
                 style={({ pressed }) => [
                   styles.googleButton,
                   googleLoading && styles.buttonDisabled,

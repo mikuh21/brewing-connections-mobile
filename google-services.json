@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1082763611243",
+    "project_id": "brewing-connections-ce316",
+    "storage_bucket": "brewing-connections-ce316.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1082763611243:android:c3dfbeace325b9312ef52e",
+        "android_client_info": {
+          "package_name": "com.brewhub.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBkDGaT8R8cJ7DyHFoSI05hcmzeepeQ4cA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
