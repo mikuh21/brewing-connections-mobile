@@ -5,7 +5,6 @@
     "scheme": "brewhub",
     "version": "1.0.0",
     "orientation": "portrait",
-    "scheme": "brewhub",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
