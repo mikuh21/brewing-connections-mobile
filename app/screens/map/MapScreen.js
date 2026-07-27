@@ -1024,7 +1024,7 @@ export default function MapScreen({ navigation, route }) {
   const mapSessionIdRef = useRef(`map-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`);
   const lastTrackedMarkerRef = useRef({ id: null, at: 0 });
   const [isLoading, setIsLoading] = useState(true);
-  const [isLocationBusy, setIsLocationBusy] = useState(true);
+  const [isLocationBusy, setIsLocationBusy] = useState(false);
   const [isNavigating, setIsNavigating] = useState(false);
   const [error, setError] = useState('');
   const [navigationError, setNavigationError] = useState('');
@@ -1326,36 +1326,36 @@ export default function MapScreen({ navigation, route }) {
     };
   }, []);
 
-  useEffect(() => {
-    let isMounted = true;
+  const requestCurrentLocation = useCallback(async () => {
+    try {
+      setIsLocationBusy(true);
 
-    const requestLocation = async () => {
-      try {
-        const permission = await Location.requestForegroundPermissionsAsync();
-        if (permission?.granted) {
-          const current = await Location.getCurrentPositionAsync({
-            accuracy: Location.Accuracy.Balanced,
-          });
-
-          setUserLocation({
-            latitude: current.coords.latitude,
-            longitude: current.coords.longitude,
-          });
-        }
-      } catch {
-        // Keep map usable even if location access fails.
-      } finally {
-        if (isMounted) {
-          setIsLocationBusy(false);
-        }
+      const permission = await Location.requestForegroundPermissionsAsync();
+      if (permission?.status !== 'granted') {
+        setNavigationError('');
+        Alert.alert('Permission Required', 'Location permission is required to find nearby coffee shops and farms.');
+        setUserLocation(null);
+        return null;
       }
-    };
 
-    requestLocation();
+      const current = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
 
-    return () => {
-      isMounted = false;
-    };
+      const nextLocation = {
+        latitude: current.coords.latitude,
+        longitude: current.coords.longitude,
+      };
+
+      setUserLocation(nextLocation);
+      return nextLocation;
+    } catch {
+      setNavigationError('Unable to get your current location.');
+      setUserLocation(null);
+      return null;
+    } finally {
+      setIsLocationBusy(false);
+    }
   }, []);
 
   useEffect(() => {
@@ -2151,43 +2151,24 @@ export default function MapScreen({ navigation, route }) {
 
     let nextLocation = userLocation;
 
-    try {
-      if (!nextLocation) {
-        const permission = await Location.requestForegroundPermissionsAsync();
-        if (!permission?.granted) {
-          setNavigationError('Location permission is needed to recenter map.');
-          return;
-        }
-
-        const current = await Location.getCurrentPositionAsync({
-          accuracy: Location.Accuracy.Balanced,
-        });
-
-        nextLocation = {
-          latitude: current.coords.latitude,
-          longitude: current.coords.longitude,
-        };
-
-        setUserLocation(nextLocation);
-      }
-
-      if (!mapRef.current || !nextLocation) {
-        return;
-      }
-
-      setNavigationError('');
-
-      const region = constrainRegion({
-        latitude: nextLocation.latitude,
-        longitude: nextLocation.longitude,
-        latitudeDelta: 0.018,
-        longitudeDelta: 0.018,
-      });
-
-      mapRef.current.animateToRegion(region, 340);
-    } catch {
-      setNavigationError('Unable to get your current location.');
+    if (!nextLocation) {
+      nextLocation = await requestCurrentLocation();
     }
+
+    if (!mapRef.current || !nextLocation) {
+      return;
+    }
+
+    setNavigationError('');
+
+    const region = constrainRegion({
+      latitude: nextLocation.latitude,
+      longitude: nextLocation.longitude,
+      latitudeDelta: 0.018,
+      longitudeDelta: 0.018,
+    });
+
+    mapRef.current.animateToRegion(region, 340);
   };
 
   const handleStartTrail = () => {
