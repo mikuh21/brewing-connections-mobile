@@ -143,9 +143,22 @@ const ABOUT_VARIETY_CONTENT = [
     reference: 'CoffeeBeans.ph',
   },
 ];
+;
 
+// Decode an encoded Google polyline string into an array of {latitude, longitude}
+// See: https://developers.google.com/maps/documentation/utilities/polylinealgorithm
+function decodePolyline(encoded) {
+  if (!encoded || typeof encoded !== 'string') return [];
+
+  const coordinates = [];
+  let index = 0;
+  let lat = 0;
+  let lng = 0;
+
+  while (index < encoded.length) {
     let result = 0;
-    let byte;
+    let shift = 0;
+    let byte = null;
 
     do {
       byte = encoded.charCodeAt(index++) - 63;
@@ -153,11 +166,11 @@ const ABOUT_VARIETY_CONTENT = [
       shift += 5;
     } while (byte >= 0x20);
 
-    const deltaLat = (result & 1) ? ~(result >> 1) : result >> 1;
+    const deltaLat = (result & 1) ? ~(result >> 1) : (result >> 1);
     lat += deltaLat;
 
-    shift = 0;
     result = 0;
+    shift = 0;
 
     do {
       byte = encoded.charCodeAt(index++) - 63;
@@ -165,13 +178,10 @@ const ABOUT_VARIETY_CONTENT = [
       shift += 5;
     } while (byte >= 0x20);
 
-    const deltaLng = (result & 1) ? ~(result >> 1) : result >> 1;
+    const deltaLng = (result & 1) ? ~(result >> 1) : (result >> 1);
     lng += deltaLng;
 
-    coordinates.push({
-      latitude: lat / 1e5,
-      longitude: lng / 1e5,
-    });
+    coordinates.push({ latitude: lat / 1e5, longitude: lng / 1e5 });
   }
 
   return coordinates;
@@ -1908,7 +1918,7 @@ export default function MapScreen({ navigation, route }) {
     });
 
     mapRef.current.animateToRegion(targetRegion, 360);
-  };
+  }, [searchQuery, filteredEstablishments, mapRef, ignoreMapPressUntilRef]);
 
   const handleRecenterPress = useCallback(async () => {
     Keyboard.dismiss();
@@ -1936,7 +1946,7 @@ export default function MapScreen({ navigation, route }) {
     });
 
     mapRef.current.animateToRegion(region, 340);
-  };
+  }, [userLocation, requestCurrentLocation, handleDismissSheet, sheetScrollRef, mapRef]);
 
   const handleStartTrail = () => {
     if (!trailStops.length) {
