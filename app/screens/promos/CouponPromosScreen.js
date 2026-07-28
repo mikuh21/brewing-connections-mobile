@@ -10,12 +10,12 @@ import {
   Modal,
   Pressable,
   RefreshControl,
-  SafeAreaView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import QRCode from 'react-native-qrcode-svg';
 import { getCouponPromos, getEstablishments } from '../../services';
 import { useAuth } from '../../context';
@@ -1050,7 +1050,7 @@ export default function CouponPromosScreen({ route, navigation }) {
   });
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       <View style={styles.container}>
         <FlatList
           ref={listRef}

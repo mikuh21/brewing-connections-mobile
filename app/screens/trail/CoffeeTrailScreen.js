@@ -4,7 +4,6 @@ import {
   Alert,
   Animated,
   Pressable,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
@@ -14,6 +13,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
 import { MaterialIcons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import Slider from '@react-native-community/slider';
 import { getCoffeeTrail, getCoffeeTrailHistory, getCoffeeTrailPreview } from '../../services';
 
@@ -857,7 +857,7 @@ export default function CoffeeTrailScreen({ navigation }) {
 
   if (activeTab === TRAIL_TABS.HISTORY) {
     return (
-      <SafeAreaView style={styles.screen}>
+      <SafeAreaView style={styles.screen} edges={['top', 'left', 'right']}>
         <View style={styles.historyContainer}>
           <View style={styles.historyTopRow}>
             <Text style={styles.title}>Your Trail History</Text>
@@ -950,7 +950,7 @@ export default function CoffeeTrailScreen({ navigation }) {
 
   if (step === 2) {
     return (
-      <SafeAreaView style={styles.loadingScreen}>
+      <SafeAreaView style={styles.loadingScreen} edges={['top', 'left', 'right']}>
         <View style={styles.loadingCupWrap}>
           <Animated.View
             style={[
@@ -1032,7 +1032,7 @@ export default function CoffeeTrailScreen({ navigation }) {
 
   if (step === 3) {
     return (
-      <SafeAreaView style={styles.screen}>
+      <SafeAreaView style={styles.screen} edges={['top', 'left', 'right']}>
         <View style={styles.resultsScreenContainer}>
           <View style={styles.summaryCard}>
             <Text style={styles.summaryTop}>{trailSummary.totalStops} Stops</Text>
@@ -1152,7 +1152,7 @@ export default function CoffeeTrailScreen({ navigation }) {
   }
 
   return (
-    <SafeAreaView style={styles.screen}>
+    <SafeAreaView style={styles.screen} edges={['top', 'left', 'right']}>
       <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
         <Text style={styles.title}>Generate Your Coffee Trail</Text>
         <Text style={styles.subtitle}>Discover Lipa's finest coffee spots</Text>

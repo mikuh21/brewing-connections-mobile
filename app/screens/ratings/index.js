@@ -7,7 +7,6 @@ import {
 	Modal,
 	Pressable,
 	RefreshControl,
-	SafeAreaView,
 	ScrollView,
 	StyleSheet,
 	Text,
@@ -17,6 +16,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
 import { MaterialIcons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { ConfirmToastModal } from '../../components';
 import { getRatingsFeed, submitRating } from '../../services';
 import { getImageUrl } from '../../utils/imageHelper';
@@ -338,7 +338,7 @@ function RatingsFeedView({ navigation, onSwitchToForm }) {
 	}, []);
 
 	return (
-		<SafeAreaView style={styles.screen}>
+		<SafeAreaView style={styles.screen} edges={['top', 'left', 'right']}>
 			<FlatList
 				data={paginatedRatings}
 				keyExtractor={(item, index) => String(`${item.feedType}-${item.id ?? `${item.createdAt ?? 'rating'}-${index}`}`)}
@@ -895,7 +895,7 @@ export default function RatingScreen({ navigation, route }) {
 	}
 
 	return (
-		<SafeAreaView style={styles.screen}>
+		<SafeAreaView style={styles.screen} edges={['top', 'left', 'right']}>
 			<ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
 				<ViewModeSwitch mode="form" onChange={setScreenView} />
 				<Text style={styles.title}>Rate Your Experience</Text>
