@@ -2060,7 +2060,7 @@ const styles = StyleSheet.create({
 	modalDetail: {
 		marginTop: 2,
 		color: theme.colors.textMuted,
-		fontFamily: theme.fonts.body,
+		fontFamily: 'PoppinsMedium',
 	},
 	modalDetailWarning: {
 		color: '#B00020',
@@ -2148,7 +2148,7 @@ const styles = StyleSheet.create({
 		color: '#C62828',
 		fontWeight: '700',
 		fontSize: theme.fontSizes.xs,
-		fontFamily: theme.fonts.body,
+		fontFamily: 'PoppinsMedium',
 	},
 	modalActionsRow: {
 		marginTop: 14,
