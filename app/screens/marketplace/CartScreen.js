@@ -387,6 +387,9 @@ export default function MarketplaceCartScreen() {
 					}
 
 					await Linking.openURL(landingUrl);
+					const currentItems = await readCartItems();
+					const nextItems = currentItems.filter((entry) => entry.id !== item.id);
+					await saveCartItems(nextItems);
 					Alert.alert(
 						'Continue on Web',
 						prefillToken

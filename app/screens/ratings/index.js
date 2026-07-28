@@ -1099,16 +1099,16 @@ export default function RatingScreen({ navigation, route }) {
 						<Text style={styles.submitButtonText}>Submit Rating</Text>
 					)}
 				</Pressable>
-
-				<ConfirmToastModal
-					visible={confirmState.visible}
-					title={confirmState.title}
-					message={confirmState.message}
-					confirmLabel={confirmState.confirmLabel}
-					onCancel={closeConfirm}
-					onConfirm={handleConfirm}
-				/>
 			</ScrollView>
+
+			<ConfirmToastModal
+				visible={confirmState.visible}
+				title={confirmState.title}
+				message={confirmState.message}
+				confirmLabel={confirmState.confirmLabel}
+				onCancel={closeConfirm}
+				onConfirm={handleConfirm}
+			/>
 		</SafeAreaView>
 	);
 }
