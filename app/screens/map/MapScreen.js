@@ -2482,11 +2482,13 @@ export default function MapScreen({ navigation, route }) {
       <MapView
         ref={mapRef}
         style={StyleSheet.absoluteFill}
+        provider="google"
         initialRegion={LIPA_REGION}
         onRegionChangeComplete={handleRegionChangeComplete}
         onPress={handleMapPress}
         showsUserLocation
         showsMyLocationButton
+        cacheEnabled={Platform.OS === 'android'}
       >
         {!isTrailMode && routeCoordinates.length > 1 ? (
           <>
@@ -2564,7 +2566,7 @@ export default function MapScreen({ navigation, route }) {
                 <Marker
                   key={`trail-stop-${stop.id}-${idx}`}
                   coordinate={{ latitude: stop.latitude, longitude: stop.longitude }}
-                  tracksViewChanges={false}
+                  tracksViewChanges={Platform.OS === 'android' ? true : false}
                 >
                   <Animated.View
                     style={[
@@ -2582,9 +2584,9 @@ export default function MapScreen({ navigation, route }) {
             })
           : filteredEstablishments.map((item) => (
           <Marker
-            key={`${markerRenderScope}-${item.id}`}
+            key={`${markerRenderScope}-${item.id}-${Platform.OS}`}
             coordinate={{ latitude: item.latitude, longitude: item.longitude }}
-            tracksViewChanges={false}
+            tracksViewChanges={Platform.OS === 'android' ? true : false}
             onPress={() => handleMarkerSelect(item)}
             onSelect={() => handleMarkerSelect(item)}
           >
