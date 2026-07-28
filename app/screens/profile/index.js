@@ -425,9 +425,8 @@ const styles = StyleSheet.create({
     overflow: 'visible',
   },
   title: {
-    fontSize: theme.fontSizes.xl,
-    fontWeight: '700',
-    color: theme.colors.sidebar,
+    fontSize: 30,
+    color: '#3A2E22',
     fontFamily: 'PoppinsBold',
   },
   chatButton: {

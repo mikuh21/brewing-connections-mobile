@@ -960,7 +960,12 @@ const cancelOrder = async (order) => {
 					</Text>
 
 					<View style={styles.productInfoRow}>
-						<Text style={styles.productPrice}>{money(item?.price_per_unit)}{sellerRole !== 'cafe' && item?.unit ? ` / ${item.unit}` : ''}</Text>
+						<Text style={styles.productPrice}>
+							{money(item?.price_per_unit)}
+							{sellerRole !== 'cafe' && item?.unit ? (
+								<Text style={styles.productUnit}>{` / ${item.unit}`}</Text>
+							) : null}
+						</Text>
 						{sellerRole !== 'cafe' && (
 							<Text style={styles.productStock}>{`Stock: ${stock}`}</Text>
 						)}
@@ -1035,7 +1040,7 @@ const cancelOrder = async (order) => {
 						<Text style={styles.orderProductName}>{item?.product?.name || 'Product'}</Text>
 						<Text style={styles.orderSellerMeta}>{sellerDisplayName}</Text>
 						<Text style={styles.orderDetail}>Qty: {item?.quantity || 0}</Text>
-						<Text style={styles.orderDetail}>Total: {money(item?.total_price)}</Text>
+						<Text style={styles.orderTotal}>Total: {money(item?.total_price)}</Text>
 						<Text style={styles.orderDetail}>
 							Pickup: {formatDisplayDateTime(item?.pickup_date, item?.pickup_time)}
 						</Text>
@@ -1525,9 +1530,8 @@ const styles = StyleSheet.create({
 		justifyContent: 'space-between',
 	},
 	title: {
-		fontSize: theme.fontSizes.xl,
-		fontWeight: '700',
-		color: theme.colors.sidebar,
+		fontSize: 30,
+		color: '#3A2E22',
 		fontFamily: 'PoppinsBold',
 	},
 	backButton: {
@@ -1789,9 +1793,13 @@ const styles = StyleSheet.create({
 	},
 	productPrice: {
 		color: theme.colors.primary,
-		fontWeight: '700',
 		fontSize: theme.fontSizes.md,
 		fontFamily: 'PoppinsBold',
+	},
+	productUnit: {
+		color: theme.colors.primary,
+		fontSize: theme.fontSizes.md,
+		fontFamily: 'PoppinsRegular',
 	},
 	productStock: {
 		color: theme.colors.textMuted,
@@ -1941,6 +1949,12 @@ const styles = StyleSheet.create({
 		color: theme.colors.textMuted,
 		fontSize: theme.fontSizes.sm,
 		fontFamily: theme.fonts.body,
+	},
+	orderTotal: {
+		marginTop: 2,
+		color: theme.colors.textMuted,
+		fontSize: theme.fontSizes.sm,
+		fontFamily: 'PoppinsBold',
 	},
 	chatSellerButton: {
 		alignSelf: 'auto',
@@ -2146,9 +2160,8 @@ const styles = StyleSheet.create({
 	},
 	cancelOrderButtonText: {
 		color: '#C62828',
-		fontWeight: '700',
 		fontSize: theme.fontSizes.xs,
-		fontFamily: 'PoppinsMedium',
+		fontFamily: 'PoppinsBold',
 	},
 	modalActionsRow: {
 		marginTop: 14,

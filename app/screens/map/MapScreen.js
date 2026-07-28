@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
   Animated,
+  Dimensions,
   Image,
   Keyboard,
   Linking,
@@ -127,7 +128,7 @@ const ABOUT_VARIETY_CONTENT = [
       'Liberica is a rare coffee species globally but holds cultural and agricultural importance in the Philippines. It is known for its distinctive aroma and unique flavor that sets it apart from more common varieties.',
     tasteProfile: ['Smoky, woody, sometimes floral', 'Unique, complex flavor', 'Slightly fruity with a bold body'],
     characteristics: ['Large, irregular beans', 'Thrives in tropical climates', 'Limited production worldwide'],
-    reference: 'Philippine Coffee Board; PCAARRD-DOST',
+    reference: 'CoffeeBeans.ph',
   },
   {
     key: 'robusta',
@@ -139,363 +140,10 @@ const ABOUT_VARIETY_CONTENT = [
       'Robusta is known for its strong, bold flavor and is commonly used in instant coffee and espresso blends. It is easier to grow and more resilient, making it a practical choice for large-scale production.',
     tasteProfile: ['Bold, strong, and bitter', 'Notes: earthy, nutty, woody', 'Less acidity'],
     characteristics: ['Higher caffeine content', 'Grows in lower altitudes', 'More resistant to pests and diseases'],
-    reference: 'Philippine Coffee Board; CoffeeBeans.ph',
+    reference: 'CoffeeBeans.ph',
   },
 ];
 
-function resolveMapImageCandidates(...possibleValues) {
-  const values = possibleValues.filter((value) => value !== null && value !== undefined && String(value).trim() !== '');
-  if (!values.length) {
-    return [];
-  }
-
-  const runtimeApiBase = process.env.EXPO_PUBLIC_API_URL || API_CONFIG?.baseUrl || api?.defaults?.baseURL;
-  const baseUrl = String(runtimeApiBase || '').replace(/\/+$/, '');
-  const apiOriginMatch = baseUrl.match(/^(https?:\/\/[^/]+)/i);
-  const apiOrigin = apiOriginMatch ? apiOriginMatch[1] : baseUrl;
-
-  const candidates = [];
-
-  values.forEach((value) => {
-    const raw = String(value).trim();
-
-    if (/^https?:\/\//i.test(raw)) {
-      candidates.push(raw);
-
-      const pathOnly = raw.replace(/^https?:\/\/[^/]+/i, '');
-      if (apiOrigin && pathOnly) {
-        const normalizedPath = pathOnly.startsWith('/') ? pathOnly : `/${pathOnly}`;
-        candidates.push(`${apiOrigin}${normalizedPath}`);
-      }
-
-      return;
-    }
-
-    const normalizedPath = raw.startsWith('/') ? raw : `/${raw}`;
-
-    if (apiOrigin) {
-      candidates.push(`${apiOrigin}${normalizedPath}`);
-    }
-
-    if (/^\/storage\//i.test(normalizedPath)) {
-      if (baseUrl) {
-        candidates.push(`${baseUrl}${normalizedPath}`);
-      }
-      return;
-    }
-
-    if (apiOrigin) {
-      candidates.push(`${apiOrigin}/storage/${raw.replace(/^\/+/, '')}`);
-    }
-    if (baseUrl) {
-      candidates.push(`${baseUrl}/storage/${raw.replace(/^\/+/, '')}`);
-    }
-  });
-
-  return candidates.filter((candidate, index, list) => candidate && list.indexOf(candidate) === index);
-}
-
-function toLowerTrim(value) {
-  return String(value || '').trim().toLowerCase();
-}
-
-function dateFromAny(value) {
-  if (!value) {
-    return null;
-  }
-
-  const raw = String(value).trim();
-  if (!raw) {
-    return null;
-  }
-
-  // Treat yyyy-mm-dd dates as inclusive for the whole day.
-  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
-    const parsed = new Date(`${raw}T23:59:59.999`);
-    return Number.isNaN(parsed.getTime()) ? null : parsed;
-  }
-
-  const parsed = new Date(raw);
-  return Number.isNaN(parsed.getTime()) ? null : parsed;
-}
-
-function normalizeCouponPromoForMap(raw, index) {
-  if (!raw) {
-    return null;
-  }
-
-  const establishment = raw?.establishment || raw?.cafe || raw?.shop || {};
-  const title = String(raw?.title || raw?.name || raw?.code || '').trim();
-  const discount = buildPromoDiscountText(raw);
-  const description = String(raw?.description || raw?.discount_description || '').trim();
-
-  if (!title && !discount && !description) {
-    return null;
-  }
-
-  const status = toLowerTrim(raw?.status || raw?.state || '');
-  const validUntilRaw = raw?.valid_until || raw?.expires_at || raw?.expiry_date;
-  const validUntil = dateFromAny(validUntilRaw);
-
-  return {
-    id: String(raw?.id ?? raw?.code ?? `coupon-promo-${index}`),
-    establishmentId: String(establishment?.id ?? raw?.establishment_id ?? '').trim(),
-    establishmentName: String(establishment?.name || raw?.establishment_name || '').trim(),
-    title: title || description || 'Active Promo',
-    discount,
-    description,
-    status,
-    validUntil,
-  };
-}
-
-function isPromoActiveForMap(promo) {
-  const status = toLowerTrim(promo?.status);
-  if (['expired', 'inactive', 'draft', 'disabled', 'archived'].includes(status)) {
-    return false;
-  }
-
-  if (promo?.validUntil && promo.validUntil.getTime() < Date.now()) {
-    return false;
-  }
-
-  return true;
-}
-
-function buildPromoIndexByEstablishment(rawPromos) {
-  const byEstablishment = new Map();
-
-  (Array.isArray(rawPromos) ? rawPromos : []).forEach((rawPromo, index) => {
-    const normalized = normalizeCouponPromoForMap(rawPromo, index);
-    if (!normalized || !isPromoActiveForMap(normalized)) {
-      return;
-    }
-
-    const keys = [];
-    if (normalized.establishmentId) {
-      keys.push(`id:${normalized.establishmentId}`);
-    }
-    if (normalized.establishmentName) {
-      keys.push(`name:${toLowerTrim(normalized.establishmentName)}`);
-    }
-
-    keys.forEach((key) => {
-      const list = byEstablishment.get(key) || [];
-      list.push(normalized);
-      byEstablishment.set(key, list);
-    });
-  });
-
-  return byEstablishment;
-}
-
-function normalizeEstablishment(item, index, promoIndexByEstablishment) {
-  const source = item?.properties || item;
-  const geometryCoords = item?.geometry?.coordinates;
-
-  const longitude = Number(source.longitude ?? geometryCoords?.[0]);
-  const latitude = Number(source.latitude ?? geometryCoords?.[1]);
-
-  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
-    return null;
-  }
-
-  const type = String(source.type || '').toLowerCase();
-  const displayType = type ? `${type.charAt(0).toUpperCase()}${type.slice(1)}` : 'Establishment';
-  const barangay = source.barangay ? `, ${source.barangay}` : '';
-  const varieties = Array.isArray(source.coffee_varieties)
-    ? source.coffee_varieties.filter(Boolean)
-    : [];
-  const recentReviews = Array.isArray(source.recent_reviews)
-    ? source.recent_reviews.filter(Boolean)
-    : [];
-  const productRatings = Array.isArray(source.product_ratings)
-    ? source.product_ratings
-      .filter((item) => item && item.name)
-      .map((item) => ({
-        id: item.id,
-        name: item.name,
-        averageRating: Number(item.average_rating ?? 0),
-        ratingCount: Number(item.rating_count ?? 0),
-        isActive: item.is_active !== false,
-      }))
-    : [];
-  const sourcePromoDetails = getActivePromoDetailsFromSource(source);
-  const promoLookupId = String(source.id ?? '').trim();
-  const promoLookupName = toLowerTrim(source.name);
-  const indexedPromoDetails = [
-    ...(promoLookupId ? promoIndexByEstablishment?.get(`id:${promoLookupId}`) || [] : []),
-    ...(promoLookupName ? promoIndexByEstablishment?.get(`name:${promoLookupName}`) || [] : []),
-  ];
-  const activePromoDetails = [...sourcePromoDetails, ...indexedPromoDetails].filter(
-    (promo, promoIndex, list) => {
-      const signature = `${toLowerTrim(promo?.title)}|${toLowerTrim(promo?.discount)}|${toLowerTrim(promo?.description)}`;
-      return (
-        list.findIndex((entry) => {
-          const entrySignature = `${toLowerTrim(entry?.title)}|${toLowerTrim(entry?.discount)}|${toLowerTrim(entry?.description)}`;
-          return entrySignature === signature;
-        }) === promoIndex
-      );
-    }
-  );
-  const activePromos = activePromoDetails.map((promo) => promo.title).filter(Boolean);
-
-  return {
-    id: `${type || 'establishment'}-${String(source.id ?? index)}`,
-    name: source.name || 'Establishment',
-    type,
-    displayType,
-    latitude,
-    longitude,
-    address: `${source.address || 'No address provided'}${barangay}`,
-    rating: Number(source.rating_average ?? source.average_rating ?? 0),
-    image: getImageUrl(
-      source.image ||
-      source.photo_url ||
-      source.image_url ||
-      source.profile_photo ||
-      source.profile_photo_path ||
-      source.photo ||
-      null
-    ),
-    imageCandidates: resolveMapImageCandidates(
-      source.image,
-      source.photo_url,
-      source.image_url,
-      source.profile_photo,
-      source.profile_photo_path,
-      source.photo
-    ),
-    description: source.description || '',
-    contactNumber: source.contact_number || '',
-    email: source.email || '',
-    website: source.website || '',
-    visitHours: source.visit_hours || '',
-    activities: source.activities || '',
-    reviewCount: Number(source.review_count ?? 0),
-    tasteAvg: Number(source.taste_avg ?? 0),
-    environmentAvg: Number(source.environment_avg ?? 0),
-    cleanlinessAvg: Number(source.cleanliness_avg ?? 0),
-    serviceAvg: Number(source.service_avg ?? 0),
-    coffeeVarieties: varieties,
-    productRatings,
-    recentReviews,
-    activePromoDetails,
-    activePromos,
-    raw: source,
-  };
-}
-
-function clamp(value, min, max) {
-  return Math.min(Math.max(value, min), max);
-}
-
-function constrainRegion(region) {
-  const latitudeDelta = clamp(
-    Number(region.latitudeDelta) || LIPA_REGION.latitudeDelta,
-    MAP_DELTA_LIMITS.minDelta,
-    MAP_DELTA_LIMITS.maxDelta
-  );
-  const longitudeDelta = clamp(
-    Number(region.longitudeDelta) || LIPA_REGION.longitudeDelta,
-    MAP_DELTA_LIMITS.minDelta,
-    MAP_DELTA_LIMITS.maxDelta
-  );
-
-  const halfLat = latitudeDelta / 2;
-  const halfLng = longitudeDelta / 2;
-
-  const latitude = clamp(
-    Number(region.latitude) || LIPA_REGION.latitude,
-    LIPA_BOUNDS.minLatitude + halfLat,
-    LIPA_BOUNDS.maxLatitude - halfLat
-  );
-  const longitude = clamp(
-    Number(region.longitude) || LIPA_REGION.longitude,
-    LIPA_BOUNDS.minLongitude + halfLng,
-    LIPA_BOUNDS.maxLongitude - halfLng
-  );
-
-  return {
-    latitude,
-    longitude,
-    latitudeDelta,
-    longitudeDelta,
-  };
-}
-
-async function geocodePhilippines(rawQuery) {
-  const cleaned = String(rawQuery || '').trim();
-  if (!cleaned) {
-    return null;
-  }
-
-  const query = encodeURIComponent(`${cleaned}, Philippines`);
-  const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=5&countrycodes=ph&q=${query}`;
-
-  try {
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: {
-        Accept: 'application/json',
-        'User-Agent': 'BrewHub/1.0 (https://brewing-hub.online)',
-        Referer: 'https://brewing-hub.online',
-      },
-    });
-
-    if (!response.ok) {
-      return null;
-    }
-
-    const items = await response.json();
-    if (!Array.isArray(items) || items.length === 0) {
-      return null;
-    }
-
-    const best = items[0];
-    const lat = Number(best?.lat);
-    const lng = Number(best?.lon);
-    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-      return null;
-    }
-
-    const bounds = Array.isArray(best?.boundingbox) && best.boundingbox.length === 4
-      ? {
-          south: Number(best.boundingbox[0]),
-          north: Number(best.boundingbox[1]),
-          west: Number(best.boundingbox[2]),
-          east: Number(best.boundingbox[3]),
-        }
-      : null;
-
-    return {
-      lat,
-      lng,
-      bounds,
-      placeName: best?.display_name || cleaned,
-    };
-  } catch {
-    return null;
-  }
-}
-
-function regionHasMeaningfulDiff(a, b) {
-  return (
-    Math.abs(a.latitude - b.latitude) > 0.00001 ||
-    Math.abs(a.longitude - b.longitude) > 0.00001 ||
-    Math.abs(a.latitudeDelta - b.latitudeDelta) > 0.00001 ||
-    Math.abs(a.longitudeDelta - b.longitudeDelta) > 0.00001
-  );
-}
-
-function decodePolyline(encoded) {
-  let index = 0;
-  let lat = 0;
-  let lng = 0;
-  const coordinates = [];
-
-  while (index < encoded.length) {
-    let shift = 0;
     let result = 0;
     let byte;
 
@@ -745,6 +393,82 @@ function renderTypeIcon(icon, iconLibrary, color, size = 12) {
 
   return <MaterialIcons name={icon} size={size} color={color} />;
 }
+
+// Lightweight memoized Marker component to avoid re-renders when unrelated state changes.
+const MemoMarker = React.memo(function MemoMarker({ item, isSelected, onSelect, onViewDetails, markerRenderScope }) {
+  const handlePress = useCallback(() => onSelect(item), [onSelect, item]);
+  const handleViewDetailsPress = useCallback(() => onViewDetails(item), [onViewDetails, item]);
+
+  return (
+    <Marker
+      key={`${markerRenderScope}-${item.id}-${Platform.OS}`}
+      coordinate={{ latitude: item.latitude, longitude: item.longitude }}
+      tracksViewChanges={false}
+      onPress={handlePress}
+      onSelect={handlePress}
+    >
+      <View
+        style={[
+          styles.establishmentMarker,
+          { backgroundColor: TYPE_PIN_COLORS[item.type] || BRAND.accent },
+        ]}
+      >
+        {renderTypeIcon(
+          TYPE_MARKER_ICONS[item.type]?.icon || 'place',
+          TYPE_MARKER_ICONS[item.type]?.iconLibrary || 'material',
+          '#FFFFFF',
+          TYPE_MARKER_ICONS[item.type]?.iconLibrary === 'community' ? 15 : 16
+        )}
+      </View>
+      {Platform.OS === 'ios' ? (
+        <Callout onPress={() => onViewDetails(item)}>
+          <View style={styles.calloutWrap}>
+            <Text style={styles.calloutName}>{item.name}</Text>
+            <Text
+              style={[
+                styles.calloutTypePillText,
+                {
+                  backgroundColor: getTypePillTheme(item.type).bg,
+                  borderColor: getTypePillTheme(item.type).border,
+                  color: getTypePillTheme(item.type).text,
+                },
+              ]}
+            >
+              {getTypeDisplayLabel(item)}
+            </Text>
+
+            {item.type === 'cafe' ? (
+              <View style={styles.calloutInfoRow}>
+                <Text style={styles.calloutInfoLabel}>Overall Avg:</Text>
+                <Text style={styles.calloutRatingValue}>
+                  ★ {item.reviewCount > 0 ? item.rating.toFixed(1) : '0.0'}
+                </Text>
+              </View>
+            ) : null}
+
+            {item.type === 'cafe' ? (
+              <View style={styles.calloutInfoRow}>
+                <Text style={styles.calloutInfoLabel}>Active Promo:</Text>
+                <Text style={styles.calloutPromoValue} numberOfLines={1} ellipsizeMode="tail">
+                  {item.activePromos?.[0] || 'No active promo'}
+                </Text>
+              </View>
+            ) : null}
+          </View>
+        </Callout>
+      ) : null}
+    </Marker>
+  );
+}, (prev, next) => {
+  // Only re-render when id, selection or render-scope changes
+  return (
+    prev.item.id === next.item.id &&
+    prev.item.latitude === next.item.latitude &&
+    prev.item.longitude === next.item.longitude &&
+    prev.isSelected === next.isSelected &&
+    prev.markerRenderScope === next.markerRenderScope
+  );
+});
 
 function getSearchMatchScore(item, query) {
   const q = String(query || '').trim().toLowerCase();
@@ -1037,6 +761,8 @@ export default function MapScreen({ navigation, route }) {
   const [routeCoordinates, setRouteCoordinates] = useState([]);
   const [selectedEstablishmentId, setSelectedEstablishmentId] = useState(null);
   const [isDetailsExpanded, setIsDetailsExpanded] = useState(false);
+  const [androidCalloutPos, setAndroidCalloutPos] = useState(null);
+  const [androidCalloutLayout, setAndroidCalloutLayout] = useState(null);
   const [trailState, setTrailState] = useState('not_started');
   const [currentStopIndex, setCurrentStopIndex] = useState(0);
   const [trailLegOrigin, setTrailLegOrigin] = useState(null);
@@ -1133,6 +859,44 @@ export default function MapScreen({ navigation, route }) {
     () => establishments.find((item) => item.id === selectedEstablishmentId) || null,
     [establishments, selectedEstablishmentId]
   );
+
+  useEffect(() => {
+    // On Android, compute screen point for the selected establishment so we can render
+    // an absolute overlay outside the MapView (prevent native callout clipping).
+    if (Platform.OS !== 'android') {
+      setAndroidCalloutPos(null);
+      return;
+    }
+
+    let mounted = true;
+    const updatePosition = async () => {
+      try {
+        if (!mapRef.current || !selectedEstablishment) {
+          if (mounted) setAndroidCalloutPos(null);
+          return;
+        }
+
+        const coord = { latitude: Number(selectedEstablishment.latitude), longitude: Number(selectedEstablishment.longitude) };
+        if (typeof mapRef.current.pointForCoordinate === 'function') {
+          const point = await mapRef.current.pointForCoordinate(coord);
+          if (mounted) setAndroidCalloutPos(point || null);
+          return;
+        }
+
+        // Fallback: clear position if projection not available.
+        if (mounted) setAndroidCalloutPos(null);
+      } catch (err) {
+        if (mounted) setAndroidCalloutPos(null);
+      }
+    };
+
+    // compute once and also when map size changes
+    updatePosition();
+
+    return () => {
+      mounted = false;
+    };
+  }, [selectedEstablishmentId, selectedEstablishment]);
 
   useEffect(() => {
     isDetailsExpandedRef.current = isDetailsExpanded;
@@ -1265,6 +1029,20 @@ export default function MapScreen({ navigation, route }) {
 
     return savedEstablishments.some((item) => item?.id === selectedEstablishment.id);
   }, [savedEstablishments, selectedEstablishment]);
+
+  // Memoize marker components to prevent recreating Marker elements on every render.
+  const markerComponents = useMemo(() => {
+    return filteredEstablishments.map((item) => (
+      <MemoMarker
+        key={`${markerRenderScope}-${item.id}-${Platform.OS}`}
+        item={item}
+        isSelected={selectedEstablishmentId === item.id}
+        onSelect={handleMarkerSelect}
+        onViewDetails={handleViewDetails}
+        markerRenderScope={markerRenderScope}
+      />
+    ));
+  }, [filteredEstablishments, selectedEstablishmentId, markerRenderScope, handleMarkerSelect, handleViewDetails]);
 
   useEffect(() => {
     let isMounted = true;
@@ -1795,12 +1573,12 @@ export default function MapScreen({ navigation, route }) {
     );
   }, [route?.params?.highlightId, establishments, isTrailMode]);
 
-  const handleRegionChangeComplete = (region) => {
+  const handleRegionChangeComplete = useCallback((region) => {
     const constrained = constrainRegion(region);
     if (regionHasMeaningfulDiff(region, constrained) && mapRef.current) {
       mapRef.current.animateToRegion(constrained, 120);
     }
-  };
+  }, []);
 
   const fetchEstablishments = async () => {
     setIsLoading(true);
@@ -1834,7 +1612,7 @@ export default function MapScreen({ navigation, route }) {
     }
   };
 
-  const handleNavigatePress = async (item) => {
+  const handleNavigatePress = useCallback(async (item) => {
     setNavigationError('');
 
     if (isDetailsExpanded) {
@@ -1849,10 +1627,7 @@ export default function MapScreen({ navigation, route }) {
     }
 
     setIsNavigating(true);
-    navigationDestinationRef.current = {
-      latitude: item.latitude,
-      longitude: item.longitude,
-    };
+    navigationDestinationRef.current = { latitude: item.latitude, longitude: item.longitude };
 
     try {
       const nextRoute = await fetchDirectionPolyline(userLocation, {
@@ -1880,16 +1655,18 @@ export default function MapScreen({ navigation, route }) {
     } finally {
       setIsNavigating(false);
     }
-  };
+  }, [isDetailsExpanded, userLocation]);
 
-  const handleViewDetails = (item) => {
-    setSelectedEstablishmentId(item.id);
+  const handleViewDetails = useCallback((item) => {
+    if (!item || !item.id) return;
+    setSelectedEstablishmentId((current) => (current === item.id ? current : item.id));
     setIsDetailsExpanded(true);
-  };
+  }, []);
 
-  const handleMarkerSelect = (item) => {
+  const handleMarkerSelect = useCallback((item) => {
+    if (!item || !item.id) return;
     ignoreMapPressUntilRef.current = Date.now() + 320;
-    setSelectedEstablishmentId(item.id);
+    setSelectedEstablishmentId((current) => (current === item.id ? current : item.id));
     setIsDetailsExpanded(false);
     setOpenFilterMenu(null);
 
@@ -1906,26 +1683,18 @@ export default function MapScreen({ navigation, route }) {
       return;
     }
 
-    lastTrackedMarkerRef.current = {
-      id: establishmentId,
-      at: now,
-    };
+    lastTrackedMarkerRef.current = { id: establishmentId, at: now };
 
-    trackMapMarkerView({
-      establishment_id: establishmentId,
-      map_session_id: mapSessionIdRef.current,
-    }).catch(() => {
-      // Keep map UX responsive even when analytics logging fails.
-    });
-  };
+    trackMapMarkerView({ establishment_id: establishmentId, map_session_id: mapSessionIdRef.current }).catch(() => {});
+  }, []);
 
-  const handleDismissSheet = () => {
+  const handleDismissSheet = useCallback(() => {
     setSelectedEstablishmentId(null);
     setNavigationError('');
     setIsDetailsExpanded(false);
-  };
+  }, []);
 
-  const toggleVarietyFilter = (varietyName) => {
+  const toggleVarietyFilter = useCallback((varietyName) => {
     const key = String(varietyName).toLowerCase();
     setSelectedVarieties((prev) => {
       const has = prev.some((item) => String(item).toLowerCase() === key);
@@ -1934,7 +1703,7 @@ export default function MapScreen({ navigation, route }) {
       }
       return [...prev, varietyName];
     });
-  };
+  }, []);
 
   const handleToggleVarietyOffline = async (varietyTitle) => {
     const key = String(varietyTitle || '').trim();
@@ -1953,7 +1722,7 @@ export default function MapScreen({ navigation, route }) {
     showTransientToast(willDownload ? 'Saved to Profile' : 'Removed from Profile');
   };
 
-  const handleMapPress = () => {
+  const handleMapPress = useCallback(() => {
     Keyboard.dismiss();
     setOpenFilterMenu(null);
 
@@ -1962,7 +1731,7 @@ export default function MapScreen({ navigation, route }) {
     }
 
     handleDismissSheet();
-  };
+  }, [handleDismissSheet]);
 
   const animateHeartTap = () => {
     heartTapAnim.setValue(0.9);
@@ -2004,15 +1773,11 @@ export default function MapScreen({ navigation, route }) {
     }, 1300);
   };
 
-  const handleToggleSaveEstablishment = async (item) => {
-    if (!item?.id) {
-      return;
-    }
-
+  const handleToggleSaveEstablishment = useCallback(async (item) => {
+    if (!item?.id) return;
     animateHeartTap();
 
     const establishmentId = String(item.id);
-    const willSave = !savedEstablishments.some((entry) => String(entry?.id) === establishmentId);
 
     setSavedEstablishments((prev) => {
       const exists = prev.some((entry) => String(entry?.id) === establishmentId);
@@ -2030,16 +1795,18 @@ export default function MapScreen({ navigation, route }) {
           ];
 
       AsyncStorage.setItem(SAVED_ESTABLISHMENTS_KEY, JSON.stringify(next)).catch(() => {});
+
+      // Side-effect: show toast only when newly saved
+      if (!exists) {
+        showTransientToast('Saved to Favorites');
+      } else {
+        setShowSavedToast(false);
+        savedToastOpacity.setValue(0);
+      }
+
       return next;
     });
-
-    if (willSave) {
-      showTransientToast('Saved to Favorites');
-    } else {
-      setShowSavedToast(false);
-      savedToastOpacity.setValue(0);
-    }
-  };
+  }, []);
 
   const handleClearRoute = () => {
     navigationDestinationRef.current = null;
@@ -2076,7 +1843,7 @@ export default function MapScreen({ navigation, route }) {
     mapRef.current.animateToRegion(fallbackRegion, 220);
   };
 
-  const handleSearchSubmit = async () => {
+  const handleSearchSubmit = useCallback(async () => {
     Keyboard.dismiss();
     setOpenFilterMenu(null);
 
@@ -2143,7 +1910,7 @@ export default function MapScreen({ navigation, route }) {
     mapRef.current.animateToRegion(targetRegion, 360);
   };
 
-  const handleRecenterPress = async () => {
+  const handleRecenterPress = useCallback(async () => {
     Keyboard.dismiss();
     setOpenFilterMenu(null);
     handleDismissSheet();
@@ -2477,6 +2244,152 @@ export default function MapScreen({ navigation, route }) {
     setEtaRemaining(formatEtaMinutes(estimateEtaFromDistance(seedDistance)));
   };
 
+  // Memoize bottom sheet content to avoid re-renders during map interactions
+  const bottomSheetMemo = useMemo(() => {
+    if (isTrailMode) return null;
+
+    return (
+      <Animated.View
+        style={[
+          styles.bottomSheet,
+          isDetailsExpanded && styles.bottomSheetExpanded,
+          { transform: [{ translateY: Animated.add(panelAnimation, dragY) }] },
+        ]}
+      >
+        {selectedEstablishment ? (
+          <>
+            <View style={styles.dragHandleWrap} {...sheetPanResponder.panHandlers}>
+              <View style={styles.dragHandle} />
+            </View>
+
+            <View style={styles.sheetImageWrap}>
+              {activeSheetImageUri ? (
+                <Image
+                  source={{ uri: activeSheetImageUri }}
+                  style={[styles.sheetImage, isDetailsExpanded && styles.sheetImageExpanded]}
+                  onError={handleSheetImageError}
+                />
+              ) : (
+                <View
+                  style={[
+                    styles.sheetImage,
+                    styles.sheetImagePlaceholder,
+                    isDetailsExpanded && styles.sheetImageExpanded,
+                  ]}
+                >
+                  <Text style={styles.sheetImagePlaceholderText}>No Photo</Text>
+                </View>
+              )}
+
+              <Pressable style={styles.sheetCloseButton} onPress={handleDismissSheet}>
+                <Text style={styles.sheetCloseText}>×</Text>
+              </Pressable>
+            </View>
+
+            <ScrollView
+              ref={sheetScrollRef}
+              style={styles.sheetScrollView}
+              contentContainerStyle={[
+                styles.sheetContent,
+                isDetailsExpanded && styles.sheetContentExpanded,
+              ]}
+              showsVerticalScrollIndicator={false}
+            >
+              <View style={styles.sheetTitleRow}>
+                <Text style={styles.sheetTitle}>{selectedEstablishment.name}</Text>
+                <View style={styles.sheetSaveWrap}>
+                  <Pressable
+                    style={styles.sheetSaveButtonInline}
+                    onPress={() => handleToggleSaveEstablishment(selectedEstablishment)}
+                  >
+                    <Animated.View style={{ transform: [{ scale: heartTapAnim }] }}>
+                      <MaterialIcons
+                        name={isSelectedEstablishmentSaved ? 'favorite' : 'favorite-border'}
+                        size={18}
+                        color={isSelectedEstablishmentSaved ? '#A33939' : '#6E6254'}
+                      />
+                    </Animated.View>
+                  </Pressable>
+
+                  {showSavedToast ? (
+                    <Animated.View style={[styles.savedToastWrap, { opacity: savedToastOpacity }]}> 
+                      <Text style={styles.savedToastText}>{savedToastMessage}</Text>
+                    </Animated.View>
+                  ) : null}
+                </View>
+              </View>
+              <Text style={styles.sheetAddress}>{selectedEstablishment.address}</Text>
+              {selectedEstablishment.type === 'cafe' ? (
+                <Text style={styles.sheetRating}>{formatStars(selectedEstablishment.rating)}</Text>
+              ) : null}
+              {!isDetailsExpanded && selectedEstablishment.type === 'cafe' ? (
+                <View style={styles.sheetPromoWrap}>
+                  <Text style={styles.sheetPromoLabel}>Active Promo:</Text>
+                  <Text style={styles.sheetPromoValue} numberOfLines={1} ellipsizeMode="tail">
+                    {selectedEstablishment.activePromoDetails?.length ? 'One active promo' : 'No active promo'}
+                  </Text>
+                </View>
+              ) : null}
+              {navigationError ? <Text style={styles.navigationError}>{navigationError}</Text> : null}
+
+              <View style={styles.sheetActions}>
+                <Pressable
+                  style={[styles.actionButton, styles.directionsButton]}
+                  onPress={() => handleNavigatePress(selectedEstablishment)}
+                  disabled={isNavigating}
+                >
+                  <Text style={styles.actionButtonText}>
+                    {isNavigating ? 'Getting directions...' : 'Navigate'}
+                  </Text>
+                </Pressable>
+
+                <Pressable
+                  style={[styles.actionButton, styles.detailsButton]}
+                  onPress={() => {
+                    if (isDetailsExpanded) {
+                      setIsDetailsExpanded(false);
+                      return;
+                    }
+
+                    handleViewDetails(selectedEstablishment);
+                  }}
+                >
+                  <Text style={[styles.actionButtonText, styles.detailsButtonText]}>
+                    {isDetailsExpanded ? 'Show Less' : 'View Details'}
+                  </Text>
+                </Pressable>
+              </View>
+
+              {routeCoordinates.length > 1 ? (
+                <Pressable style={styles.clearRouteButton} onPress={handleClearRoute}>
+                  <Text style={styles.clearRouteText}>Clear Route</Text>
+                </Pressable>
+              ) : null}
+
+              {isDetailsExpanded ? (
+                <View style={styles.fullDetailsWrap}>
+                  {selectedEstablishment.description ? (
+                    <Text style={styles.fullDescription}>{selectedEstablishment.description}</Text>
+                  ) : null}
+                </View>
+              ) : null}
+            </ScrollView>
+          </>
+        ) : null}
+      </Animated.View>
+    );
+  }, [
+    selectedEstablishment,
+    isDetailsExpanded,
+    activeSheetImageUri,
+    showSavedToast,
+    savedToastMessage,
+    isNavigating,
+    routeCoordinates,
+    isSelectedEstablishmentSaved,
+    navigationError,
+  ]);
+
   return (
     <View style={styles.screen}>
       <MapView
@@ -2566,7 +2479,7 @@ export default function MapScreen({ navigation, route }) {
                 <Marker
                   key={`trail-stop-${stop.id}-${idx}`}
                   coordinate={{ latitude: stop.latitude, longitude: stop.longitude }}
-                  tracksViewChanges={Platform.OS === 'android' ? true : false}
+                  tracksViewChanges={false}
                 >
                   <Animated.View
                     style={[
@@ -2582,64 +2495,7 @@ export default function MapScreen({ navigation, route }) {
                 </Marker>
               );
             })
-          : filteredEstablishments.map((item) => (
-          <Marker
-            key={`${markerRenderScope}-${item.id}-${Platform.OS}`}
-            coordinate={{ latitude: item.latitude, longitude: item.longitude }}
-            tracksViewChanges={Platform.OS === 'android' ? true : false}
-            onPress={() => handleMarkerSelect(item)}
-            onSelect={() => handleMarkerSelect(item)}
-          >
-            <View
-              style={[
-                styles.establishmentMarker,
-                { backgroundColor: TYPE_PIN_COLORS[item.type] || BRAND.accent },
-              ]}
-            >
-              {renderTypeIcon(
-                TYPE_MARKER_ICONS[item.type]?.icon || 'place',
-                TYPE_MARKER_ICONS[item.type]?.iconLibrary || 'material',
-                '#FFFFFF',
-                TYPE_MARKER_ICONS[item.type]?.iconLibrary === 'community' ? 15 : 16
-              )}
-            </View>
-            <Callout onPress={() => handleViewDetails(item)}>
-              <View style={styles.calloutWrap}>
-                <Text style={styles.calloutName}>{item.name}</Text>
-                <Text
-                  style={[
-                    styles.calloutTypePillText,
-                    {
-                      backgroundColor: getTypePillTheme(item.type).bg,
-                      borderColor: getTypePillTheme(item.type).border,
-                      color: getTypePillTheme(item.type).text,
-                    },
-                  ]}
-                >
-                  {getTypeDisplayLabel(item)}
-                </Text>
-
-                {item.type === 'cafe' ? (
-                  <View style={styles.calloutInfoRow}>
-                    <Text style={styles.calloutInfoLabel}>Overall Avg:</Text>
-                    <Text style={styles.calloutRatingValue}>
-                      ★ {item.reviewCount > 0 ? item.rating.toFixed(1) : '0.0'}
-                    </Text>
-                  </View>
-                ) : null}
-
-                {item.type === 'cafe' ? (
-                  <View style={styles.calloutInfoRow}>
-                    <Text style={styles.calloutInfoLabel}>Active Promo:</Text>
-                    <Text style={styles.calloutPromoValue} numberOfLines={1} ellipsizeMode="tail">
-                      {item.activePromos?.[0] || 'No active promo'}
-                    </Text>
-                  </View>
-                ) : null}
-              </View>
-            </Callout>
-          </Marker>
-            ))}
+          : markerComponents}
       </MapView>
 
       {isTrailMode && !shouldHideTrailOverlays ? (
@@ -2670,6 +2526,72 @@ export default function MapScreen({ navigation, route }) {
             </View>
           </View>
         </View>
+      ) : null}
+
+      {/* Android-only external callout overlay to avoid native MapView clipping. */}
+      {Platform.OS === 'android' && androidCalloutPos && selectedEstablishment ? (
+        (() => {
+          const { width: screenW, height: screenH } = Dimensions.get('window');
+          const layout = androidCalloutLayout || { width: 220, height: 72 };
+          const x = Math.round((androidCalloutPos.x || 0) - layout.width / 2);
+          const y = Math.round((androidCalloutPos.y || 0) - layout.height - 12);
+          const left = Math.max(8, Math.min(x, screenW - layout.width - 8));
+          const top = Math.max(8, Math.min(y, screenH - layout.height - 8));
+
+          return (
+            <View
+              pointerEvents="box-none"
+              style={[
+                styles.androidCalloutContainer,
+                { left, top, width: layout.width, height: layout.height },
+              ]}
+            >
+              <Pressable
+                onPress={() => handleViewDetails(selectedEstablishment)}
+                onLayout={(e) => {
+                  const { width, height } = e.nativeEvent.layout;
+                  if (!androidCalloutLayout || androidCalloutLayout.width !== width || androidCalloutLayout.height !== height) {
+                    setAndroidCalloutLayout({ width, height });
+                  }
+                }}
+              >
+                <View style={styles.calloutWrap}>
+                  <Text style={styles.calloutName}>{selectedEstablishment.name}</Text>
+                  <Text
+                    style={[
+                      styles.calloutTypePillText,
+                      {
+                        backgroundColor: getTypePillTheme(selectedEstablishment.type).bg,
+                        borderColor: getTypePillTheme(selectedEstablishment.type).border,
+                        color: getTypePillTheme(selectedEstablishment.type).text,
+                      },
+                    ]}
+                  >
+                    {getTypeDisplayLabel(selectedEstablishment)}
+                  </Text>
+
+                  {selectedEstablishment.type === 'cafe' ? (
+                    <View style={styles.calloutInfoRow}>
+                      <Text style={styles.calloutInfoLabel}>Overall Avg:</Text>
+                      <Text style={styles.calloutRatingValue}>
+                        ★ {selectedEstablishment.reviewCount > 0 ? selectedEstablishment.rating.toFixed(1) : '0.0'}
+                      </Text>
+                    </View>
+                  ) : null}
+
+                  {selectedEstablishment.type === 'cafe' ? (
+                    <View style={styles.calloutInfoRow}>
+                      <Text style={styles.calloutInfoLabel}>Active Promo:</Text>
+                      <Text style={styles.calloutPromoValue} numberOfLines={1} ellipsizeMode="tail">
+                        {selectedEstablishment.activePromos?.[0] || 'No active promo'}
+                      </Text>
+                    </View>
+                  ) : null}
+                </View>
+              </Pressable>
+            </View>
+          );
+        })()
       ) : null}
 
       {!isTrailMode && !isDetailsExpanded ? (
@@ -2723,8 +2645,8 @@ export default function MapScreen({ navigation, route }) {
                 Varieties: {selectedVarietiesLabel}
               </Text>
               <Text style={styles.filterDropdownChevron}>{openFilterMenu === 'variety' ? '▲' : '▼'}</Text>
-            </Pressable>
-          </View>
+              </Pressable>
+            </View>
 
           {openFilterMenu === 'type' ? (
             <View style={styles.dropdownPanel}>
@@ -4142,6 +4064,12 @@ const styles = StyleSheet.create({
     fontFamily: 'PoppinsMedium',
     fontSize: 12,
     lineHeight: 15,
+  },
+  androidCalloutContainer: {
+    position: 'absolute',
+    zIndex: 9999,
+    elevation: 9999,
+    // pointerEvents managed per element
   },
   bottomSheet: {
     position: 'absolute',
