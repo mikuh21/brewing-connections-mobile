@@ -3790,7 +3790,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   destinationModalBackdrop: {
-    flex: 1,
+    ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(27, 21, 14, 0.32)',
     alignItems: 'center',
     justifyContent: 'center',
@@ -4612,12 +4612,12 @@ const styles = StyleSheet.create({
     lineHeight: 15,
   },
   aboutModalBackdrop: {
-    flex: 1,
+    ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(29, 23, 17, 0.34)',
     justifyContent: 'flex-end',
   },
   aboutModalBackdropTap: {
-    flex: 1,
+    ...StyleSheet.absoluteFillObject,
   },
   aboutModalSheet: {
     maxHeight: '88%',

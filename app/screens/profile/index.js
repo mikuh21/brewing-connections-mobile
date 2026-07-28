@@ -787,7 +787,7 @@ const styles = StyleSheet.create({
     fontFamily: 'PoppinsSemiBold',
   },
   logoutModalBackdrop: {
-    flex: 1,
+    ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(27, 21, 14, 0.32)',
     alignItems: 'center',
     justifyContent: 'center',

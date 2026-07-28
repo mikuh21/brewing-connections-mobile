@@ -2026,7 +2026,7 @@ const styles = StyleSheet.create({
 		fontFamily: theme.fonts.body,
 	},
 	modalBackdrop: {
-		flex: 1,
+		...StyleSheet.absoluteFillObject,
 		backgroundColor: 'rgba(0,0,0,0.35)',
 		justifyContent: 'center',
 		paddingHorizontal: theme.spacing.md,

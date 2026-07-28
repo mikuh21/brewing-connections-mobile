@@ -1672,7 +1672,7 @@ const styles = StyleSheet.create({
     fontFamily: 'PoppinsBold',
   },
   claimSheetBackdrop: {
-    flex: 1,
+    ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(0, 0, 0, 0.35)',
     justifyContent: 'flex-end',
   },

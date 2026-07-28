@@ -1123,7 +1123,7 @@ const styles = StyleSheet.create({
 		textAlign: 'center',
 	},
 	modalBackdrop: {
-		flex: 1,
+		...StyleSheet.absoluteFillObject,
 		backgroundColor: 'rgba(28, 20, 10, 0.45)',
 		justifyContent: 'flex-end',
 	},

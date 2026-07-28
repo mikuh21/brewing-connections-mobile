@@ -226,7 +226,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   legendModalBackdrop: {
-    flex: 1,
+    ...StyleSheet.absoluteFillObject,
     paddingHorizontal: 18,
     justifyContent: 'center',
     backgroundColor: 'rgba(39, 30, 20, 0.38)',
