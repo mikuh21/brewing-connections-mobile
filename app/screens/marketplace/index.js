@@ -1541,7 +1541,7 @@ const styles = StyleSheet.create({
 	},
 	backButtonText: {
 		color: theme.colors.white,
-		fontFamily: 'PoppinsMedium',
+		fontFamily: 'PoppinsSemiBold',
 		fontSize: theme.fontSizes.sm,
 	},
 	subtitle: {
@@ -1594,7 +1594,7 @@ const styles = StyleSheet.create({
 		color: '#6B7280',
 		fontSize: 12,
 		lineHeight: 16,
-		fontFamily: 'PoppinsMedium',
+		fontFamily: 'PoppinsSemiBold',
 		textAlign: 'center',
 	},
 	tabButtonTextActive: {
@@ -1704,8 +1704,8 @@ const styles = StyleSheet.create({
 	productName: {
 		fontSize: theme.fontSizes.lg,
 		color: theme.colors.sidebar,
-		fontFamily: 'PoppinsBold',
-		fontWeight: '700',
+		fontFamily: 'PoppinsSemiBold',
+		fontWeight: '600',
 	},
 	productMeta: {
 		marginTop: 2,
@@ -1779,7 +1779,7 @@ const styles = StyleSheet.create({
 		color: '#6B5B4A',
 		fontSize: theme.fontSizes.sm,
 		lineHeight: 20,
-		fontFamily: theme.fonts.body,
+		fontFamily: 'PoppinsRegular',
 	},
 	productInfoRow: {
 		marginTop: 10,
@@ -1791,7 +1791,7 @@ const styles = StyleSheet.create({
 		color: theme.colors.primary,
 		fontWeight: '700',
 		fontSize: theme.fontSizes.md,
-		fontFamily: theme.fonts.body,
+		fontFamily: 'PoppinsBold',
 	},
 	productStock: {
 		color: theme.colors.textMuted,
@@ -1850,15 +1850,15 @@ const styles = StyleSheet.create({
 	},
 	reserveButtonText: {
 		color: theme.colors.white,
-		fontWeight: '700',
+		fontWeight: '600',
 		fontSize: theme.fontSizes.sm,
-		fontFamily: theme.fonts.body,
+		fontFamily: 'PoppinsSemiBold',
 	},
 	addToCartButtonText: {
 		color: theme.colors.primary,
-		fontWeight: '700',
+		fontWeight: '600',
 		fontSize: theme.fontSizes.sm,
-		fontFamily: theme.fonts.body,
+		fontFamily: 'PoppinsSemiBold',
 	},
 	addToCartButtonTextDisabled: {
 		color: '#8B8B8B',
@@ -1879,8 +1879,8 @@ const styles = StyleSheet.create({
 	},
 	orderId: {
 		color: theme.colors.sidebar,
-		fontWeight: '700',
-		fontFamily: theme.fonts.body,
+		fontWeight: '600',
+		fontFamily: 'PoppinsSemiBold',
 	},
 	statusBadge: {
 		borderRadius: theme.borderRadius.pill,
@@ -1889,9 +1889,9 @@ const styles = StyleSheet.create({
 	},
 	statusBadgeText: {
 		fontSize: theme.fontSizes.xs,
-		fontWeight: '700',
+		fontWeight: '600',
 		textTransform: 'capitalize',
-		fontFamily: theme.fonts.body,
+		fontFamily: 'PoppinsSemiBold',
 	},
 	orderBodyRow: {
 		flexDirection: 'row',
@@ -1927,8 +1927,8 @@ const styles = StyleSheet.create({
 	},
 	orderProductName: {
 		color: theme.colors.sidebar,
-		fontWeight: '700',
-		fontFamily: 'PoppinsBold',
+		fontWeight: '600',
+		fontFamily: 'PoppinsSemiBold',
 	},
 	orderSellerMeta: {
 		marginTop: 2,
@@ -1957,7 +1957,7 @@ const styles = StyleSheet.create({
 	},
 	chatSellerButtonText: {
 		color: theme.colors.white,
-		fontFamily: 'PoppinsMedium',
+		fontFamily: 'PoppinsSemiBold',
 		fontSize: theme.fontSizes.xs,
 	},
 	receiptIconButton: {
@@ -1984,7 +1984,7 @@ const styles = StyleSheet.create({
 	},
 	rateProductButtonText: {
 		color: theme.colors.white,
-		fontFamily: 'PoppinsMedium',
+		fontFamily: 'PoppinsSemiBold',
 		fontSize: theme.fontSizes.xs,
 	},
 	ratedBadge: {
@@ -2048,14 +2048,14 @@ const styles = StyleSheet.create({
 	modalTitle: {
 		color: theme.colors.sidebar,
 		fontSize: theme.fontSizes.lg,
-		fontWeight: '700',
-		fontFamily: 'PoppinsBold',
+		fontWeight: '600',
+		fontFamily: 'PoppinsSemiBold',
 	},
 	modalProductName: {
 		marginTop: 8,
 		color: theme.colors.sidebar,
-		fontWeight: '700',
-		fontFamily: 'PoppinsBold',
+		fontWeight: '600',
+		fontFamily: 'PoppinsSemiBold',
 	},
 	modalDetail: {
 		marginTop: 2,
@@ -2073,8 +2073,8 @@ const styles = StyleSheet.create({
 		color: theme.colors.sidebar,
 		fontSize: theme.fontSizes.sm,
 		marginBottom: 4,
-		fontFamily: theme.fonts.body,
-		fontWeight: '600',
+		fontFamily: 'PoppinsMedium',
+		fontWeight: '500',
 	},
 	modalFieldError: {
 		color: '#B43F3F',
@@ -2167,7 +2167,7 @@ const styles = StyleSheet.create({
 	modalCancelText: {
 		color: theme.colors.sidebar,
 		fontWeight: '600',
-		fontFamily: theme.fonts.body,
+		fontFamily: 'PoppinsMedium',
 	},
 	modalSubmitButton: {
 		flex: 1,
@@ -2179,8 +2179,8 @@ const styles = StyleSheet.create({
 	},
 	modalSubmitText: {
 		color: theme.colors.white,
-		fontWeight: '700',
-		fontFamily: theme.fonts.body,
+		fontWeight: '600',
+		fontFamily: 'PoppinsSemiBold',
 	},
 	receiptModalCard: {
 		backgroundColor: '#F3E9D7',

@@ -494,23 +494,23 @@ const styles = StyleSheet.create({
     height: '100%',
   },
   avatarText: {
-    fontFamily: theme.fonts.display,
+    fontFamily: 'PoppinsSemiBold',
     fontSize: 22,
     color: '#6E4E2D',
-    fontWeight: '700',
+    fontWeight: '600',
   },
   heroMeta: {
     flex: 1,
     gap: 4,
   },
   heroName: {
-    fontFamily: theme.fonts.display,
+    fontFamily: 'PoppinsSemiBold',
     fontSize: 22,
     color: theme.colors.sidebar,
-    fontWeight: '700',
+    fontWeight: '600',
   },
   heroEmail: {
-    fontFamily: theme.fonts.body,
+    fontFamily: 'PoppinsRegular',
     color: '#6E6254',
     fontSize: 14,
   },
@@ -528,10 +528,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#F8F3EB',
   },
   rolePillText: {
-    fontFamily: theme.fonts.body,
+    fontFamily: 'PoppinsMedium',
     fontSize: 12,
     color: '#6E6254',
-    fontWeight: '600',
+    fontWeight: '500',
   },
   warningCard: {
     marginTop: theme.spacing.sm,
@@ -546,7 +546,7 @@ const styles = StyleSheet.create({
   },
   warningText: {
     color: '#8A5A11',
-    fontFamily: theme.fonts.body,
+    fontFamily: 'PoppinsRegular',
     fontSize: 13,
     lineHeight: 18,
   },
@@ -568,9 +568,9 @@ const styles = StyleSheet.create({
   },
   warningActionText: {
     color: '#7D5215',
-    fontFamily: theme.fonts.body,
+    fontFamily: 'PoppinsSemiBold',
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: '600',
   },
   verificationOtpInput: {
     borderWidth: 1,
@@ -578,7 +578,7 @@ const styles = StyleSheet.create({
     borderRadius: theme.borderRadius.sm,
     paddingHorizontal: 10,
     paddingVertical: 10,
-    fontFamily: theme.fonts.body,
+    fontFamily: 'PoppinsRegular',
     color: '#3A2E22',
     backgroundColor: '#FFFCF8',
   },
@@ -593,17 +593,17 @@ const styles = StyleSheet.create({
   },
   warningVerifyButtonText: {
     color: '#24563B',
-    fontFamily: theme.fonts.body,
+    fontFamily: 'PoppinsSemiBold',
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: '600',
   },
   sectionTitle: {
     marginTop: theme.spacing.md,
     marginBottom: theme.spacing.sm,
     fontSize: theme.fontSizes.lg,
-    fontWeight: '700',
+    fontWeight: '600',
     color: theme.colors.sidebar,
-    fontFamily: 'PoppinsBold',
+    fontFamily: 'PoppinsSemiBold',
   },
   actionRow: {
     backgroundColor: theme.colors.white,
@@ -630,15 +630,15 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   actionLabel: {
-    fontFamily: theme.fonts.body,
-    fontWeight: '600',
+    fontFamily: 'PoppinsMedium',
+    fontWeight: '500',
     fontSize: 14,
     color: '#3A2E22',
   },
   actionCount: {
-    fontFamily: theme.fonts.body,
+    fontFamily: 'PoppinsSemiBold',
     color: '#6E6254',
-    fontWeight: '700',
+    fontWeight: '600',
   },
   offlineBlock: {
     marginTop: theme.spacing.sm,
@@ -656,16 +656,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   offlineTitle: {
-    fontFamily: theme.fonts.body,
+    fontFamily: 'PoppinsSemiBold',
     color: '#3A2E22',
     fontSize: 15,
-    fontWeight: '700',
+    fontWeight: '600',
   },
   offlineMeta: {
-    fontFamily: theme.fonts.body,
+    fontFamily: 'PoppinsMedium',
     color: '#9E8C78',
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '500',
   },
   offlineItem: {
     borderWidth: 1,
@@ -679,9 +679,9 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   offlineItemLabel: {
-    fontFamily: theme.fonts.body,
+    fontFamily: 'PoppinsMedium',
     color: '#3A2E22',
-    fontWeight: '600',
+    fontWeight: '500',
     fontSize: 14,
     flexShrink: 1,
   },
@@ -701,10 +701,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#EEF7F0',
   },
   offlineBadgeText: {
-    fontFamily: theme.fonts.body,
+    fontFamily: 'PoppinsMedium',
     fontSize: 12,
     color: '#6E6254',
-    fontWeight: '600',
+    fontWeight: '500',
   },
   offlineBadgeTextActive: {
     color: '#24563B',
@@ -714,12 +714,12 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   establishmentAddress: {
-    fontFamily: theme.fonts.body,
+    fontFamily: 'PoppinsRegular',
     color: '#9E8C78',
     fontSize: 12,
   },
   emptyText: {
-    fontFamily: theme.fonts.body,
+    fontFamily: 'PoppinsRegular',
     color: '#9E8C78',
     fontSize: 13,
     lineHeight: 18,
@@ -732,11 +732,11 @@ const styles = StyleSheet.create({
     padding: theme.spacing.md,
   },
   inputLabel: {
-    fontFamily: theme.fonts.body,
+    fontFamily: 'PoppinsMedium',
     color: '#6E6254',
     fontSize: 12,
     marginBottom: 4,
-    fontWeight: '600',
+    fontWeight: '500',
   },
   input: {
     borderWidth: 1,
@@ -744,7 +744,7 @@ const styles = StyleSheet.create({
     borderRadius: theme.borderRadius.sm,
     paddingHorizontal: 10,
     paddingVertical: 10,
-    fontFamily: theme.fonts.body,
+    fontFamily: 'PoppinsRegular',
     color: '#3A2E22',
     marginBottom: 10,
     backgroundColor: '#FFFCF8',
@@ -754,21 +754,21 @@ const styles = StyleSheet.create({
     color: '#6E6254',
   },
   errorText: {
-    fontFamily: theme.fonts.body,
+    fontFamily: 'PoppinsRegular',
     color: '#A33939',
     marginBottom: 8,
     fontSize: 12,
   },
   successText: {
-    fontFamily: theme.fonts.body,
+    fontFamily: 'PoppinsMedium',
     color: '#24563B',
     marginBottom: 8,
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '500',
   },
   helperText: {
     marginTop: 2,
-    fontFamily: theme.fonts.body,
+    fontFamily: 'PoppinsRegular',
     color: '#7A6B59',
     fontSize: 12,
     lineHeight: 17,
@@ -782,9 +782,9 @@ const styles = StyleSheet.create({
   },
   signOutText: {
     color: theme.colors.white,
-    fontWeight: '700',
+    fontWeight: '600',
     fontSize: theme.fontSizes.md,
-    fontFamily: theme.fonts.body,
+    fontFamily: 'PoppinsSemiBold',
   },
   logoutModalBackdrop: {
     flex: 1,
@@ -817,7 +817,7 @@ const styles = StyleSheet.create({
   logoutModalSubtitle: {
     marginTop: 8,
     color: '#6B7280',
-    fontFamily: 'PoppinsMedium',
+    fontFamily: 'PoppinsRegular',
     fontSize: 13,
     lineHeight: 18,
     textAlign: 'center',
@@ -852,7 +852,7 @@ const styles = StyleSheet.create({
   },
   logoutModalConfirmText: {
     color: '#FFFFFF',
-    fontFamily: 'PoppinsBold',
+    fontFamily: 'PoppinsSemiBold',
     fontSize: 13,
   },
 });

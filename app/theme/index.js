@@ -11,8 +11,8 @@ export const colors = {
 
 export const fonts = {
 	body: 'Poppins',
-	display: 'PlayfairDisplay',
-	fallback: 'System',
+	display: 'Poppins',
+	fallback: 'Poppins',
 };
 
 export const fontSizes = {
