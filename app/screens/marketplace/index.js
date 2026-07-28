@@ -294,6 +294,11 @@ export default function MarketplaceScreen() {
 		onConfirm: null,
 	});
 	const receiptCardRef = useRef(null);
+	const minimumSelectableDate = useMemo(() => {
+		const today = new Date();
+		today.setHours(0, 0, 0, 0);
+		return today;
+	}, []);
 
 	const showToast = (message) => {
 		setToastState({ visible: true, message });
@@ -346,6 +351,15 @@ export default function MarketplaceScreen() {
 			message,
 			confirmLabel,
 			onConfirm,
+		});
+	};
+
+	const showInvalidPickupDateAlert = () => {
+		openConfirm({
+			title: 'Invalid Pickup Date',
+			message: 'Pickup date cannot be in the past.',
+			confirmLabel: 'OK',
+			onConfirm: () => {},
 		});
 	};
 
@@ -603,6 +617,16 @@ export default function MarketplaceScreen() {
 		setReservationContactNumber(String(user?.contact_number || ''));
 	};
 
+	const isPickupDateInPast = (value) => {
+		const normalizedValue = String(value || '').trim();
+		if (!normalizedValue) {
+			return false;
+		}
+
+		const todayValue = formatDateValue(minimumSelectableDate);
+		return normalizedValue < todayValue;
+	};
+
 	const handleNativeDateChange = (event, selectedDate) => {
 		if (event?.type === 'dismissed') {
 			setShowNativeDatePicker(false);
@@ -610,7 +634,13 @@ export default function MarketplaceScreen() {
 		}
 
 		if (selectedDate) {
-			setPickupDate(formatDateValue(selectedDate));
+			const nextDateValue = formatDateValue(selectedDate);
+			if (isPickupDateInPast(nextDateValue)) {
+				setPickupDate(formatDateValue(minimumSelectableDate));
+				showInvalidPickupDateAlert();
+			} else {
+				setPickupDate(nextDateValue);
+			}
 		}
 
 		if (Platform.OS === 'android') {
@@ -664,6 +694,11 @@ export default function MarketplaceScreen() {
 
 		if (pickupDate && !/^\d{4}-\d{2}-\d{2}$/.test(pickupDate)) {
 			setError('Pickup date must use YYYY-MM-DD format.');
+			return;
+		}
+
+		if (isPickupDateInPast(pickupDate)) {
+			showInvalidPickupDateAlert();
 			return;
 		}
 
@@ -1280,7 +1315,8 @@ const cancelOrder = async (order) => {
 												value={parseDateValue(pickupDate)}
 												mode="date"
 												display={Platform.OS === 'ios' ? 'compact' : 'default'}
-												onChange={handleNativeDateChange}
+												minimumDate={minimumSelectableDate}
+											onChange={handleNativeDateChange}
 											/>
 										) : null}
 									</View>
