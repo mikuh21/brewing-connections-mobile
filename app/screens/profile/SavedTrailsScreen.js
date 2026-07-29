@@ -277,9 +277,8 @@ const styles = StyleSheet.create({
     fontSize: theme.fontSizes.sm,
   },
   headerTitle: {
-    fontSize: theme.fontSizes.xl,
-    fontWeight: '700',
-    color: theme.colors.sidebar,
+    fontSize: 30,
+    color: '#3A2E22',
     fontFamily: 'PoppinsBold',
   },
   headerSubtitle: {

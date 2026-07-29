@@ -474,16 +474,16 @@ export default function CoffeeTrailScreen({ navigation }) {
     const hasTypes = selectedTypes.length > 0;
 
     const headline = hasVarieties && hasTypes
-      ? 'AI Recommendation Preview'
-      : 'AI Setup Tip';
+      ? 'Recommendation Preview'
+      : 'Setup Tip';
 
     const summary = hasVarieties && hasTypes
       ? `Your trail will prioritize ${selectedVarietyNames || 'your selected varieties'} across ${selectedTypeLabels || 'your selected stop types'} with ${maxStops} stop${maxStops > 1 ? 's' : ''}.`
-      : 'Select at least one variety and one visit type so AI can personalize your route.';
+      : 'Select at least one variety and one visit type to personalize your route.';
 
     const routeHint = maxStops >= 4
-      ? 'Longer trail mode: AI will optimize pacing for more stops.'
-      : 'Compact trail mode: AI will prioritize faster travel time between stops.';
+      ? 'Longer trail mode: Optimize pacing for more stops.'
+      : 'Compact trail mode: Prioritize faster travel time between stops.';
 
     let balanceHint = 'Balanced trail: includes both sourcing and tasting opportunities.';
     if (selectedTypes.length === 1 && selectedTypes[0] === 'farm') {
