@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
-import { Animated, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
+import FullScreenModal from './FullScreenModal';
 
 export default function ConfirmToastModal({
 	visible,
@@ -40,28 +41,25 @@ export default function ConfirmToastModal({
 	}
 
 	return (
-		<Modal visible={visible} transparent animationType="none" onRequestClose={onCancel}>
-			<View style={styles.overlay} pointerEvents="box-none">
-				<Pressable style={StyleSheet.absoluteFillObject} onPress={onCancel} />
-				<Animated.View
-					style={[
-						styles.toastCard,
-						{ opacity: fadeAnim, transform: [{ translateY }] },
-					]}
-				>
-					<Text style={styles.title}>{title}</Text>
-					{message ? <Text style={styles.message}>{message}</Text> : null}
-					<View style={styles.actionRow}>
-						<Pressable style={styles.cancelButton} onPress={onCancel}>
-							<Text style={styles.cancelText}>{cancelLabel}</Text>
-						</Pressable>
-						<Pressable style={styles.confirmButton} onPress={onConfirm}>
-							<Text style={styles.confirmText}>{confirmLabel}</Text>
-						</Pressable>
-					</View>
-				</Animated.View>
-			</View>
-		</Modal>
+		<FullScreenModal visible={visible} onRequestClose={onCancel} dismissOnBackdrop={true}>
+			<Animated.View
+				style={[
+					styles.toastCard,
+					{ opacity: fadeAnim, transform: [{ translateY }] },
+				]}
+			>
+				<Text style={styles.title}>{title}</Text>
+				{message ? <Text style={styles.message}>{message}</Text> : null}
+				<View style={styles.actionRow}>
+					<Pressable style={styles.cancelButton} onPress={onCancel}>
+						<Text style={styles.cancelText}>{cancelLabel}</Text>
+					</Pressable>
+					<Pressable style={styles.confirmButton} onPress={onConfirm}>
+						<Text style={styles.confirmText}>{confirmLabel}</Text>
+					</Pressable>
+				</View>
+			</Animated.View>
+		</FullScreenModal>
 	);
 }
 

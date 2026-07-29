@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useEffect, useRef } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import { MaterialIcons } from '@expo/vector-icons';
 import {
@@ -66,7 +67,9 @@ export default function ProfileScreen({ navigation }) {
   const [isSendingVerification, setIsSendingVerification] = useState(false);
   const [verificationOtp, setVerificationOtp] = useState('');
   const [isVerifyingOtp, setIsVerifyingOtp] = useState(false);
+  const [verificationCooldownSeconds, setVerificationCooldownSeconds] = useState(0);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const cooldownTimerRef = useRef(null);
 
   const isEmailVerified = Boolean(user?.email_verified || user?.email_verified_at);
   const registeredEmail = String(user?.email || '').trim();
@@ -142,10 +145,19 @@ export default function ProfileScreen({ navigation }) {
       return;
     }
 
+    // If cooldown active, ignore presses (button should be disabled by UI).
+    if (verificationCooldownSeconds > 0) return;
+
     setIsSendingVerification(true);
     try {
       await sendEmailVerification(registeredEmail);
       setSecurityMessage(`Verification code sent to ${registeredEmail}.`);
+
+      // Start 15-minute cooldown and persist per-email so it survives short app restarts.
+      const sentAt = Date.now();
+      const key = `email_verification_sent_at:${registeredEmail}`;
+      await AsyncStorage.setItem(key, String(sentAt));
+      setVerificationCooldownSeconds(15 * 60);
     } catch (error) {
       setSecurityError(
         error?.response?.data?.message || 'Unable to send verification email right now.'
@@ -153,6 +165,91 @@ export default function ProfileScreen({ navigation }) {
     } finally {
       setIsSendingVerification(false);
     }
+  };
+
+  // Load any existing cooldown for this email and start countdown.
+  useEffect(() => {
+    const key = `email_verification_sent_at:${registeredEmail}`;
+    let mounted = true;
+
+    const init = async () => {
+      if (!registeredEmail) return;
+      try {
+        const raw = await AsyncStorage.getItem(key);
+        if (!raw) return;
+        const sentAt = Number(raw) || 0;
+        const expiresAt = sentAt + 15 * 60 * 1000;
+        const now = Date.now();
+        const diff = Math.max(0, Math.ceil((expiresAt - now) / 1000));
+        if (mounted) {
+          if (diff > 0) {
+            setVerificationCooldownSeconds(diff);
+          } else {
+            // Already expired while app was closed — remove persisted key so cooldown
+            // does not restart when reopening the app.
+            try {
+              await AsyncStorage.removeItem(key);
+            } catch (_) {}
+          }
+        }
+      } catch (_) {}
+    };
+
+    init();
+
+    return () => {
+      mounted = false;
+    };
+  }, [registeredEmail]);
+
+  // Tick countdown every second while active.
+  useEffect(() => {
+    if (cooldownTimerRef.current) {
+      clearInterval(cooldownTimerRef.current);
+      cooldownTimerRef.current = null;
+    }
+
+    if (verificationCooldownSeconds > 0) {
+      cooldownTimerRef.current = setInterval(() => {
+        setVerificationCooldownSeconds((s) => {
+          if (s <= 1) {
+            clearInterval(cooldownTimerRef.current);
+            cooldownTimerRef.current = null;
+            return 0;
+          }
+          return s - 1;
+        });
+      }, 1000);
+    }
+
+    return () => {
+      if (cooldownTimerRef.current) {
+        clearInterval(cooldownTimerRef.current);
+        cooldownTimerRef.current = null;
+      }
+    };
+  }, [verificationCooldownSeconds]);
+
+  // When cooldown ends, remove persisted timestamp so next send starts fresh.
+  useEffect(() => {
+    const clearKey = async () => {
+      if (!registeredEmail) return;
+      const key = `email_verification_sent_at:${registeredEmail}`;
+      try {
+        if (verificationCooldownSeconds === 0) {
+          await AsyncStorage.removeItem(key);
+        }
+      } catch (_) {}
+    };
+
+    clearKey();
+  }, [verificationCooldownSeconds, registeredEmail]);
+
+  // Helper to format mm:ss
+  const formatCooldown = (seconds) => {
+    const mm = Math.floor(seconds / 60).toString().padStart(2, '0');
+    const ss = Math.floor(seconds % 60).toString().padStart(2, '0');
+    return `${mm}:${ss}`;
   };
 
   const handleVerifyOtp = async () => {
@@ -248,12 +345,19 @@ export default function ProfileScreen({ navigation }) {
                 Your email is not verified yet. Verify your registered email to secure your account and restore access faster.
               </Text>
               <Pressable
-                style={[styles.warningActionButton, isSendingVerification && styles.warningActionButtonDisabled]}
+                style={[
+                  styles.warningActionButton,
+                  (isSendingVerification || verificationCooldownSeconds > 0) && styles.warningActionButtonDisabled,
+                ]}
                 onPress={handleSendVerificationEmail}
-                disabled={isSendingVerification}
+                disabled={isSendingVerification || verificationCooldownSeconds > 0}
               >
                 <Text style={styles.warningActionText}>
-                  {isSendingVerification ? 'Sending...' : `Send Code to ${registeredEmail || 'Email'}`}
+                  {isSendingVerification
+                    ? 'Sending...'
+                    : verificationCooldownSeconds > 0
+                    ? `Resend in ${formatCooldown(verificationCooldownSeconds)}`
+                    : `Send Code to ${registeredEmail || 'Email'}`}
                 </Text>
               </Pressable>
 

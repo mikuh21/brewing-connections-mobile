@@ -479,10 +479,11 @@ function RatingsFeedView({ navigation, onSwitchToForm }) {
 				transparent
 				visible={showSortMenu}
 				animationType="fade"
+				statusBarTranslucent={true}
 				onRequestClose={() => setShowSortMenu(false)}
 			>
 				<Pressable
-					style={styles.sortMenuBackdrop}
+					style={[StyleSheet.absoluteFillObject, styles.sortMenuBackdrop]}
 					onPress={() => setShowSortMenu(false)}
 				>
 					<View style={styles.sortMenuContainer}>
