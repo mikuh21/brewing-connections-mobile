@@ -126,12 +126,13 @@ const styles = StyleSheet.create({
   },
   container: {
     flexGrow: 1,
-    alignItems: 'center',
+    alignItems: 'stretch',
     paddingHorizontal: 24,
     paddingBottom: 26,
     justifyContent: 'center',
   },
   card: {
+    width: '100%',
     backgroundColor: '#FFF8EE',
     borderWidth: 1,
     borderColor: '#D8C3A7',
