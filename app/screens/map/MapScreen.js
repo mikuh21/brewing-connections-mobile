@@ -143,22 +143,21 @@ const ABOUT_VARIETY_CONTENT = [
     reference: 'CoffeeBeans.ph',
   },
 ];
-;
 
-// Decode an encoded Google polyline string into an array of {latitude, longitude}
-// See: https://developers.google.com/maps/documentation/utilities/polylinealgorithm
 function decodePolyline(encoded) {
-  if (!encoded || typeof encoded !== 'string') return [];
+  if (!encoded || typeof encoded !== 'string') {
+    return [];
+  }
 
-  const coordinates = [];
   let index = 0;
   let lat = 0;
   let lng = 0;
+  const coordinates = [];
 
   while (index < encoded.length) {
     let result = 0;
     let shift = 0;
-    let byte = null;
+    let byte;
 
     do {
       byte = encoded.charCodeAt(index++) - 63;
@@ -166,11 +165,11 @@ function decodePolyline(encoded) {
       shift += 5;
     } while (byte >= 0x20);
 
-    const deltaLat = (result & 1) ? ~(result >> 1) : (result >> 1);
+    const deltaLat = (result & 1) ? ~(result >> 1) : result >> 1;
     lat += deltaLat;
 
-    result = 0;
     shift = 0;
+    result = 0;
 
     do {
       byte = encoded.charCodeAt(index++) - 63;
@@ -178,10 +177,13 @@ function decodePolyline(encoded) {
       shift += 5;
     } while (byte >= 0x20);
 
-    const deltaLng = (result & 1) ? ~(result >> 1) : (result >> 1);
+    const deltaLng = (result & 1) ? ~(result >> 1) : result >> 1;
     lng += deltaLng;
 
-    coordinates.push({ latitude: lat / 1e5, longitude: lng / 1e5 });
+    coordinates.push({
+      latitude: lat / 1e5,
+      longitude: lng / 1e5,
+    });
   }
 
   return coordinates;
@@ -748,228 +750,6 @@ function normalizeWebsiteUrl(websiteValue) {
   }
 
   return `https://${raw}`;
-}
-
-function buildPromoIndexByEstablishment(promos) {
-  if (!Array.isArray(promos)) {
-    return {};
-  }
-
-  return promos.reduce((index, promo) => {
-    if (!promo || typeof promo !== 'object') {
-      return index;
-    }
-
-    const establishmentId =
-      promo?.establishment_id ??
-      promo?.establishment?.id ??
-      promo?.establishment?.establishment_id ??
-      promo?.establishment?.raw?.id ??
-      promo?.establishment?.raw?.establishment_id;
-
-    if (!Number.isFinite(Number(establishmentId))) {
-      return index;
-    }
-
-    const key = String(establishmentId);
-    if (!Array.isArray(index[key])) {
-      index[key] = [];
-    }
-
-    index[key].push(promo);
-    return index;
-  }, {});
-}
-
-function normalizeEstablishment(item, index, promoIndexByEstablishment = {}) {
-  const source = item?.properties || item || {};
-  const raw = source?.raw || item?.raw || item || {};
-  const rawId =
-    source?.establishment_id ??
-    source?.id ??
-    source?.establishmentId ??
-    source?.establishment?.id ??
-    raw?.id ??
-    index;
-  const id = rawId ?? index;
-
-  if (!Number.isFinite(Number(id))) {
-    return null;
-  }
-
-  const type = String(source?.type || source?.establishment_type || source?.category || 'establishment')
-    .toLowerCase()
-    .trim();
-  const name = String(source?.name || source?.title || source?.establishment_name || source?.shop_name || 'Coffee Stop').trim();
-  const barangay =
-    source?.barangay ||
-    source?.barangay_name ||
-    source?.barangayName ||
-    source?.brgy ||
-    raw?.barangay ||
-    raw?.barangay_name ||
-    raw?.barangayName ||
-    raw?.brgy ||
-    '';
-  const address = formatAddressWithBarangay(
-    source?.address || source?.location_address || source?.address_line || '',
-    barangay
-  );
-
-  const latitude = Number(
-    source?.latitude ??
-      source?.lat ??
-      source?.location?.latitude ??
-      source?.location?.lat ??
-      raw?.latitude ??
-      raw?.lat
-  );
-  const longitude = Number(
-    source?.longitude ??
-      source?.lng ??
-      source?.location?.longitude ??
-      source?.location?.lng ??
-      raw?.longitude ??
-      raw?.lng
-  );
-
-  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
-    return null;
-  }
-
-  const rating = Number(
-    source?.rating ??
-      source?.rating_average ??
-      source?.ratingAvg ??
-      source?.average_rating ??
-      source?.reviews_avg_overall_rating ??
-      0
-  );
-  const reviewCount = Number(source?.review_count ?? source?.reviews_count ?? 0);
-  const tasteAvg = Number(source?.taste_avg ?? source?.tasteAvg ?? 0);
-  const environmentAvg = Number(source?.environment_avg ?? source?.environmentAvg ?? 0);
-  const cleanlinessAvg = Number(source?.cleanliness_avg ?? source?.cleanlinessAvg ?? 0);
-  const serviceAvg = Number(source?.service_avg ?? source?.serviceAvg ?? 0);
-
-  const activePromoDetailsFromSource = getActivePromoDetailsFromSource(source);
-  const promoSourcePromos = promoIndexByEstablishment[String(id)] || [];
-  const activePromoDetailsFromIndex = promoSourcePromos.length
-    ? getActivePromoDetailsFromSource({ promos: promoSourcePromos })
-    : [];
-  const activePromoDetails =
-    activePromoDetailsFromSource.length > 0
-      ? activePromoDetailsFromSource
-      : activePromoDetailsFromIndex;
-  const activePromos = activePromoDetails.map((promo) => promo.title).filter(Boolean);
-
-  const coffeeVarietiesSource =
-    Array.isArray(source?.coffee_varieties)
-      ? source.coffee_varieties
-      : Array.isArray(source?.coffeeVarieties)
-      ? source.coffeeVarieties
-      : Array.isArray(source?.varieties)
-      ? source.varieties
-          .map((value) => (value && typeof value === 'object' ? value.name || value.title || '' : value))
-          .filter(Boolean)
-      : [];
-  const coffeeVarieties = coffeeVarietiesSource.map((value) => String(value || '').trim()).filter(Boolean);
-
-  const productRatingsSource = Array.isArray(source?.product_ratings)
-    ? source.product_ratings
-    : Array.isArray(source?.productRatings)
-    ? source.productRatings
-    : [];
-
-  const productRatings = productRatingsSource
-    .filter((product) => product && (product.name || product.product_name || product.title))
-    .map((product) => ({
-      id: product?.id ?? product?.product_id ?? product?.productId ?? null,
-      name: String(product?.name || product?.product_name || product?.title || 'Product').trim(),
-      averageRating: Number(
-        product?.average_rating ?? product?.rating_average ?? product?.avg_rating ?? 0
-      ),
-      ratingCount: Number(
-        product?.rating_count ?? product?.ratings_count ?? product?.ratingCount ?? 0
-      ),
-      isActive: Boolean(product?.is_active ?? product?.active ?? true),
-    }));
-
-  const recentReviewsSource = Array.isArray(source?.recent_reviews)
-    ? source.recent_reviews
-    : Array.isArray(source?.recentReviews)
-    ? source.recentReviews
-    : [];
-
-  const recentReviews = recentReviewsSource
-    .filter((review) => review && (review.reviewer || review.reviewer_name || review.user_name || review.owner_name || review.id))
-    .map((review) => ({
-      id:
-        review?.id ??
-        `${String(name).replace(/\s+/g, '-').toLowerCase()}-review-${Math.random().toString(36).slice(2, 8)}`,
-      reviewer: review?.reviewer || review?.reviewer_name || review?.user_name || review?.owner_name || 'Anonymous',
-      taste_rating: Number(review?.taste_rating ?? review?.taste ?? 0),
-      environment_rating: Number(review?.environment_rating ?? review?.environment ?? 0),
-      cleanliness_rating: Number(review?.cleanliness_rating ?? review?.cleanliness ?? 0),
-      service_rating: Number(review?.service_rating ?? review?.service ?? 0),
-      owner_response: review?.owner_response || review?.response || '',
-      created_at: review?.created_at || review?.createdAt || null,
-    }));
-
-  const imageCandidates = [
-    source?.image,
-    source?.image_url,
-    source?.photo,
-    source?.photo_url,
-    source?.imageUrl,
-    source?.cover_image,
-    source?.banner,
-    source?.image_path,
-    source?.thumbnail,
-    source?.logo,
-  ]
-    .filter(Boolean)
-    .map(getImageUrl)
-    .filter(Boolean);
-  const image = imageCandidates[0] || null;
-
-  const website = normalizeWebsiteUrl(
-    source?.website || source?.website_url || source?.url || source?.link || ''
-  );
-
-  return {
-    id: String(id),
-    raw: item,
-    name,
-    type,
-    displayType: source?.displayType || source?.display_type || undefined,
-    address: address || 'Address not available',
-    barangay,
-    latitude,
-    longitude,
-    rating: Number.isFinite(rating) ? rating : 0,
-    reviewCount: Number.isFinite(reviewCount) ? reviewCount : 0,
-    tasteAvg: Number.isFinite(tasteAvg) ? tasteAvg : 0,
-    environmentAvg: Number.isFinite(environmentAvg) ? environmentAvg : 0,
-    cleanlinessAvg: Number.isFinite(cleanlinessAvg) ? cleanlinessAvg : 0,
-    serviceAvg: Number.isFinite(serviceAvg) ? serviceAvg : 0,
-    productRatings,
-    recentReviews,
-    coffeeVarieties,
-    activePromoDetails,
-    activePromos,
-    image,
-    imageCandidates,
-    description: String(source?.description || source?.about || source?.summary || '') || '',
-    contactNumber: String(
-      source?.contact_number || source?.phone || source?.mobile || source?.contact || ''
-    ).trim(),
-    email: String(source?.email || source?.email_address || '').trim(),
-    website,
-    visitHours: String(
-      source?.visit_hours || source?.hours || source?.opening_hours || source?.visitHours || ''
-    ).trim(),
-    activities: String(source?.activities || source?.activity || source?.services || '').trim(),
-  };
 }
 
 export default function MapScreen({ navigation, route }) {
@@ -2140,7 +1920,7 @@ export default function MapScreen({ navigation, route }) {
     });
 
     mapRef.current.animateToRegion(targetRegion, 360);
-  }, [searchQuery, filteredEstablishments, mapRef, ignoreMapPressUntilRef]);
+  }, [searchQuery, filteredEstablishments, mapRef, setRouteCoordinates, setNavigationError, setSelectedEstablishmentId, setIsDetailsExpanded, geocodePhilippines, clamp, constrainRegion]);
 
   const handleRecenterPress = useCallback(async () => {
     Keyboard.dismiss();
@@ -2168,7 +1948,7 @@ export default function MapScreen({ navigation, route }) {
     });
 
     mapRef.current.animateToRegion(region, 340);
-  }, [userLocation, requestCurrentLocation, handleDismissSheet, sheetScrollRef, mapRef]);
+  }, [userLocation, requestCurrentLocation, setNavigationError, setOpenFilterMenu, handleDismissSheet, sheetScrollRef, mapRef, constrainRegion]);
 
   const handleStartTrail = () => {
     if (!trailStops.length) {
