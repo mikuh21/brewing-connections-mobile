@@ -735,7 +735,6 @@ function formatAddressWithBarangay(address, barangay) {
   if (baseAddress.toLowerCase().includes(normalizedBarangay.toLowerCase())) {
     return baseAddress;
   }
-
   return `${baseAddress}, ${normalizedBarangay}`;
 }
 
