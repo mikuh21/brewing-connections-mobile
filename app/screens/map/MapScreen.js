@@ -306,6 +306,107 @@ function getActivePromosFromSource(source) {
     .filter(Boolean);
 }
 
+function buildPromoIndexByEstablishment(promos) {
+  if (!Array.isArray(promos)) {
+    return {};
+  }
+
+  return promos.reduce((index, promo, promoIndex) => {
+    if (!promo) {
+      return index;
+    }
+
+    const establishmentId =
+      promo?.establishment_id ??
+      promo?.establishment?.id ??
+      promo?.establishmentId ??
+      promo?.establishment?.establishment_id;
+
+    if (establishmentId === undefined || establishmentId === null || establishmentId === '') {
+      return index;
+    }
+
+    const key = String(establishmentId);
+    const title = String(promo?.title || promo?.name || promo?.code || promo?.coupon_code || promo?.qr_code_token || promo?.description || 'Active Promo').trim();
+    const description = String(promo?.description || promo?.discount_description || promo?.discount_text || '').trim();
+
+    const normalizedPromo = {
+      id: String(promo?.id ?? promo?.code ?? promo?.coupon_code ?? promo?.qr_code_token ?? `promo-${key}-${promoIndex}`),
+      title: title || 'Active Promo',
+      discount: buildPromoDiscountText(promo),
+      description,
+      raw: promo,
+    };
+
+    if (!index[key]) {
+      index[key] = [];
+    }
+
+    index[key].push(normalizedPromo);
+    return index;
+  }, {});
+}
+
+function normalizeEstablishment(item, index, promoIndexByEstablishment = {}) {
+  const source = item?.properties || item || {};
+  const raw = source?.raw || item || {};
+
+  const id =
+    source?.id ??
+    source?.establishment_id ??
+    raw?.id ??
+    raw?.establishment_id ??
+    index;
+
+  const type = String(source?.type || source?.establishment_type || 'establishment').trim().toLowerCase();
+
+  const latitude = Number(source?.latitude ?? source?.lat ?? raw?.latitude ?? raw?.lat);
+  const longitude = Number(source?.longitude ?? source?.lng ?? raw?.longitude ?? raw?.lng);
+
+  const promoIdKey = String(id);
+  const externalActivePromoDetails = promoIndexByEstablishment[promoIdKey] || [];
+  const sourceActivePromoDetails = getActivePromoDetailsFromSource(source);
+  const activePromoDetails = [...sourceActivePromoDetails, ...externalActivePromoDetails].filter(Boolean);
+
+  const uniquePromoDetails = activePromoDetails.filter((promo, promoIndex, list) => {
+    const signature = `${String(promo.id || promo.title || promo.description || promo.discount).toLowerCase()}|${String(promo.title || '').toLowerCase()}|${String(promo.description || '').toLowerCase()}`;
+    return list.findIndex((other) => {
+      const otherSignature = `${String(other.id || other.title || other.description || other.discount).toLowerCase()}|${String(other.title || '').toLowerCase()}|${String(other.description || '').toLowerCase()}`;
+      return otherSignature === signature;
+    }) === promoIndex;
+  });
+
+  return {
+    id,
+    raw: source,
+    name: source?.name || source?.establishment_name || raw?.name || 'Establishment',
+    type,
+    address: source?.address || source?.location || 'Address not available',
+    barangay: source?.barangay || source?.barangay_name || source?.barangayName || raw?.barangay || raw?.barangay_name || raw?.barangayName || '',
+    latitude: Number.isFinite(latitude) ? latitude : null,
+    longitude: Number.isFinite(longitude) ? longitude : null,
+    image: source?.image || source?.photo || source?.image_url || source?.imageUrl || null,
+    imageCandidates: [source?.image, source?.photo, source?.image_url, source?.imageUrl].filter(Boolean),
+    description: source?.description || raw?.description || '',
+    contactNumber: source?.contact_number || source?.phone || source?.contact || '',
+    email: source?.email || '',
+    website: source?.website || source?.url || '',
+    visitHours: source?.visit_hours || source?.hours || '',
+    activities: source?.activities || '',
+    rating: Number(source?.rating_average ?? source?.rating ?? source?.average_rating ?? 0) || 0,
+    reviewCount: Number(source?.review_count ?? source?.reviews_count ?? 0) || 0,
+    tasteAvg: Number(source?.taste_avg ?? source?.taste_rating ?? 0) || 0,
+    environmentAvg: Number(source?.environment_avg ?? source?.environment_rating ?? 0) || 0,
+    cleanlinessAvg: Number(source?.cleanliness_avg ?? source?.cleanliness_rating ?? 0) || 0,
+    serviceAvg: Number(source?.service_avg ?? source?.service_rating ?? 0) || 0,
+    productRatings: Array.isArray(source?.product_ratings) ? source.product_ratings : [],
+    recentReviews: Array.isArray(source?.recent_reviews) ? source.recent_reviews : [],
+    coffeeVarieties: Array.isArray(source?.coffee_varieties) ? source.coffee_varieties : [],
+    activePromos: uniquePromoDetails.map((promo) => promo.title).filter(Boolean),
+    activePromoDetails: uniquePromoDetails,
+  };
+}
+
 function getTypePillTheme(type) {
   return TYPE_PILL_THEME[String(type || '').toLowerCase()] || {
     bg: 'rgba(90, 72, 54, 0.13)',
@@ -736,7 +837,7 @@ function formatAddressWithBarangay(address, barangay) {
   return `${baseAddress}, ${normalizedBarangay}`;
 }
 
-function normalizeWebsiteUrl(websiteValue) {
+function normalizeWebsiteUrl(websiteValue) {  
   const raw = String(websiteValue || '').trim();
   if (!raw) {
     return '';
