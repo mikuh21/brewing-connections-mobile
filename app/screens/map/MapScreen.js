@@ -1004,6 +1004,7 @@ export default function MapScreen({ navigation, route }) {
   const ignoreMapPressUntilRef = useRef(0);
   const mapSessionIdRef = useRef(`map-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`);
   const lastTrackedMarkerRef = useRef({ id: null, at: 0 });
+  const lastAnimateRef = useRef(0);
   const [isLoading, setIsLoading] = useState(true);
   const [isLocationBusy, setIsLocationBusy] = useState(false);
   const [isNavigating, setIsNavigating] = useState(false);
@@ -1318,6 +1319,19 @@ export default function MapScreen({ navigation, route }) {
       />
     ));
   }, [filteredEstablishments, selectedEstablishmentId, markerRenderScope, handleMarkerSelect, handleViewDetails, markerTracksViewChanges]);
+
+  // Development-only: log counts of establishments, filtered list, and markers to trace where markers disappear.
+  useEffect(() => {
+    try {
+      console.debug('[MapScreen] counts', {
+        establishments: Array.isArray(establishments) ? establishments.length : 0,
+        filteredEstablishments: Array.isArray(filteredEstablishments) ? filteredEstablishments.length : 0,
+        markerComponents: Array.isArray(markerComponents) ? markerComponents.length : 0,
+      });
+    } catch (e) {
+      // ignore
+    }
+  }, [establishments, filteredEstablishments, markerComponents]);
 
   useEffect(() => {
     let isMounted = true;
@@ -1850,9 +1864,15 @@ export default function MapScreen({ navigation, route }) {
 
   const handleRegionChangeComplete = useCallback((region) => {
     const constrained = constrainRegion(region);
-    if (regionHasMeaningfulDiff(region, constrained) && mapRef.current) {
-      mapRef.current.animateToRegion(constrained, 120);
+    if (!regionHasMeaningfulDiff(region, constrained) || !mapRef.current) {
+      return;
     }
+    const now = Date.now();
+    if (now - lastAnimateRef.current < 200) {
+      return;
+    }
+    lastAnimateRef.current = now;
+    mapRef.current.animateToRegion(constrained, 120);
   }, []);
 
   const fetchEstablishments = async () => {
@@ -1877,6 +1897,17 @@ export default function MapScreen({ navigation, route }) {
         .filter(Boolean);
 
       setEstablishments(normalized);
+      // Development-only debug: log counts to trace where markers disappear
+      try {
+        const invalidCoordsCount = normalized.filter((it) => it.latitude == null || it.longitude == null).length;
+        console.debug('[MapScreen] fetchEstablishments:', {
+          payloadCount: Array.isArray(payload) ? payload.length : 0,
+          normalizedCount: normalized.length,
+          invalidCoordsCount,
+        });
+      } catch (e) {
+        // ignore logging errors
+      }
       setSelectedEstablishmentId((current) =>
         current && normalized.some((item) => item.id === current) ? current : null
       );
