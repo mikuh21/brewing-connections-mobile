@@ -644,12 +644,22 @@ function renderTypeIcon(icon, iconLibrary, color, size = 12) {
 const MemoMarker = React.memo(function MemoMarker({ item, isSelected, onSelect, onViewDetails, markerRenderScope }) {
   const handlePress = useCallback(() => onSelect(item), [onSelect, item]);
   const handleViewDetailsPress = useCallback(() => onViewDetails(item), [onViewDetails, item]);
+  const [tracksViewChanges, setTracksViewChanges] = React.useState(Platform.OS === 'android');
+
+  // On Android, custom Marker children sometimes don't render unless
+  // `tracksViewChanges` is true for the first render. Switch it off shortly
+  // after mount to preserve performance (matching previous intended behavior).
+  useEffect(() => {
+    if (Platform.OS !== 'android') return undefined;
+    const t = setTimeout(() => setTracksViewChanges(false), 300);
+    return () => clearTimeout(t);
+  }, []);
 
   return (
     <Marker
       key={`${markerRenderScope}-${item.id}-${Platform.OS}`}
       coordinate={{ latitude: item.latitude, longitude: item.longitude }}
-      tracksViewChanges={false}
+      tracksViewChanges={tracksViewChanges}
       onPress={handlePress}
       onSelect={handlePress}
     >
