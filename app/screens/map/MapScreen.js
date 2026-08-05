@@ -1277,13 +1277,21 @@ export default function MapScreen({ navigation, route }) {
 
   // Memoize marker components to prevent recreating Marker elements on every render.
   const markerComponents = useMemo(() => {
-    return filteredEstablishments.map((item) => (
+    // Ensure markers are only created for items with valid coordinates to avoid native crashes.
+    const safeItems = (Array.isArray(filteredEstablishments) ? filteredEstablishments : []).filter(
+      (it) => Number.isFinite(it?.latitude) && Number.isFinite(it?.longitude)
+    );
+
+    const safeOnSelect = typeof handleMarkerSelect === 'function' ? handleMarkerSelect : () => {};
+    const safeOnViewDetails = typeof handleViewDetails === 'function' ? handleViewDetails : () => {};
+
+    return safeItems.map((item) => (
       <MemoMarker
         key={`${markerRenderScope}-${item.id}-${Platform.OS}`}
         item={item}
         isSelected={selectedEstablishmentId === item.id}
-        onSelect={handleMarkerSelect}
-        onViewDetails={handleViewDetails}
+        onSelect={safeOnSelect}
+        onViewDetails={safeOnViewDetails}
         markerRenderScope={markerRenderScope}
       />
     ));
@@ -3073,9 +3081,9 @@ export default function MapScreen({ navigation, route }) {
                   <View style={styles.sectionBlock}>
                     <Text style={styles.sectionTitle}>Products</Text>
                     {selectedEstablishment.type === 'farm' ? (
-                      selectedEstablishment.productRatings.length ? (
+                      (Array.isArray(selectedEstablishment?.productRatings) && selectedEstablishment.productRatings.length) ? (
                         <View style={styles.productRatingsList}>
-                          {selectedEstablishment.productRatings.map((product) => (
+                          {(Array.isArray(selectedEstablishment?.productRatings) ? selectedEstablishment.productRatings : []).map((product) => (
                             <View key={`${product.id || product.name}`} style={styles.productRatingRow}>
                               <Text style={styles.productRatingName} numberOfLines={1}>
                                 {product.name}
@@ -3096,7 +3104,7 @@ export default function MapScreen({ navigation, route }) {
                       )
                     ) : (
                       <View style={styles.productsChipsWrap}>
-                        {getProductsByType(selectedEstablishment.type).map((product) => (
+                        {(Array.isArray(getProductsByType(selectedEstablishment.type)) ? getProductsByType(selectedEstablishment.type) : []).map((product) => (
                           <View key={product} style={styles.productChip}>
                             <Text style={styles.productChipText}>{product}</Text>
                           </View>
@@ -3196,9 +3204,9 @@ export default function MapScreen({ navigation, route }) {
 
                   <View style={styles.sectionBlock}>
                     <Text style={styles.sectionTitle}>Coffee Varieties</Text>
-                    {selectedEstablishment.coffeeVarieties.length ? (
+                    {(Array.isArray(selectedEstablishment?.coffeeVarieties) && selectedEstablishment.coffeeVarieties.length) ? (
                       <View style={styles.varietyChipsWrap}>
-                        {selectedEstablishment.coffeeVarieties.map((variety) => {
+                        {(Array.isArray(selectedEstablishment?.coffeeVarieties) ? selectedEstablishment.coffeeVarieties : []).map((variety) => {
                           const chipColor = getVarietyColor(variety);
                           return (
                             <View
@@ -3226,8 +3234,8 @@ export default function MapScreen({ navigation, route }) {
                   {selectedEstablishment.type === 'cafe' ? (
                     <View style={styles.sectionBlock}>
                       <Text style={styles.sectionTitle}>Recent Ratings</Text>
-                      {selectedEstablishment.recentReviews.length ? (
-                        selectedEstablishment.recentReviews.map((review, index) => (
+                      {(Array.isArray(selectedEstablishment?.recentReviews) && selectedEstablishment.recentReviews.length) ? (
+                        (Array.isArray(selectedEstablishment?.recentReviews) ? selectedEstablishment.recentReviews : []).map((review, index) => (
                           <View key={`${review.id || review.reviewer}-${index}`} style={styles.reviewCard}>
                             <Text style={styles.reviewAuthor}>{review.reviewer || 'Anonymous'}</Text>
                             <Text style={styles.reviewMeta}>
