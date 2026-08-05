@@ -200,6 +200,17 @@ function clamp(value, min, max) {
   return numericValue;
 }
 
+function parseCoordinate(value) {
+  if (value === undefined || value === null) return null;
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+  const s = String(value || '').trim();
+  if (!s) return null;
+  // Allow comma decimals, strip non-numeric characters except dot, minus, plus, and exponent
+  const cleaned = s.replace(/,/g, '.').replace(/[^0-9+\-\.eE]/g, '');
+  const n = Number(cleaned);
+  return Number.isFinite(n) ? n : null;
+}
+
 function constrainRegion(region) {
   if (!region || typeof region !== 'object') {
     return LIPA_REGION;
@@ -495,8 +506,8 @@ function normalizeEstablishment(item, index, promoIndexByEstablishment = {}) {
 
   const type = String(source?.type || source?.establishment_type || 'establishment').trim().toLowerCase();
 
-  const latitude = Number(source?.latitude ?? source?.lat ?? raw?.latitude ?? raw?.lat);
-  const longitude = Number(source?.longitude ?? source?.lng ?? raw?.longitude ?? raw?.lng);
+  const latitude = parseCoordinate(source?.latitude ?? source?.lat ?? raw?.latitude ?? raw?.lat);
+  const longitude = parseCoordinate(source?.longitude ?? source?.lng ?? raw?.longitude ?? raw?.lng);
 
   const promoIdKey = String(id);
   const externalActivePromoDetails = promoIndexByEstablishment[promoIdKey] || [];
@@ -641,19 +652,9 @@ function renderTypeIcon(icon, iconLibrary, color, size = 12) {
 }
 
 // Lightweight memoized Marker component to avoid re-renders when unrelated state changes.
-const MemoMarker = React.memo(function MemoMarker({ item, isSelected, onSelect, onViewDetails, markerRenderScope }) {
+const MemoMarker = React.memo(function MemoMarker({ item, isSelected, onSelect, onViewDetails, markerRenderScope, tracksViewChanges = false }) {
   const handlePress = useCallback(() => onSelect(item), [onSelect, item]);
   const handleViewDetailsPress = useCallback(() => onViewDetails(item), [onViewDetails, item]);
-  const [tracksViewChanges, setTracksViewChanges] = React.useState(Platform.OS === 'android');
-
-  // On Android, custom Marker children sometimes don't render unless
-  // `tracksViewChanges` is true for the first render. Switch it off shortly
-  // after mount to preserve performance (matching previous intended behavior).
-  useEffect(() => {
-    if (Platform.OS !== 'android') return undefined;
-    const t = setTimeout(() => setTracksViewChanges(false), 300);
-    return () => clearTimeout(t);
-  }, []);
 
   return (
     <Marker
@@ -722,7 +723,8 @@ const MemoMarker = React.memo(function MemoMarker({ item, isSelected, onSelect, 
     prev.item.latitude === next.item.latitude &&
     prev.item.longitude === next.item.longitude &&
     prev.isSelected === next.isSelected &&
-    prev.markerRenderScope === next.markerRenderScope
+    prev.markerRenderScope === next.markerRenderScope &&
+    prev.tracksViewChanges === next.tracksViewChanges
   );
 });
 
@@ -1234,6 +1236,15 @@ export default function MapScreen({ navigation, route }) {
     return [filter, varietiesKey, searchQuery.trim().toLowerCase()].join('::');
   }, [filter, selectedVarieties, searchQuery]);
 
+  // Control `tracksViewChanges` for all markers from a single flag to avoid
+  // creating many per-marker timers which can cause jank on Android.
+  const [markerTracksViewChanges, setMarkerTracksViewChanges] = useState(Platform.OS === 'android');
+  useEffect(() => {
+    if (Platform.OS !== 'android') return undefined;
+    const t = setTimeout(() => setMarkerTracksViewChanges(false), 300);
+    return () => clearTimeout(t);
+  }, []);
+
   const filteredEstablishments = useMemo(() => {
     const activeVarieties = selectedVarieties.map((v) => String(v).toLowerCase());
     const normalizedSearch = searchQuery.trim().toLowerCase();
@@ -1303,9 +1314,10 @@ export default function MapScreen({ navigation, route }) {
         onSelect={safeOnSelect}
         onViewDetails={safeOnViewDetails}
         markerRenderScope={markerRenderScope}
+        tracksViewChanges={markerTracksViewChanges}
       />
     ));
-  }, [filteredEstablishments, selectedEstablishmentId, markerRenderScope, handleMarkerSelect, handleViewDetails]);
+  }, [filteredEstablishments, selectedEstablishmentId, markerRenderScope, handleMarkerSelect, handleViewDetails, markerTracksViewChanges]);
 
   useEffect(() => {
     let isMounted = true;
