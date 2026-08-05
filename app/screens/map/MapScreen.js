@@ -24,8 +24,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
-import { API_CONFIG, api, getCouponPromos, getEstablishments, trackMapMarkerView } from '../../services';
-import { getImageUrl } from '../../utils/imageHelper';
+import { api, getCouponPromos, getEstablishments, trackMapMarkerView } from '../../services';
 
 const LIPA_REGION = {
   latitude: 13.9411,
@@ -185,6 +184,142 @@ function decodePolyline(encoded) {
   }
 
   return coordinates;
+}
+
+function clamp(value, min, max) {
+  const numericValue = Number(value);
+  if (!Number.isFinite(numericValue)) {
+    return Number.isFinite(min) ? min : 0;
+  }
+  if (Number.isFinite(min) && numericValue < min) {
+    return min;
+  }
+  if (Number.isFinite(max) && numericValue > max) {
+    return max;
+  }
+  return numericValue;
+}
+
+function constrainRegion(region) {
+  if (!region || typeof region !== 'object') {
+    return LIPA_REGION;
+  }
+
+  const latitude = Number(region.latitude ?? region.lat ?? LIPA_REGION.latitude);
+  const longitude = Number(region.longitude ?? region.lng ?? LIPA_REGION.longitude);
+  const latitudeDelta = clamp(region.latitudeDelta ?? region.latDelta ?? MAP_DELTA_LIMITS.maxDelta, MAP_DELTA_LIMITS.minDelta, MAP_DELTA_LIMITS.maxDelta);
+  const longitudeDelta = clamp(region.longitudeDelta ?? region.lngDelta ?? MAP_DELTA_LIMITS.maxDelta, MAP_DELTA_LIMITS.minDelta, MAP_DELTA_LIMITS.maxDelta);
+
+  return {
+    latitude: Number.isFinite(latitude) ? latitude : LIPA_REGION.latitude,
+    longitude: Number.isFinite(longitude) ? longitude : LIPA_REGION.longitude,
+    latitudeDelta,
+    longitudeDelta,
+  };
+}
+
+function regionHasMeaningfulDiff(original, constrained) {
+  if (!original || !constrained) {
+    return false;
+  }
+
+  return (
+    Math.abs((original.latitude ?? 0) - (constrained.latitude ?? 0)) > 0.000001 ||
+    Math.abs((original.longitude ?? 0) - (constrained.longitude ?? 0)) > 0.000001 ||
+    Math.abs((original.latitudeDelta ?? 0) - (constrained.latitudeDelta ?? 0)) > 0.000001 ||
+    Math.abs((original.longitudeDelta ?? 0) - (constrained.longitudeDelta ?? 0)) > 0.000001
+  );
+}
+
+async function geocodePhilippines(rawQuery) {
+  const query = String(rawQuery || '').trim();
+  if (!query) {
+    return null;
+  }
+
+  const normalizedQuery = query
+    .replace(/\b(city|lipa|batangas|philippines)\b/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  const mapboxToken = String(process.env.EXPO_PUBLIC_MAPBOX_TOKEN || '').trim();
+  if (mapboxToken) {
+    try {
+      const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(normalizedQuery)}.json?access_token=${encodeURIComponent(mapboxToken)}&country=ph&autocomplete=true&limit=5&language=en`;
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`Mapbox geocode failed: ${response.status}`);
+      }
+      const json = await response.json();
+      const feature = Array.isArray(json?.features) ? json.features[0] : null;
+      if (feature && Array.isArray(feature.center) && feature.center.length >= 2) {
+        const [lng, lat] = feature.center;
+        return {
+          lat: Number(lat),
+          lng: Number(lng),
+          placeName: String(feature.place_name || feature.text || query),
+          bounds:
+            Array.isArray(feature.bbox) && feature.bbox.length >= 4
+              ? {
+                  west: Number(feature.bbox[0]),
+                  south: Number(feature.bbox[1]),
+                  east: Number(feature.bbox[2]),
+                  north: Number(feature.bbox[3]),
+                }
+              : null,
+        };
+      }
+    } catch {
+      // Fallback to Nominatim below.
+    }
+  }
+
+  return geocodePhilippinesNominatim(query);
+}
+
+async function geocodePhilippinesNominatim(rawQuery) {
+  const query = String(rawQuery || '').trim();
+  if (!query) {
+    return null;
+  }
+
+  const url = `https://nominatim.openstreetmap.org/search?format=json&addressdetails=0&limit=5&countrycodes=ph&q=${encodeURIComponent(query)}`;
+  try {
+    const response = await fetch(url, {
+      headers: {
+        'User-Agent': 'BrewingConnectionsApp/1.0 (+https://brewing-hub.online)',
+      },
+    });
+    if (!response.ok) {
+      throw new Error('Nominatim geocode failed');
+    }
+    const results = await response.json();
+    if (!Array.isArray(results) || !results.length) {
+      return null;
+    }
+    const entry = results[0];
+    const lat = Number(entry.lat);
+    const lng = Number(entry.lon);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+      return null;
+    }
+    return {
+      lat,
+      lng,
+      placeName: String(entry.display_name || query),
+      bounds:
+        Array.isArray(entry.boundingbox) && entry.boundingbox.length === 4
+          ? {
+              south: Number(entry.boundingbox[0]),
+              north: Number(entry.boundingbox[1]),
+              west: Number(entry.boundingbox[2]),
+              east: Number(entry.boundingbox[3]),
+            }
+          : null,
+    };
+  } catch {
+    return null;
+  }
 }
 
 function buildFallbackRoute(origin, destination) {
@@ -2353,152 +2488,6 @@ export default function MapScreen({ navigation, route }) {
     setDistanceRemaining(formatDistanceKm(seedDistance));
     setEtaRemaining(formatEtaMinutes(estimateEtaFromDistance(seedDistance)));
   };
-
-  // Memoize bottom sheet content to avoid re-renders during map interactions
-  const bottomSheetMemo = useMemo(() => {
-    if (isTrailMode) return null;
-
-    return (
-      <Animated.View
-        style={[
-          styles.bottomSheet,
-          isDetailsExpanded && styles.bottomSheetExpanded,
-          { transform: [{ translateY: Animated.add(panelAnimation, dragY) }] },
-        ]}
-      >
-        {selectedEstablishment ? (
-          <>
-            <View style={styles.dragHandleWrap} {...sheetPanResponder.panHandlers}>
-              <View style={styles.dragHandle} />
-            </View>
-
-            <View style={styles.sheetImageWrap}>
-              {activeSheetImageUri ? (
-                <Image
-                  source={{ uri: activeSheetImageUri }}
-                  style={[styles.sheetImage, isDetailsExpanded && styles.sheetImageExpanded]}
-                  onError={handleSheetImageError}
-                />
-              ) : (
-                <View
-                  style={[
-                    styles.sheetImage,
-                    styles.sheetImagePlaceholder,
-                    isDetailsExpanded && styles.sheetImageExpanded,
-                  ]}
-                >
-                  <Text style={styles.sheetImagePlaceholderText}>No Photo</Text>
-                </View>
-              )}
-
-              <Pressable style={styles.sheetCloseButton} onPress={handleDismissSheet}>
-                <Text style={styles.sheetCloseText}>×</Text>
-              </Pressable>
-            </View>
-
-            <ScrollView
-              ref={sheetScrollRef}
-              style={styles.sheetScrollView}
-              contentContainerStyle={[
-                styles.sheetContent,
-                isDetailsExpanded && styles.sheetContentExpanded,
-              ]}
-              showsVerticalScrollIndicator={false}
-            >
-              <View style={styles.sheetTitleRow}>
-                <Text style={styles.sheetTitle}>{selectedEstablishment.name}</Text>
-                <View style={styles.sheetSaveWrap}>
-                  <Pressable
-                    style={styles.sheetSaveButtonInline}
-                    onPress={() => handleToggleSaveEstablishment(selectedEstablishment)}
-                  >
-                    <Animated.View style={{ transform: [{ scale: heartTapAnim }] }}>
-                      <MaterialIcons
-                        name={isSelectedEstablishmentSaved ? 'favorite' : 'favorite-border'}
-                        size={18}
-                        color={isSelectedEstablishmentSaved ? '#A33939' : '#6E6254'}
-                      />
-                    </Animated.View>
-                  </Pressable>
-
-                  {showSavedToast ? (
-                    <Animated.View style={[styles.savedToastWrap, { opacity: savedToastOpacity }]}> 
-                      <Text style={styles.savedToastText}>{savedToastMessage}</Text>
-                    </Animated.View>
-                  ) : null}
-                </View>
-              </View>
-              <Text style={styles.sheetAddress}>{selectedEstablishment.address}</Text>
-              {selectedEstablishment.type === 'cafe' ? (
-                <Text style={styles.sheetRating}>{formatStars(selectedEstablishment.rating)}</Text>
-              ) : null}
-              {!isDetailsExpanded && selectedEstablishment.type === 'cafe' ? (
-                <View style={styles.sheetPromoWrap}>
-                  <Text style={styles.sheetPromoLabel}>Active Promo:</Text>
-                  <Text style={styles.sheetPromoValue} numberOfLines={1} ellipsizeMode="tail">
-                    {selectedEstablishment.activePromoDetails?.length ? 'One active promo' : 'No active promo'}
-                  </Text>
-                </View>
-              ) : null}
-              {navigationError ? <Text style={styles.navigationError}>{navigationError}</Text> : null}
-
-              <View style={styles.sheetActions}>
-                <Pressable
-                  style={[styles.actionButton, styles.directionsButton]}
-                  onPress={() => handleNavigatePress(selectedEstablishment)}
-                  disabled={isNavigating}
-                >
-                  <Text style={styles.actionButtonText}>
-                    {isNavigating ? 'Getting directions...' : 'Navigate'}
-                  </Text>
-                </Pressable>
-
-                <Pressable
-                  style={[styles.actionButton, styles.detailsButton]}
-                  onPress={() => {
-                    if (isDetailsExpanded) {
-                      setIsDetailsExpanded(false);
-                      return;
-                    }
-
-                    handleViewDetails(selectedEstablishment);
-                  }}
-                >
-                  <Text style={[styles.actionButtonText, styles.detailsButtonText]}>
-                    {isDetailsExpanded ? 'Show Less' : 'View Details'}
-                  </Text>
-                </Pressable>
-              </View>
-
-              {routeCoordinates.length > 1 ? (
-                <Pressable style={styles.clearRouteButton} onPress={handleClearRoute}>
-                  <Text style={styles.clearRouteText}>Clear Route</Text>
-                </Pressable>
-              ) : null}
-
-              {isDetailsExpanded ? (
-                <View style={styles.fullDetailsWrap}>
-                  {selectedEstablishment.description ? (
-                    <Text style={styles.fullDescription}>{selectedEstablishment.description}</Text>
-                  ) : null}
-                </View>
-              ) : null}
-            </ScrollView>
-          </>
-        ) : null}
-      </Animated.View>
-    );
-  }, [
-    selectedEstablishment,
-    isDetailsExpanded,
-    activeSheetImageUri,
-    showSavedToast,
-    savedToastMessage,
-    isNavigating,
-    routeCoordinates,
-    isSelectedEstablishmentSaved,
-    navigationError,
-  ]);
 
   return (
     <View style={styles.screen}>
