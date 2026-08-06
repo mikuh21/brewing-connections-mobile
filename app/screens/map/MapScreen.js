@@ -1304,6 +1304,16 @@ export default function MapScreen({ navigation, route }) {
       (it) => Number.isFinite(it?.latitude) && Number.isFinite(it?.longitude)
     );
 
+    console.log("SAFE ITEMS:", safeItems);
+    console.table(
+    safeItems.map(item => ({
+      id: item.id,
+      name: item.name,
+      latitude: item.latitude,
+      longitude: item.longitude,
+    }))
+  );
+
     const safeOnSelect = typeof handleMarkerSelect === 'function' ? handleMarkerSelect : () => {};
     const safeOnViewDetails = typeof handleViewDetails === 'function' ? handleViewDetails : () => {};
 
