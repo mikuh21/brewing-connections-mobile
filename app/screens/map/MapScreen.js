@@ -1320,14 +1320,15 @@ export default function MapScreen({ navigation, route }) {
     ));
   }, [filteredEstablishments, selectedEstablishmentId, markerRenderScope, handleMarkerSelect, handleViewDetails, markerTracksViewChanges]);
 
-  // Development-only: log counts of establishments, filtered list, and markers to trace where markers disappear.
+  // Development-only: log counts and the first filtered item to trace where markers disappear.
   useEffect(() => {
     try {
-      console.debug('[MapScreen] counts', {
-        establishments: Array.isArray(establishments) ? establishments.length : 0,
-        filteredEstablishments: Array.isArray(filteredEstablishments) ? filteredEstablishments.length : 0,
-        markerComponents: Array.isArray(markerComponents) ? markerComponents.length : 0,
-      });
+      const filteredCount = Array.isArray(filteredEstablishments) ? filteredEstablishments.length : 0;
+      const markerCount = Array.isArray(markerComponents) ? markerComponents.length : 0;
+      console.log('filtered:', filteredCount, 'markers:', markerCount);
+      if (filteredCount > 0) {
+        console.log('filtered first item:', filteredEstablishments[0]);
+      }
     } catch (e) {
       // ignore
     }
@@ -2556,6 +2557,11 @@ export default function MapScreen({ navigation, route }) {
         ref={mapRef}
         style={StyleSheet.absoluteFill}
         provider="google"
+        scrollEnabled={true}
+        zoomEnabled={true}
+        rotateEnabled={true}
+        pitchEnabled={true}
+        moveOnMarkerPress={false}
         initialRegion={LIPA_REGION}
         onRegionChangeComplete={handleRegionChangeComplete}
         onPress={handleMapPress}
@@ -2755,7 +2761,7 @@ export default function MapScreen({ navigation, route }) {
       ) : null}
 
       {!isTrailMode && !isDetailsExpanded ? (
-        <View style={[styles.overlayTop, { top: Math.max(insets.top + 6, 16) }]}> 
+        <View pointerEvents="box-none" style={[styles.overlayTop, { top: Math.max(insets.top + 6, 16) }]}> 
           <View style={styles.searchBarWrap}>
             <TextInput
               style={styles.searchInput}
