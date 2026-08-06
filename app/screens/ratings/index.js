@@ -814,7 +814,7 @@ export default function RatingScreen({ navigation, route }) {
 		openConfirm({
 			title: 'Confirm Submission',
 			message: 'Submit this rating now?',
-			confirmLabel: 'Yes, Submit',
+			confirmLabel: 'Submit',
 			onConfirm: async () => {
 					setIsSubmitting(true);
 					try {
@@ -940,7 +940,7 @@ export default function RatingScreen({ navigation, route }) {
 									openConfirm({
 										title: 'Confirm Clear',
 										message: 'Clear all current rating values?',
-										confirmLabel: 'Yes, Clear',
+										confirmLabel: 'Clear',
 										onConfirm: () => {
 											setRatings(INITIAL_RATINGS);
 											if (selectedStopId !== null && selectedStopId !== undefined) {

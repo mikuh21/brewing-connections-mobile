@@ -1323,11 +1323,22 @@ export default function MapScreen({ navigation, route }) {
   // Development-only: log counts and the first filtered item to trace where markers disappear.
   useEffect(() => {
     try {
+      const establishmentsCount = Array.isArray(establishments) ? establishments.length : 0;
       const filteredCount = Array.isArray(filteredEstablishments) ? filteredEstablishments.length : 0;
       const markerCount = Array.isArray(markerComponents) ? markerComponents.length : 0;
+      console.log('Establishments:', establishmentsCount);
       console.log('filtered:', filteredCount, 'markers:', markerCount);
       if (filteredCount > 0) {
         console.log('filtered first item:', filteredEstablishments[0]);
+        console.log(
+          'filtered items:',
+          filteredEstablishments.map((e) => ({
+            id: e.id,
+            name: e.name,
+            latitude: e.latitude,
+            longitude: e.longitude,
+          }))
+        );
       }
     } catch (e) {
       // ignore
@@ -2567,7 +2578,7 @@ export default function MapScreen({ navigation, route }) {
         onPress={handleMapPress}
         showsUserLocation
         showsMyLocationButton
-        cacheEnabled={Platform.OS === 'android'}
+        cacheEnabled={false}
       >
         {!isTrailMode && routeCoordinates.length > 1 ? (
           <>
