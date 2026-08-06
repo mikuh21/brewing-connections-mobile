@@ -1304,16 +1304,6 @@ export default function MapScreen({ navigation, route }) {
       (it) => Number.isFinite(it?.latitude) && Number.isFinite(it?.longitude)
     );
 
-    console.log("SAFE ITEMS:", safeItems);
-    console.table(
-    safeItems.map(item => ({
-      id: item.id,
-      name: item.name,
-      latitude: item.latitude,
-      longitude: item.longitude,
-    }))
-  );
-
     const safeOnSelect = typeof handleMarkerSelect === 'function' ? handleMarkerSelect : () => {};
     const safeOnViewDetails = typeof handleViewDetails === 'function' ? handleViewDetails : () => {};
 
@@ -2682,7 +2672,16 @@ export default function MapScreen({ navigation, route }) {
                 </Marker>
               );
             })
-          : markerComponents}
+          : filteredEstablishments.map((item) => (
+      <Marker
+        key={item.id}
+        coordinate={{
+          latitude: item.latitude,
+          longitude: item.longitude,
+        }}
+        pinColor="red"
+      />
+    ))}
       </MapView>
 
       {isTrailMode && !shouldHideTrailOverlays ? (
