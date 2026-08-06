@@ -2672,16 +2672,17 @@ export default function MapScreen({ navigation, route }) {
                 </Marker>
               );
             })
-          : filteredEstablishments.map((item) => (
-      <Marker
+          : filteredEstablishments.map(item => (
+    <MemoMarker
         key={item.id}
-        coordinate={{
-          latitude: item.latitude,
-          longitude: item.longitude,
-        }}
-        pinColor="red"
-      />
-    ))}
+        item={item}
+        isSelected={selectedEstablishmentId === item.id}
+        onSelect={handleMarkerSelect}
+        onViewDetails={handleViewDetails}
+        markerRenderScope={markerRenderScope}
+        tracksViewChanges={markerTracksViewChanges}
+    />
+))}
       </MapView>
 
       {isTrailMode && !shouldHideTrailOverlays ? (
