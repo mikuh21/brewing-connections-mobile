@@ -150,8 +150,7 @@ export default function SavedCoffeeVarietiesScreen({ navigation }) {
   return (
     <ScreenContainer>
       <View style={styles.headerRow}>
-        <Text style={styles.headerTitle}>Saved Coffee{'
-'}Varieties</Text>
+        <Text style={styles.headerTitle}>Saved Coffee{`\n`}Varieties</Text>
         <Pressable style={styles.backButton} onPress={() => navigation.goBack()}>
           <MaterialIcons name="arrow-back" size={16} color={theme.colors.white} />
           <Text style={styles.backText}>Profile</Text>
