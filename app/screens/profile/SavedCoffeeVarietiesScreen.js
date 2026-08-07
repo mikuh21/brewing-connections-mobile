@@ -150,7 +150,8 @@ export default function SavedCoffeeVarietiesScreen({ navigation }) {
   return (
     <ScreenContainer>
       <View style={styles.headerRow}>
-        <Text style={styles.headerTitle}>Saved Coffee Varieties</Text>
+        <Text style={styles.headerTitle}>Saved Coffee{'
+'}Varieties</Text>
         <Pressable style={styles.backButton} onPress={() => navigation.goBack()}>
           <MaterialIcons name="arrow-back" size={16} color={theme.colors.white} />
           <Text style={styles.backText}>Profile</Text>
@@ -239,7 +240,7 @@ export default function SavedCoffeeVarietiesScreen({ navigation }) {
 const styles = StyleSheet.create({
   headerRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     justifyContent: 'space-between',
     marginBottom: 4,
   },
@@ -258,7 +259,10 @@ const styles = StyleSheet.create({
     fontSize: theme.fontSizes.sm,
   },
   headerTitle: {
+    flex: 1,
+    flexShrink: 1,
     fontSize: 30,
+    lineHeight: 36,
     color: '#3A2E22',
     fontFamily: 'PoppinsBold',
   },
