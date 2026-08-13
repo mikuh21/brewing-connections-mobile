@@ -1228,23 +1228,8 @@ export default function MapScreen({ navigation, route }) {
     return `${uniqueNames[0]}, ${uniqueNames[1]} +${uniqueNames.length - 2}`;
   }, [selectedVarieties, availableVarieties]);
 
-  const markerRenderScope = useMemo(() => {
-    const varietiesKey = selectedVarieties
-      .map((item) => String(item).toLowerCase())
-      .sort()
-      .join('|');
-
-    return [filter, varietiesKey, searchQuery.trim().toLowerCase()].join('::');
-  }, [filter, selectedVarieties, searchQuery]);
-
-  // Control `tracksViewChanges` for all markers from a single flag to avoid
-  // creating many per-marker timers which can cause jank on Android.
-  const [markerTracksViewChanges, setMarkerTracksViewChanges] = useState(Platform.OS === 'android');
-  useEffect(() => {
-    if (Platform.OS !== 'android') return undefined;
-    const t = setTimeout(() => setMarkerTracksViewChanges(false), 300);
-    return () => clearTimeout(t);
-  }, []);
+  // markerRenderScope and markerTracksViewChanges removed — markers will be
+  // rendered directly to ensure Android renders custom view markers reliably.
 
   const filteredEstablishments = useMemo(() => {
     const activeVarieties = selectedVarieties.map((v) => String(v).toLowerCase());
@@ -1297,37 +1282,15 @@ export default function MapScreen({ navigation, route }) {
     return savedEstablishments.some((item) => item?.id === selectedEstablishment.id);
   }, [savedEstablishments, selectedEstablishment]);
 
-  // Memoize marker components to prevent recreating Marker elements on every render.
-  const markerComponents = useMemo(() => {
-    // Ensure markers are only created for items with valid coordinates to avoid native crashes.
-    const safeItems = (Array.isArray(filteredEstablishments) ? filteredEstablishments : []).filter(
-      (it) => Number.isFinite(it?.latitude) && Number.isFinite(it?.longitude)
-    );
-
-    const safeOnSelect = typeof handleMarkerSelect === 'function' ? handleMarkerSelect : () => {};
-    const safeOnViewDetails = typeof handleViewDetails === 'function' ? handleViewDetails : () => {};
-
-    return safeItems.map((item) => (
-      <MemoMarker
-        key={`${markerRenderScope}-${item.id}-${Platform.OS}`}
-        item={item}
-        isSelected={selectedEstablishmentId === item.id}
-        onSelect={safeOnSelect}
-        onViewDetails={safeOnViewDetails}
-        markerRenderScope={markerRenderScope}
-        tracksViewChanges={markerTracksViewChanges}
-      />
-    ));
-  }, [filteredEstablishments, selectedEstablishmentId, markerRenderScope, handleMarkerSelect, handleViewDetails, markerTracksViewChanges]);
+  // Markers will be rendered inline below inside the MapView.
 
   // Development-only: log counts and the first filtered item to trace where markers disappear.
   useEffect(() => {
     try {
       const establishmentsCount = Array.isArray(establishments) ? establishments.length : 0;
       const filteredCount = Array.isArray(filteredEstablishments) ? filteredEstablishments.length : 0;
-      const markerCount = Array.isArray(markerComponents) ? markerComponents.length : 0;
       console.log('Establishments:', establishmentsCount);
-      console.log('filtered:', filteredCount, 'markers:', markerCount);
+      console.log('filtered:', filteredCount);
       if (filteredCount > 0) {
         console.log('filtered first item:', filteredEstablishments[0]);
         console.log(
@@ -1343,7 +1306,7 @@ export default function MapScreen({ navigation, route }) {
     } catch (e) {
       // ignore
     }
-  }, [establishments, filteredEstablishments, markerComponents]);
+  }, [establishments, filteredEstablishments]);
 
   useEffect(() => {
     let isMounted = true;
@@ -2672,7 +2635,69 @@ export default function MapScreen({ navigation, route }) {
                 </Marker>
               );
             })
-          : markerComponents}
+          : (Array.isArray(filteredEstablishments) ? filteredEstablishments
+              .filter((it) => Number.isFinite(it?.latitude) && Number.isFinite(it?.longitude))
+              .map((item) => (
+                <Marker
+                  key={String(item.id)}
+                  coordinate={{ latitude: item.latitude, longitude: item.longitude }}
+                  tracksViewChanges={true}
+                  zIndex={20}
+                  onPress={() => handleMarkerSelect(item)}
+                  onSelect={() => handleMarkerSelect(item)}
+                >
+                  <View
+                    style={[
+                      styles.establishmentMarker,
+                      { backgroundColor: TYPE_PIN_COLORS[item.type] || BRAND.accent },
+                    ]}
+                  >
+                    {renderTypeIcon(
+                      TYPE_MARKER_ICONS[item.type]?.icon || 'place',
+                      TYPE_MARKER_ICONS[item.type]?.iconLibrary || 'material',
+                      '#FFFFFF',
+                      TYPE_MARKER_ICONS[item.type]?.iconLibrary === 'community' ? 15 : 16
+                    )}
+                  </View>
+                  {Platform.OS === 'ios' ? (
+                    <Callout onPress={() => handleViewDetails(item)}>
+                      <View style={styles.calloutWrap}>
+                        <Text style={styles.calloutName}>{item.name}</Text>
+                        <Text
+                          style={[
+                            styles.calloutTypePillText,
+                            {
+                              backgroundColor: getTypePillTheme(item.type).bg,
+                              borderColor: getTypePillTheme(item.type).border,
+                              color: getTypePillTheme(item.type).text,
+                            },
+                          ]}
+                        >
+                          {getTypeDisplayLabel(item)}
+                        </Text>
+
+                        {item.type === 'cafe' ? (
+                          <View style={styles.calloutInfoRow}>
+                            <Text style={styles.calloutInfoLabel}>Overall Avg:</Text>
+                            <Text style={styles.calloutRatingValue}>
+                              ★ {item.reviewCount > 0 ? item.rating.toFixed(1) : '0.0'}
+                            </Text>
+                          </View>
+                        ) : null}
+
+                        {item.type === 'cafe' ? (
+                          <View style={styles.calloutInfoRow}>
+                            <Text style={styles.calloutInfoLabel}>Active Promo:</Text>
+                            <Text style={styles.calloutPromoValue} numberOfLines={1} ellipsizeMode="tail">
+                              {item.activePromos?.[0] || 'No active promo'}
+                            </Text>
+                          </View>
+                        ) : null}
+                      </View>
+                    </Callout>
+                  ) : null}
+                </Marker>
+              )) : null)}
       </MapView>
 
       {isTrailMode && !shouldHideTrailOverlays ? (
