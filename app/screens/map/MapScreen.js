@@ -506,8 +506,14 @@ function normalizeEstablishment(item, index, promoIndexByEstablishment = {}) {
 
   const type = String(source?.type || source?.establishment_type || 'establishment').trim().toLowerCase();
 
-  const latitude = parseCoordinate(source?.latitude ?? source?.lat ?? raw?.latitude ?? raw?.lat);
-  const longitude = parseCoordinate(source?.longitude ?? source?.lng ?? raw?.longitude ?? raw?.lng);
+  const latitude = parseCoordinate(
+    source?.latitude ?? source?.lat ?? raw?.latitude ?? raw?.lat ?? 
+    item?.geometry?.coordinates?.[1]
+  );
+  const longitude = parseCoordinate(
+    source?.longitude ?? source?.lng ?? raw?.longitude ?? raw?.lng ?? 
+    item?.geometry?.coordinates?.[0]
+  );
 
   const promoIdKey = String(id);
   const externalActivePromoDetails = promoIndexByEstablishment[promoIdKey] || [];
@@ -1283,6 +1289,21 @@ export default function MapScreen({ navigation, route }) {
   }, [savedEstablishments, selectedEstablishment]);
 
   // Markers will be rendered inline below inside the MapView.
+
+  // TEMPORARY DEBUG: log filteredEstablishments to verify data pipeline before marker rendering
+  useEffect(() => {
+    console.log(
+      '[MARKER DEBUG]',
+      JSON.stringify(
+        filteredEstablishments.map(item => ({
+          id: item.id,
+          name: item.name,
+          latitude: item.latitude,
+          longitude: item.longitude,
+        }))
+      )
+    );
+  }, [filteredEstablishments]);
 
   // Development-only: log counts and the first filtered item to trace where markers disappear.
   useEffect(() => {
