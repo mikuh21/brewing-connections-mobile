@@ -1862,6 +1862,7 @@ export default function MapScreen({ navigation, route }) {
       const payload = Array.isArray(establishmentsResponse)
         ? establishmentsResponse
         : establishmentsResponse?.features || establishmentsResponse?.data || establishmentsResponse?.establishments || [];
+      console.debug('[MARKER DEBUG] payload count:', Array.isArray(payload) ? payload.length : 0);
       const promosPayload = Array.isArray(promosResponse)
         ? promosResponse
         : promosResponse?.data || promosResponse?.promos || [];
@@ -1870,6 +1871,17 @@ export default function MapScreen({ navigation, route }) {
       const normalized = payload
         .map((item, index) => normalizeEstablishment(item, index, promoIndexByEstablishment))
         .filter(Boolean);
+
+      try {
+        console.debug(
+          '[MARKER DEBUG] normalized:',
+          Array.isArray(normalized)
+            ? normalized.map((item) => ({ id: item.id, name: item.name, type: item.type, latitude: item.latitude, longitude: item.longitude }))
+            : normalized
+        );
+      } catch (e) {
+        // ignore logging errors
+      }
 
       setEstablishments(normalized);
       // Development-only debug: log counts to trace where markers disappear
@@ -2527,6 +2539,19 @@ export default function MapScreen({ navigation, route }) {
 
   return (
     <View style={styles.screen}>
+      {(() => {
+        try {
+          console.debug(
+            '[MARKER DEBUG] filteredEstablishments:',
+            Array.isArray(filteredEstablishments)
+              ? filteredEstablishments.map((item) => ({ id: item.id, name: item.name, type: item.type, latitude: item.latitude, longitude: item.longitude }))
+              : filteredEstablishments
+          );
+        } catch (e) {
+          // ignore logging errors
+        }
+        return null;
+      })()}
       <MapView
         ref={mapRef}
         style={StyleSheet.absoluteFill}
@@ -2646,20 +2671,18 @@ export default function MapScreen({ navigation, route }) {
                   onPress={() => handleMarkerSelect(item)}
                   onSelect={() => handleMarkerSelect(item)}
                 >
-                  {/* DEBUG: temporary visually obvious marker to confirm mounting */}
                   <View
-                    style={{
-                      width: 40,
-                      height: 40,
-                      borderRadius: 20,
-                      backgroundColor: 'red',
-                      borderWidth: 4,
-                      borderColor: 'yellow',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}
+                    style={[
+                      styles.establishmentMarker,
+                      { backgroundColor: TYPE_PIN_COLORS[item.type] || BRAND.accent },
+                    ]}
                   >
-                    <Text style={{ color: 'white', fontSize: 12 }}>PIN</Text>
+                    {renderTypeIcon(
+                      TYPE_MARKER_ICONS[item.type]?.icon || 'place',
+                      TYPE_MARKER_ICONS[item.type]?.iconLibrary || 'material',
+                      '#FFFFFF',
+                      TYPE_MARKER_ICONS[item.type]?.iconLibrary === 'community' ? 15 : 16
+                    )}
                   </View>
                   {Platform.OS === 'ios' ? (
                     <Callout onPress={() => handleViewDetails(item)}>
