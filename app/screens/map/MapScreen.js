@@ -2636,28 +2636,30 @@ export default function MapScreen({ navigation, route }) {
               );
             })
           : (Array.isArray(filteredEstablishments) ? filteredEstablishments
-              .filter((it) => Number.isFinite(it?.latitude) && Number.isFinite(it?.longitude))
+              .filter((it) => Number.isFinite(Number(it?.latitude)) && Number.isFinite(Number(it?.longitude)))
               .map((item) => (
                 <Marker
                   key={String(item.id)}
-                  coordinate={{ latitude: item.latitude, longitude: item.longitude }}
+                  coordinate={{ latitude: Number(item.latitude), longitude: Number(item.longitude) }}
                   tracksViewChanges={true}
                   zIndex={20}
                   onPress={() => handleMarkerSelect(item)}
                   onSelect={() => handleMarkerSelect(item)}
                 >
+                  {/* DEBUG: temporary visually obvious marker to confirm mounting */}
                   <View
-                    style={[
-                      styles.establishmentMarker,
-                      { backgroundColor: TYPE_PIN_COLORS[item.type] || BRAND.accent },
-                    ]}
+                    style={{
+                      width: 40,
+                      height: 40,
+                      borderRadius: 20,
+                      backgroundColor: 'red',
+                      borderWidth: 4,
+                      borderColor: 'yellow',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
                   >
-                    {renderTypeIcon(
-                      TYPE_MARKER_ICONS[item.type]?.icon || 'place',
-                      TYPE_MARKER_ICONS[item.type]?.iconLibrary || 'material',
-                      '#FFFFFF',
-                      TYPE_MARKER_ICONS[item.type]?.iconLibrary === 'community' ? 15 : 16
-                    )}
+                    <Text style={{ color: 'white', fontSize: 12 }}>PIN</Text>
                   </View>
                   {Platform.OS === 'ios' ? (
                     <Callout onPress={() => handleViewDetails(item)}>
