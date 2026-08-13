@@ -2552,6 +2552,43 @@ export default function MapScreen({ navigation, route }) {
         }
         return null;
       })()}
+
+      {/* TEMPORARY DIAGNOSTIC OVERLAY - remove after inspection */}
+      <View
+        pointerEvents="none"
+        style={{
+          position: 'absolute',
+          top: Math.max(insets.top + 12, 18),
+          left: 12,
+          backgroundColor: 'rgba(0,0,0,0.6)',
+          padding: 8,
+          borderRadius: 8,
+          zIndex: 9999,
+          elevation: 9999,
+        }}
+      >
+        <Text style={{ color: '#FFFFFF', fontSize: 12, fontFamily: 'PoppinsMedium' }}>
+          {`ESTABLISHMENTS: ${Array.isArray(establishments) ? establishments.length : 0}`}
+        </Text>
+        <Text style={{ color: '#FFFFFF', fontSize: 12, fontFamily: 'PoppinsMedium' }}>
+          {`FILTERED: ${Array.isArray(filteredEstablishments) ? filteredEstablishments.length : 0}`}
+        </Text>
+        {Array.isArray(filteredEstablishments) && filteredEstablishments.length ? (
+          (() => {
+            const first = filteredEstablishments[0];
+            return (
+              <View style={{ marginTop: 6 }}>
+                <Text style={{ color: '#FFFFFF', fontSize: 11 }}>{`ID: ${String(first.id)}`}</Text>
+                <Text style={{ color: '#FFFFFF', fontSize: 11 }}>{`TYPE: ${String(first.type || '')}`}</Text>
+                <Text style={{ color: '#FFFFFF', fontSize: 11 }}>{`LAT: ${String(first.latitude)}`}</Text>
+                <Text style={{ color: '#FFFFFF', fontSize: 11 }}>{`LNG: ${String(first.longitude)}`}</Text>
+              </View>
+            );
+          })()
+        ) : (
+          <Text style={{ color: '#FFFFFF', fontSize: 11, marginTop: 6 }}>NO FILTERED ESTABLISHMENTS</Text>
+        )}
+      </View>
       <MapView
         ref={mapRef}
         style={StyleSheet.absoluteFill}
