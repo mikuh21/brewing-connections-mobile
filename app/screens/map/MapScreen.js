@@ -1290,21 +1290,6 @@ export default function MapScreen({ navigation, route }) {
 
   // Markers will be rendered inline below inside the MapView.
 
-  // TEMPORARY DEBUG: log filteredEstablishments to verify data pipeline before marker rendering
-  useEffect(() => {
-    console.log(
-      '[MARKER DEBUG]',
-      JSON.stringify(
-        filteredEstablishments.map(item => ({
-          id: item.id,
-          name: item.name,
-          latitude: item.latitude,
-          longitude: item.longitude,
-        }))
-      )
-    );
-  }, [filteredEstablishments]);
-
   // Development-only: log counts and the first filtered item to trace where markers disappear.
   useEffect(() => {
     try {
@@ -1883,7 +1868,6 @@ export default function MapScreen({ navigation, route }) {
       const payload = Array.isArray(establishmentsResponse)
         ? establishmentsResponse
         : establishmentsResponse?.features || establishmentsResponse?.data || establishmentsResponse?.establishments || [];
-      console.debug('[MARKER DEBUG] payload count:', Array.isArray(payload) ? payload.length : 0);
       const promosPayload = Array.isArray(promosResponse)
         ? promosResponse
         : promosResponse?.data || promosResponse?.promos || [];
@@ -1893,29 +1877,7 @@ export default function MapScreen({ navigation, route }) {
         .map((item, index) => normalizeEstablishment(item, index, promoIndexByEstablishment))
         .filter(Boolean);
 
-      try {
-        console.debug(
-          '[MARKER DEBUG] normalized:',
-          Array.isArray(normalized)
-            ? normalized.map((item) => ({ id: item.id, name: item.name, type: item.type, latitude: item.latitude, longitude: item.longitude }))
-            : normalized
-        );
-      } catch (e) {
-        // ignore logging errors
-      }
-
       setEstablishments(normalized);
-      // Development-only debug: log counts to trace where markers disappear
-      try {
-        const invalidCoordsCount = normalized.filter((it) => it.latitude == null || it.longitude == null).length;
-        console.debug('[MapScreen] fetchEstablishments:', {
-          payloadCount: Array.isArray(payload) ? payload.length : 0,
-          normalizedCount: normalized.length,
-          invalidCoordsCount,
-        });
-      } catch (e) {
-        // ignore logging errors
-      }
       setSelectedEstablishmentId((current) =>
         current && normalized.some((item) => item.id === current) ? current : null
       );
@@ -2560,56 +2522,6 @@ export default function MapScreen({ navigation, route }) {
 
   return (
     <View style={styles.screen}>
-      {(() => {
-        try {
-          console.debug(
-            '[MARKER DEBUG] filteredEstablishments:',
-            Array.isArray(filteredEstablishments)
-              ? filteredEstablishments.map((item) => ({ id: item.id, name: item.name, type: item.type, latitude: item.latitude, longitude: item.longitude }))
-              : filteredEstablishments
-          );
-        } catch (e) {
-          // ignore logging errors
-        }
-        return null;
-      })()}
-
-      {/* TEMPORARY DIAGNOSTIC OVERLAY - remove after inspection */}
-      <View
-        pointerEvents="none"
-        style={{
-          position: 'absolute',
-          top: Math.max(insets.top + 12, 18),
-          left: 12,
-          backgroundColor: 'rgba(0,0,0,0.6)',
-          padding: 8,
-          borderRadius: 8,
-          zIndex: 9999,
-          elevation: 9999,
-        }}
-      >
-        <Text style={{ color: '#FFFFFF', fontSize: 12, fontFamily: 'PoppinsMedium' }}>
-          {`ESTABLISHMENTS: ${Array.isArray(establishments) ? establishments.length : 0}`}
-        </Text>
-        <Text style={{ color: '#FFFFFF', fontSize: 12, fontFamily: 'PoppinsMedium' }}>
-          {`FILTERED: ${Array.isArray(filteredEstablishments) ? filteredEstablishments.length : 0}`}
-        </Text>
-        {Array.isArray(filteredEstablishments) && filteredEstablishments.length ? (
-          (() => {
-            const first = filteredEstablishments[0];
-            return (
-              <View style={{ marginTop: 6 }}>
-                <Text style={{ color: '#FFFFFF', fontSize: 11 }}>{`ID: ${String(first.id)}`}</Text>
-                <Text style={{ color: '#FFFFFF', fontSize: 11 }}>{`TYPE: ${String(first.type || '')}`}</Text>
-                <Text style={{ color: '#FFFFFF', fontSize: 11 }}>{`LAT: ${String(first.latitude)}`}</Text>
-                <Text style={{ color: '#FFFFFF', fontSize: 11 }}>{`LNG: ${String(first.longitude)}`}</Text>
-              </View>
-            );
-          })()
-        ) : (
-          <Text style={{ color: '#FFFFFF', fontSize: 11, marginTop: 6 }}>NO FILTERED ESTABLISHMENTS</Text>
-        )}
-      </View>
       <MapView
         ref={mapRef}
         style={StyleSheet.absoluteFill}
