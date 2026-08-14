@@ -2797,8 +2797,9 @@ export default function MapScreen({ navigation, route }) {
           const { width: screenW, height: screenH } = Dimensions.get('window');
           const layout = androidCalloutLayout || { width: 220, height: 72 };
           const x = Math.round((androidCalloutPos.x || 0) - layout.width / 2);
-          const tooltipGap = 14;
-          const y = Math.round((androidCalloutPos.y || 0) - layout.height - tooltipGap);
+          const markerRadius = 17;
+          const tooltipGap = 12;
+          const y = Math.round((androidCalloutPos.y || 0) - markerRadius - layout.height - tooltipGap);
           const left = Math.max(8, Math.min(x, screenW - layout.width - 8));
           const top = Math.max(12, y);
 
