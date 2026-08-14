@@ -2,8 +2,10 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
 	Alert,
 	Image,
+	KeyboardAvoidingView,
 	Linking,
 	Modal,
+	Platform,
 	Pressable,
 	ScrollView,
 	StyleSheet,
@@ -602,7 +604,7 @@ export default function MarketplaceCartScreen() {
 					setPendingReserveItem(null);
 				}}
 			>
-				<View style={styles.modalBackdrop}>
+				<KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalBackdrop}>
 					<View style={styles.modalCard}>
 						<Text style={styles.modalTitle}>Reservation Details</Text>
 
@@ -613,7 +615,7 @@ export default function MarketplaceCartScreen() {
 								<Text style={[styles.modalDetailText, { fontSize: 12, color: theme.colors.textMuted, marginTop: -4 }]}>
 									Qty: {pendingReserveItem.quantity} x {money(pendingReserveItem.product.price_per_unit)}{pendingReserveItem.product.unit ? ` (${pendingReserveItem.product.unit})` : ''}
 								</Text>
-								<Text style={[styles.modalDetailText, { fontSize: 12, color: theme.colors.sidebar, fontFamily: 'PoppinsMedium', marginTop: -2 }]}>
+								<Text style={[styles.modalDetailText, { fontSize: 12, color: theme.colors.sidebar, fontFamily: 'PoppinsMedium', marginTop: -2, italic: true }]}>
 									Total Price: {money((pendingReserveItem.quantity || 1) * (pendingReserveItem.product.price_per_unit || 0))}
 								</Text>
 							</>
@@ -651,7 +653,7 @@ export default function MarketplaceCartScreen() {
 							placeholderTextColor={theme.colors.textMuted}
 							keyboardType="number-pad"
 							maxLength={11}
-							style={[styles.modalInput, { textAlign: 'left', paddingVertical: 10 }]}
+							style={[styles.modalInput, { textAlign: 'left', paddingVertical: 10, display: 'flex', alignItems: 'center' }]}
 						/>
 						{reserveContactNumber.length > 0 && !/^09\d{9}$/.test(reserveContactNumber) && (
 							<Text style={styles.modalFieldError}>Use a valid PH mobile number format (09XXXXXXXXX).</Text>
@@ -686,7 +688,7 @@ export default function MarketplaceCartScreen() {
 							</Pressable>
 						</View>
 					</View>
-				</View>
+				</KeyboardAvoidingView>
 			</Modal>
 
 			<ConfirmToastModal
