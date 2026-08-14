@@ -2000,30 +2000,30 @@ export default function MapScreen({ navigation, route }) {
       return;
     }
 
-    const currentRegion = lastMapRegionRef.current || LIPA_REGION;
     const { height: screenHeight } = Dimensions.get('window');
-    const usableTop = Math.max(insets.top + 80, 120);
+    const usableTop = Math.max(insets.top + 88, 116);
     const usableBottom = Math.max(screenHeight - 180, usableTop + 220);
     const usableHeight = Math.max(220, usableBottom - usableTop);
-    const desiredMarkerY = usableTop + usableHeight * 0.54;
+    const desiredMarkerY = usableTop + usableHeight * 0.56;
 
-    let projectedMarkerY = screenHeight * 0.54;
+    let projectedMarkerY = screenHeight * 0.56;
     try {
       const point = await mapRef.current.pointForCoordinate({ latitude: markerLat, longitude: markerLng });
       if (point) {
         projectedMarkerY = point.y;
       }
     } catch {
-      projectedMarkerY = screenHeight * 0.54;
+      projectedMarkerY = screenHeight * 0.56;
     }
 
-    const latitudePerPixel = currentRegion.latitudeDelta / Math.max(screenHeight, 1);
+    const baseRegion = lastMapRegionRef.current || LIPA_REGION;
+    const latitudePerPixel = baseRegion.latitudeDelta / Math.max(screenHeight, 1);
     const latitudeOffset = (desiredMarkerY - projectedMarkerY) * latitudePerPixel;
     const targetRegion = constrainRegion({
       latitude: markerLat + latitudeOffset,
       longitude: markerLng,
-      latitudeDelta: currentRegion.latitudeDelta,
-      longitudeDelta: currentRegion.longitudeDelta,
+      latitudeDelta: baseRegion.latitudeDelta,
+      longitudeDelta: baseRegion.longitudeDelta,
     });
 
     lastMapRegionRef.current = targetRegion;
@@ -2797,10 +2797,10 @@ export default function MapScreen({ navigation, route }) {
           const { width: screenW, height: screenH } = Dimensions.get('window');
           const layout = androidCalloutLayout || { width: 220, height: 72 };
           const x = Math.round((androidCalloutPos.x || 0) - layout.width / 2);
-          const y = Math.round((androidCalloutPos.y || 0) - layout.height - 12);
+          const tooltipGap = 14;
+          const y = Math.round((androidCalloutPos.y || 0) - layout.height - tooltipGap);
           const left = Math.max(8, Math.min(x, screenW - layout.width - 8));
-          // Position tooltip directly above marker, only clamp to screen edges
-          const top = Math.max(8, y);
+          const top = Math.max(12, y);
 
           return (
             <View
