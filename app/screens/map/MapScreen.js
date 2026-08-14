@@ -1969,9 +1969,12 @@ export default function MapScreen({ navigation, route }) {
     if (Number.isFinite(markerLat) && Number.isFinite(markerLng) && mapRef.current) {
       const latitudeDelta = 0.025;
       const longitudeDelta = 0.025;
-      // Negative offset moves marker UP on screen, positioning it in upper-middle area
-      // This creates space for tooltip above and avoids overlap with bottom overview card
-      const latitudeOffset = -0.009;
+      // Account for tooltip height (72px card + 12px arrow = 84px total)
+      // With latitudeDelta 0.025 spanning ~690px visible map height:
+      // 84px / 690px * 0.025 ≈ 0.00305 degrees additional offset needed
+      // Combined with marker positioning offset: -0.009 - 0.003 = -0.012
+      // This positions marker lower on screen to reserve full space for tooltip above it
+      const latitudeOffset = -0.012;
       const targetRegion = {
         latitude: markerLat + latitudeOffset,
         longitude: markerLng,
