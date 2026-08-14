@@ -1929,12 +1929,10 @@ export default function MapScreen({ navigation, route }) {
     if (Number.isFinite(markerLat) && Number.isFinite(markerLng) && mapRef.current) {
       const latitudeDelta = 0.025;
       const longitudeDelta = 0.025;
-      // Account for tooltip height (72px card + 12px arrow = 84px total)
-      // With latitudeDelta 0.025 spanning ~690px visible map height:
-      // 84px / 690px * 0.025 ≈ 0.00305 degrees additional offset needed
-      // Combined with marker positioning offset: -0.009 - 0.003 = -0.012
-      // This positions marker lower on screen to reserve full space for tooltip above it
-      const latitudeOffset = -0.012;
+      // Move the selected marker down into the usable map area and keep space above it for the tooltip.
+      // The previous offset kept the marker too high; this slightly larger downward shift keeps the marker
+      // away from the top controls and leaves room for the tooltip above the pin and bottom summary card below.
+      const latitudeOffset = -0.015;
       const targetRegion = {
         latitude: markerLat + latitudeOffset,
         longitude: markerLng,
@@ -2622,58 +2620,60 @@ export default function MapScreen({ navigation, route }) {
                   onPress={() => handleMarkerSelect(item)}
                   onSelect={() => handleMarkerSelect(item)}
                 >
-                  <View
-                    style={[
-                      styles.establishmentMarker,
-                      { backgroundColor: TYPE_PIN_COLORS[item.type] || BRAND.accent },
-                    ]}
-                  >
-                    {renderTypeIcon(
-                      TYPE_MARKER_ICONS[item.type]?.icon || 'place',
-                      TYPE_MARKER_ICONS[item.type]?.iconLibrary || 'material',
-                      '#FFFFFF',
-                      TYPE_MARKER_ICONS[item.type]?.iconLibrary === 'community' ? 15 : 16
-                    )}
-                  </View>
-                  {/* Show tooltip for selected marker (both iOS and Android) when details not expanded */}
-                  {selectedEstablishmentId === item.id && !isDetailsExpanded ? (
-                    <Callout onPress={() => handleViewDetails(item)}>
-                      <View style={styles.calloutWrap}>
-                        <Text style={styles.calloutName}>{item.name}</Text>
-                        <Text
-                          style={[
-                            styles.calloutTypePillText,
-                            {
-                              backgroundColor: getTypePillTheme(item.type).bg,
-                              borderColor: getTypePillTheme(item.type).border,
-                              color: getTypePillTheme(item.type).text,
-                            },
-                          ]}
-                        >
-                          {getTypeDisplayLabel(item)}
-                        </Text>
+                  <View pointerEvents="box-none" style={{ alignItems: 'center' }}>
+                    {selectedEstablishmentId === item.id && !isDetailsExpanded ? (
+                      <View pointerEvents="box-none" style={{ alignItems: 'center', marginBottom: 10 }}>
+                        <View style={styles.calloutWrap}>
+                          <Text style={styles.calloutName}>{item.name}</Text>
+                          <Text
+                            style={[
+                              styles.calloutTypePillText,
+                              {
+                                backgroundColor: getTypePillTheme(item.type).bg,
+                                borderColor: getTypePillTheme(item.type).border,
+                                color: getTypePillTheme(item.type).text,
+                              },
+                            ]}
+                          >
+                            {getTypeDisplayLabel(item)}
+                          </Text>
 
-                        {item.type === 'cafe' ? (
-                          <View style={styles.calloutInfoRow}>
-                            <Text style={styles.calloutInfoLabel}>Overall Avg:</Text>
-                            <Text style={styles.calloutRatingValue}>
-                              ★ {item.reviewCount > 0 ? item.rating.toFixed(1) : '0.0'}
-                            </Text>
-                          </View>
-                        ) : null}
+                          {item.type === 'cafe' ? (
+                            <View style={styles.calloutInfoRow}>
+                              <Text style={styles.calloutInfoLabel}>Overall Avg:</Text>
+                              <Text style={styles.calloutRatingValue}>
+                                ★ {item.reviewCount > 0 ? item.rating.toFixed(1) : '0.0'}
+                              </Text>
+                            </View>
+                          ) : null}
 
-                        {item.type === 'cafe' ? (
-                          <View style={styles.calloutInfoRow}>
-                            <Text style={styles.calloutInfoLabel}>Active Promo:</Text>
-                            <Text style={styles.calloutPromoValue} numberOfLines={1} ellipsizeMode="tail">
-                              {item.activePromos?.[0] || 'No active promo'}
-                            </Text>
-                          </View>
-                        ) : null}
-                        <View style={styles.calloutArrow} />
+                          {item.type === 'cafe' ? (
+                            <View style={styles.calloutInfoRow}>
+                              <Text style={styles.calloutInfoLabel}>Active Promo:</Text>
+                              <Text style={styles.calloutPromoValue} numberOfLines={1} ellipsizeMode="tail">
+                                {item.activePromos?.[0] || 'No active promo'}
+                              </Text>
+                            </View>
+                          ) : null}
+                          <View style={styles.calloutArrow} />
+                        </View>
                       </View>
-                    </Callout>
-                  ) : null}
+                    ) : null}
+
+                    <View
+                      style={[
+                        styles.establishmentMarker,
+                        { backgroundColor: TYPE_PIN_COLORS[item.type] || BRAND.accent },
+                      ]}
+                    >
+                      {renderTypeIcon(
+                        TYPE_MARKER_ICONS[item.type]?.icon || 'place',
+                        TYPE_MARKER_ICONS[item.type]?.iconLibrary || 'material',
+                        '#FFFFFF',
+                        TYPE_MARKER_ICONS[item.type]?.iconLibrary === 'community' ? 15 : 16
+                      )}
+                    </View>
+                  </View>
                 </Marker>
               )) : null)}
       </MapView>
