@@ -1962,6 +1962,24 @@ export default function MapScreen({ navigation, route }) {
     lastTrackedMarkerRef.current = { id: establishmentId, at: now };
 
     trackMapMarkerView({ establishment_id: establishmentId, map_session_id: mapSessionIdRef.current }).catch(() => {});
+
+    // Animate map camera to position marker with tooltip space above it
+    const markerLat = Number(item.latitude);
+    const markerLng = Number(item.longitude);
+    if (Number.isFinite(markerLat) && Number.isFinite(markerLng) && mapRef.current) {
+      const latitudeDelta = 0.025;
+      const longitudeDelta = 0.025;
+      // Offset latitude so marker appears lower on screen, creating space for tooltip above
+      // This positions the marker roughly in the middle-lower area of the visible map
+      const latitudeOffset = 0.006;
+      const targetRegion = {
+        latitude: markerLat + latitudeOffset,
+        longitude: markerLng,
+        latitudeDelta,
+        longitudeDelta,
+      };
+      mapRef.current.animateToRegion(targetRegion, 300);
+    }
   }, []);
 
   const handleDismissSheet = useCallback(() => {
