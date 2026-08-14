@@ -1935,6 +1935,7 @@ export default function MapScreen({ navigation, route }) {
 
   const handleViewDetails = useCallback((item) => {
     if (!item || !item.id) return;
+    setAndroidCalloutPos(null);
     setSelectedEstablishmentId((current) => (current === item.id ? current : item.id));
     setIsDetailsExpanded(true);
   }, []);
