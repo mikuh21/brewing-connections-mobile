@@ -1935,7 +1935,6 @@ export default function MapScreen({ navigation, route }) {
 
   const handleViewDetails = useCallback((item) => {
     if (!item || !item.id) return;
-    setAndroidCalloutPos(null);
     setSelectedEstablishmentId((current) => (current === item.id ? current : item.id));
     setIsDetailsExpanded(true);
   }, []);
@@ -2734,10 +2733,8 @@ export default function MapScreen({ navigation, route }) {
           const x = Math.round((androidCalloutPos.x || 0) - layout.width / 2);
           const y = Math.round((androidCalloutPos.y || 0) - layout.height - 12);
           const left = Math.max(8, Math.min(x, screenW - layout.width - 8));
-          // Ensure tooltip doesn't overlap bottom sheet (which starts ~160px from bottom when collapsed)
-          const bottomSheetMinGap = 180;
-          const maxAllowedTop = screenH - bottomSheetMinGap - layout.height - 8;
-          const top = Math.max(8, Math.min(y, maxAllowedTop));
+          // Position tooltip directly above marker, only clamp to screen edges
+          const top = Math.max(8, y);
 
           return (
             <View
