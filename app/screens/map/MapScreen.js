@@ -1963,15 +1963,15 @@ export default function MapScreen({ navigation, route }) {
 
     trackMapMarkerView({ establishment_id: establishmentId, map_session_id: mapSessionIdRef.current }).catch(() => {});
 
-    // Animate map camera to position marker with tooltip space above it
+    // Animate map camera to position marker with tooltip space above it and clear space below for bottom overview
     const markerLat = Number(item.latitude);
     const markerLng = Number(item.longitude);
     if (Number.isFinite(markerLat) && Number.isFinite(markerLng) && mapRef.current) {
       const latitudeDelta = 0.025;
       const longitudeDelta = 0.025;
-      // Offset latitude so marker appears lower on screen, creating space for tooltip above
-      // This positions the marker roughly in the middle-lower area of the visible map
-      const latitudeOffset = 0.006;
+      // Negative offset moves marker UP on screen, positioning it in upper-middle area
+      // This creates space for tooltip above and avoids overlap with bottom overview card
+      const latitudeOffset = -0.009;
       const targetRegion = {
         latitude: markerLat + latitudeOffset,
         longitude: markerLng,
