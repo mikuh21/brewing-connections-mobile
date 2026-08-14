@@ -1923,16 +1923,21 @@ export default function MapScreen({ navigation, route }) {
 
     trackMapMarkerView({ establishment_id: establishmentId, map_session_id: mapSessionIdRef.current }).catch(() => {});
 
-    // Animate map camera to position marker with tooltip space above it and clear space below for bottom overview
+    // Animate map camera to place the selected marker in the usable map area,
+    // leaving room above it for the attached tooltip and below it for the establishment card.
     const markerLat = Number(item.latitude);
     const markerLng = Number(item.longitude);
     if (Number.isFinite(markerLat) && Number.isFinite(markerLng) && mapRef.current) {
       const latitudeDelta = 0.025;
       const longitudeDelta = 0.025;
-      // Move the selected marker down into the usable map area and keep space above it for the tooltip.
-      // The previous offset kept the marker too high; this slightly larger downward shift keeps the marker
-      // away from the top controls and leaves room for the tooltip above the pin and bottom summary card below.
-      const latitudeOffset = -0.015;
+      const { height: screenHeight } = Dimensions.get('window');
+      const topUiReserve = 120;
+      const bottomUiReserve = 220;
+      const usableHeight = Math.max(360, screenHeight - topUiReserve - bottomUiReserve);
+      const desiredMarkerOffsetFromTop = usableHeight * 0.54;
+      const pixelsPerDegree = screenHeight / latitudeDelta;
+      const latitudeOffset = -(desiredMarkerOffsetFromTop / pixelsPerDegree);
+
       const targetRegion = {
         latitude: markerLat + latitudeOffset,
         longitude: markerLng,
