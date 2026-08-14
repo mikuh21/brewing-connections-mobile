@@ -4183,7 +4183,15 @@ const styles = StyleSheet.create({
   calloutWrap: {
     minWidth: 210,
     maxWidth: 250,
-    paddingVertical: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 8,
+    elevation: 8,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
   },
   calloutName: {
     color: BRAND.text,
