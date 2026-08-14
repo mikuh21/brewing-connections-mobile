@@ -653,7 +653,8 @@ export default function MarketplaceCartScreen() {
 							placeholderTextColor={theme.colors.textMuted}
 							keyboardType="number-pad"
 							maxLength={11}
-							style={[styles.modalInput, { textAlign: 'left', paddingVertical: 10, display: 'flex', alignItems: 'center' }]}
+							scrollEnabled={false}
+							style={[styles.modalInput, { textAlign: 'left', paddingVertical: 12, display: 'flex', alignItems: 'center' }]}
 						/>
 						{reserveContactNumber.length > 0 && !/^09\d{9}$/.test(reserveContactNumber) && (
 							<Text style={styles.modalFieldError}>Use a valid PH mobile number format (09XXXXXXXXX).</Text>
@@ -914,7 +915,7 @@ const styles = StyleSheet.create({
 		lineHeight: 20,
 	},
 	modalInput: {
-		height: 36,
+		height: 48,
 		borderWidth: 1,
 		borderColor: '#D7C9B1',
 		borderRadius: 8,
