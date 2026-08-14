@@ -227,7 +227,7 @@ export default function MarketplaceCartScreen() {
 		openConfirm({
 			title: 'Confirm Remove',
 			message: 'Remove this item from cart?',
-			confirmLabel: 'Yes, Remove',
+			confirmLabel: 'Remove',
 			onConfirm: async () => {
 				const currentItems = await readCartItems();
 				const nextItems = currentItems.filter((entry) => entry.id !== itemId);
@@ -339,6 +339,7 @@ export default function MarketplaceCartScreen() {
 						await placeOrder({
 							product_id: latestProduct.id,
 							quantity: requestedQuantity,
+							payment_mode: item.payment_mode || null,
 							pickup_date: item.pickup_date || null,
 							pickup_time: item.pickup_time || null,
 							address: submittedAddress || null,
@@ -359,6 +360,7 @@ export default function MarketplaceCartScreen() {
 						const prefillResponse = await createLandingReservationPrefillToken({
 							product_id: latestProduct.id,
 							quantity: requestedQuantity,
+							payment_mode: item.payment_mode || null,
 							pickup_date: item.pickup_date || null,
 							pickup_time: item.pickup_time || null,
 						});

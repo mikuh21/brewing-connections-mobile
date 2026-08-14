@@ -279,6 +279,7 @@ export default function MarketplaceScreen() {
 	const [showNativeDatePicker, setShowNativeDatePicker] = useState(false);
 	const [showNativeTimePicker, setShowNativeTimePicker] = useState(false);
 	const [modalAction, setModalAction] = useState('order');
+	const [paymentMode, setPaymentMode] = useState('pickup');
 	const [cartItems, setCartItems] = useState([]);
 	const [submittingOrder, setSubmittingOrder] = useState(false);
 	const [cancellingOrderId, setCancellingOrderId] = useState(null);
@@ -595,6 +596,7 @@ export default function MarketplaceScreen() {
 
 		setSelectedProduct(product);
 		setModalAction(action);
+		setPaymentMode('pickup');
 		setOrderQuantity(getMinimumQuantity(product));
 		const now = new Date();
 		setPickupDate(formatDateValue(now));
@@ -611,6 +613,7 @@ export default function MarketplaceScreen() {
 
 		setReserveModalOpen(false);
 		setSelectedProduct(null);
+		setPaymentMode('pickup');
 		setShowNativeDatePicker(false);
 		setShowNativeTimePicker(false);
 		setReservationAddress(String(user?.address || ''));
@@ -707,19 +710,20 @@ export default function MarketplaceScreen() {
 			return;
 		}
 
+		if (!paymentMode) {
+			setError('Please select a mode of payment.');
+			return;
+		}
+
 		const action = modalAction;
 		const sellerRoleForValidation = normalizeSellerRole(latestSelectedProduct);
+		const isCafeFarmProductMatch = sellerRoleForValidation === 'cafe' ? paymentMode === 'pickup' : paymentMode === 'pickup' || paymentMode === 'cod';
 		const requiresInAppContact = sellerRoleForValidation === 'cafe' && action === 'order';
 		const normalizedAddress = String(reservationAddress || '').trim();
 		const normalizedContactNumber = String(reservationContactNumber || '').replace(/\s+/g, '');
 
-		if (requiresInAppContact && normalizedAddress.length < 10) {
-			setError('Enter a complete address (at least 10 characters).');
-			return;
-		}
-
-		if (requiresInAppContact && !/^09\d{9}$/.test(normalizedContactNumber)) {
-			setError('Use a valid PH mobile number format (09XXXXXXXXX).');
+		if (!isCafeFarmProductMatch) {
+			setError('Invalid payment mode for this product.');
 			return;
 		}
 
@@ -729,10 +733,12 @@ export default function MarketplaceScreen() {
 		const selectedPickupTime = pickupTime;
 		const selectedAddress = normalizedAddress;
 		const selectedContactNumber = normalizedContactNumber;
+		const selectedPaymentMode = paymentMode;
 
 		// Close native modal first to avoid stacked modal input deadlocks.
 		setReserveModalOpen(false);
 		setSelectedProduct(null);
+		setPaymentMode('pickup');
 		setShowNativeDatePicker(false);
 		setShowNativeTimePicker(false);
 		setReservationAddress(String(user?.address || ''));
@@ -743,6 +749,7 @@ export default function MarketplaceScreen() {
 				id: `${product.id}-${Date.now()}`,
 				product,
 				quantity: selectedQuantity,
+				payment_mode: selectedPaymentMode,
 				pickup_date: selectedPickupDate,
 				pickup_time: selectedPickupTime,
 				added_at: new Date().toISOString(),
@@ -784,6 +791,7 @@ export default function MarketplaceScreen() {
 					await placeOrder({
 						product_id: product.id,
 						quantity: selectedQuantity,
+						payment_mode: selectedPaymentMode || null,
 						pickup_date: selectedPickupDate || null,
 						pickup_time: selectedPickupTime || null,
 						address: selectedAddress || null,
@@ -803,6 +811,7 @@ export default function MarketplaceScreen() {
 					const prefillResponse = await createLandingReservationPrefillToken({
 						product_id: product.id,
 						quantity: selectedQuantity,
+						payment_mode: selectedPaymentMode || null,
 						pickup_date: selectedPickupDate || null,
 						pickup_time: selectedPickupTime || null,
 					});
@@ -1102,13 +1111,20 @@ const cancelOrder = async (order) => {
 	const listBottomSpacing = Math.max(36, insets.bottom + 84);
 
 	const isReserveDataValid = useCallback(() => {
-		if (normalizeSellerRole(selectedProduct) === 'cafe' && modalAction === 'order') {
-			const normalizedAddr = String(reservationAddress || '').trim();
-			const normalizedPhone = String(reservationContactNumber || '').replace(/\s+/g, '');
-			return normalizedAddr.length >= 10 && /^09\d{9}$/.test(normalizedPhone);
+		if (!paymentMode) {
+			return false;
 		}
+
+		const sellerRole = normalizeSellerRole(selectedProduct);
+		
+		// For cafe products, payment mode must be pickup
+		if (sellerRole === 'cafe' && paymentMode !== 'pickup') {
+			return false;
+		}
+
+		// Cafe products no longer require address/phone for mobile
 		return true;
-	}, [selectedProduct, modalAction, reservationAddress, reservationContactNumber]);
+	}, [selectedProduct, paymentMode]);
 
 	return (
 		<ScreenContainer>
@@ -1310,68 +1326,65 @@ const cancelOrder = async (order) => {
 											</View>
 
 									<View style={styles.modalFieldWrap}>
-										<Text style={styles.modalLabel}>Pickup Date</Text>
-										<Pressable style={styles.pickerTrigger} onPress={() => setShowNativeDatePicker(true)}>
-											<MaterialIcons name="calendar-today" size={16} color={theme.colors.primary} />
-											<Text style={styles.pickerTriggerText}>{pickupDate ? formatDisplayDate(pickupDate) : 'Select date'}</Text>
-										</Pressable>
-										{showNativeDatePicker ? (
-											<DateTimePicker
-												value={parseDateValue(pickupDate)}
-												mode="date"
-												display={Platform.OS === 'ios' ? 'compact' : 'default'}
-												minimumDate={minimumSelectableDate}
-											onChange={handleNativeDateChange}
-											/>
-										) : null}
+										<Text style={styles.modalLabel}>Mode of Payment</Text>
+										<View style={styles.pickerContainer}>
+											{sellerRole === 'cafe' ? (
+												<Pressable style={[styles.paymentModeButton, styles.paymentModeButtonActive]}>
+													<Text style={styles.paymentModeButtonText}>Pick Up</Text>
+												</Pressable>
+											) : (
+												<>
+													<Pressable
+														style={[styles.paymentModeButton, paymentMode === 'pickup' && styles.paymentModeButtonActive]}
+														onPress={() => setPaymentMode('pickup')}
+													>
+														<Text style={[styles.paymentModeButtonText, paymentMode === 'pickup' && styles.paymentModeButtonTextActive]}>Pick Up</Text>
+													</Pressable>
+													<Pressable
+														style={[styles.paymentModeButton, paymentMode === 'cod' && styles.paymentModeButtonActive]}
+														onPress={() => setPaymentMode('cod')}
+													>
+														<Text style={[styles.paymentModeButtonText, paymentMode === 'cod' && styles.paymentModeButtonTextActive]}>Cash on Delivery</Text>
+													</Pressable>
+												</>
+											)}
+										</View>
 									</View>
 
-									<View style={styles.modalFieldWrap}>
-										<Text style={styles.modalLabel}>Estimated Pickup Time</Text>
-										<Pressable style={styles.pickerTrigger} onPress={() => setShowNativeTimePicker(true)}>
-											<MaterialIcons name="access-time" size={16} color={theme.colors.primary} />
-											<Text style={styles.pickerTriggerText}>{pickupTime ? formatDisplayTime(pickupTime) : 'Select time'}</Text>
-										</Pressable>
-										{showNativeTimePicker ? (
-											<DateTimePicker
-												value={parseTimeValue(pickupTime)}
-												mode="time"
-												is24Hour
-												display={Platform.OS === 'ios' ? 'compact' : 'default'}
-												onChange={handleNativeTimeChange}
-											/>
-										) : null}
-									</View>
-
-									{sellerRole === 'cafe' && modalAction === 'order' && (
+									{paymentMode === 'pickup' && (
 										<>
 											<View style={styles.modalFieldWrap}>
-												<Text style={styles.modalLabel}>Address</Text>
-												<TextInput
-													value={reservationAddress}
-													onChangeText={setReservationAddress}
-													placeholder="Enter complete address"
-													placeholderTextColor={theme.colors.textMuted}
-													style={styles.modalInput}
-												/>
-												{reservationAddress.trim().length > 0 && reservationAddress.trim().length < 10 && (
-													<Text style={styles.modalFieldError}>Enter a complete address (at least 10 characters).</Text>
-												)}
+												<Text style={styles.modalLabel}>Pickup Date</Text>
+												<Pressable style={styles.pickerTrigger} onPress={() => setShowNativeDatePicker(true)}>
+													<MaterialIcons name="calendar-today" size={16} color={theme.colors.primary} />
+													<Text style={styles.pickerTriggerText}>{pickupDate ? formatDisplayDate(pickupDate) : 'Select date'}</Text>
+												</Pressable>
+												{showNativeDatePicker ? (
+													<DateTimePicker
+														value={parseDateValue(pickupDate)}
+														mode="date"
+														display={Platform.OS === 'ios' ? 'compact' : 'default'}
+														minimumDate={minimumSelectableDate}
+														onChange={handleNativeDateChange}
+													/>
+												) : null}
 											</View>
 
 											<View style={styles.modalFieldWrap}>
-												<Text style={styles.modalLabel}>Phone Number</Text>
-												<TextInput
-													value={reservationContactNumber}
-													onChangeText={setReservationContactNumber}
-													placeholder="09XXXXXXXXX"
-													placeholderTextColor={theme.colors.textMuted}
-													keyboardType="number-pad"
-													style={styles.modalInput}
-												/>
-												{reservationContactNumber.length > 0 && !/^09\d{9}$/.test(reservationContactNumber) && (
-													<Text style={styles.modalFieldError}>Use a valid PH mobile number format (09XXXXXXXXX).</Text>
-												)}
+												<Text style={styles.modalLabel}>Estimated Pickup Time</Text>
+												<Pressable style={styles.pickerTrigger} onPress={() => setShowNativeTimePicker(true)}>
+													<MaterialIcons name="access-time" size={16} color={theme.colors.primary} />
+													<Text style={styles.pickerTriggerText}>{pickupTime ? formatDisplayTime(pickupTime) : 'Select time'}</Text>
+												</Pressable>
+												{showNativeTimePicker ? (
+													<DateTimePicker
+														value={parseTimeValue(pickupTime)}
+														mode="time"
+														is24Hour
+														display={Platform.OS === 'ios' ? 'compact' : 'default'}
+														onChange={handleNativeTimeChange}
+													/>
+												) : null}
 											</View>
 										</>
 									)}
@@ -2404,5 +2417,32 @@ const styles = StyleSheet.create({
 		color: '#FFFFFF',
 		fontFamily: 'PoppinsMedium',
 		fontSize: theme.fontSizes.sm,
+	},
+	pickerContainer: {
+		flexDirection: 'row',
+		gap: 10,
+	},
+	paymentModeButton: {
+		flex: 1,
+		paddingVertical: 12,
+		paddingHorizontal: 12,
+		borderRadius: theme.borderRadius.md,
+		borderWidth: 1,
+		borderColor: '#D3D3D3',
+		backgroundColor: '#FFFFFF',
+		alignItems: 'center',
+		justifyContent: 'center',
+	},
+	paymentModeButtonActive: {
+		backgroundColor: MARKETPLACE_ACTION_GREEN,
+		borderColor: MARKETPLACE_ACTION_GREEN,
+	},
+	paymentModeButtonText: {
+		color: '#3A2E22',
+		fontFamily: 'PoppinsMedium',
+		fontSize: theme.fontSizes.sm,
+	},
+	paymentModeButtonTextActive: {
+		color: '#FFFFFF',
 	},
 });
