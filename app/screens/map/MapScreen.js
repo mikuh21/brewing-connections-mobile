@@ -2626,7 +2626,16 @@ export default function MapScreen({ navigation, route }) {
                   onPress={() => handleMarkerSelect(item)}
                   onSelect={() => handleMarkerSelect(item)}
                 >
-                  <View pointerEvents="box-none" style={{ alignItems: 'center' }}>
+                  <View
+                    pointerEvents="box-none"
+                    style={{
+                      width: 260,
+                      height: 180,
+                      alignItems: 'center',
+                      justifyContent: 'flex-end',
+                      overflow: 'visible',
+                    }}
+                  >
                     {selectedEstablishmentId === item.id && !isDetailsExpanded ? (
                       <View pointerEvents="box-none" style={{ alignItems: 'center', marginBottom: 12 }}>
                         <View style={styles.calloutWrap}>
