@@ -1849,8 +1849,22 @@ export default function MapScreen({ navigation, route }) {
     lastMapRegionRef.current = constrained;
 
     if (!regionHasMeaningfulDiff(region, constrained) || !mapRef.current) {
+      if (Platform.OS === 'android' && selectedEstablishment && mapRef.current) {
+        mapRef.current
+          .pointForCoordinate({
+            latitude: Number(selectedEstablishment.latitude),
+            longitude: Number(selectedEstablishment.longitude),
+          })
+          .then((point) => {
+            setAndroidCalloutPos(point || null);
+          })
+          .catch(() => {
+            setAndroidCalloutPos(null);
+          });
+      }
       return;
     }
+
     const now = Date.now();
     if (now - lastAnimateRef.current < 200) {
       return;
@@ -1988,29 +2002,23 @@ export default function MapScreen({ navigation, route }) {
 
     const currentRegion = lastMapRegionRef.current || LIPA_REGION;
     const { height: screenHeight } = Dimensions.get('window');
-    const tooltipHeight = Math.max(androidCalloutLayout?.height || 72, 72) + 18;
-    const usableTop = Math.max(insets.top + 84, 110);
-    const usableBottom = Math.max(usableTop + 220, screenHeight - 180);
+    const usableTop = Math.max(insets.top + 80, 120);
+    const usableBottom = Math.max(screenHeight - 180, usableTop + 220);
     const usableHeight = Math.max(220, usableBottom - usableTop);
-    const desiredMarkerY = Math.min(
-      usableBottom - 48,
-      Math.max(usableTop + tooltipHeight + 18, usableTop + usableHeight * 0.52)
-    );
+    const desiredMarkerY = usableTop + usableHeight * 0.54;
 
-    let projectedMarkerY = screenHeight * 0.52;
+    let projectedMarkerY = screenHeight * 0.54;
     try {
       const point = await mapRef.current.pointForCoordinate({ latitude: markerLat, longitude: markerLng });
       if (point) {
         projectedMarkerY = point.y;
       }
     } catch {
-      projectedMarkerY = screenHeight * 0.52;
+      projectedMarkerY = screenHeight * 0.54;
     }
 
-    const deltaPixels = desiredMarkerY - projectedMarkerY;
     const latitudePerPixel = currentRegion.latitudeDelta / Math.max(screenHeight, 1);
-    const latitudeOffset = deltaPixels * latitudePerPixel;
-
+    const latitudeOffset = (desiredMarkerY - projectedMarkerY) * latitudePerPixel;
     const targetRegion = constrainRegion({
       latitude: markerLat + latitudeOffset,
       longitude: markerLng,
@@ -2018,8 +2026,9 @@ export default function MapScreen({ navigation, route }) {
       longitudeDelta: currentRegion.longitudeDelta,
     });
 
+    lastMapRegionRef.current = targetRegion;
     mapRef.current.animateToRegion(targetRegion, 300);
-  }, [androidCalloutLayout, insets.top]);
+  }, [insets.top]);
 
   const handleDismissSheet = useCallback(() => {
     setSelectedEstablishmentId(null);
