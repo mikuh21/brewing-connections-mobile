@@ -473,7 +473,7 @@ export default function MarketplaceCartScreen() {
 										<Text style={styles.cartItemName}>{item?.product?.name || 'Product'}</Text>
 										<Text style={styles.cartItemMeta}>{sellerDisplayName}</Text>
 										<Text style={styles.cartItemMeta}>Qty: {item.quantity}</Text>
-										<Text style={styles.cartItemMeta}>Price: {money(item?.product?.price_per_unit)}{sellerRole !== 'cafe' && item?.product?.unit ? ` / ${item.product.unit}` : ''}</Text>
+										<Text style={styles.cartItemMeta}>Total Price: {money((item.quantity || 1) * (item?.product?.price_per_unit || 0))}{sellerRole !== 'cafe' && item?.product?.unit ? ` (${item.product.unit})` : ''}</Text>
 										{sellerRole !== 'cafe' && (
 											<Text style={styles.cartItemMeta}>{`Stock: ${availableStock}`}</Text>
 										)}
@@ -613,6 +613,9 @@ export default function MarketplaceCartScreen() {
 								<Text style={[styles.modalDetailText, { fontSize: 12, color: theme.colors.textMuted, marginTop: -4 }]}>
 									Qty: {pendingReserveItem.quantity} x {money(pendingReserveItem.product.price_per_unit)}{pendingReserveItem.product.unit ? ` (${pendingReserveItem.product.unit})` : ''}
 								</Text>
+								<Text style={[styles.modalDetailText, { fontSize: 12, color: theme.colors.sidebar, fontFamily: 'PoppinsMedium', marginTop: -2 }]}>
+									Total Price: {money((pendingReserveItem.quantity || 1) * (pendingReserveItem.product.price_per_unit || 0))}
+								</Text>
 							</>
 						)}
 
@@ -647,7 +650,8 @@ export default function MarketplaceCartScreen() {
 							placeholder="09XXXXXXXXX"
 							placeholderTextColor={theme.colors.textMuted}
 							keyboardType="number-pad"
-							style={[styles.modalInput, { textAlign: 'left', paddingVertical: 8 }]}
+							maxLength={11}
+							style={[styles.modalInput, { textAlign: 'left', paddingVertical: 10 }]}
 						/>
 						{reserveContactNumber.length > 0 && !/^09\d{9}$/.test(reserveContactNumber) && (
 							<Text style={styles.modalFieldError}>Use a valid PH mobile number format (09XXXXXXXXX).</Text>
