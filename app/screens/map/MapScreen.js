@@ -1025,6 +1025,8 @@ export default function MapScreen({ navigation, route }) {
   const [routeCoordinates, setRouteCoordinates] = useState([]);
   const [selectedEstablishmentId, setSelectedEstablishmentId] = useState(null);
   const [isDetailsExpanded, setIsDetailsExpanded] = useState(false);
+  const [androidCalloutPos, setAndroidCalloutPos] = useState(null);
+  const [androidCalloutLayout, setAndroidCalloutLayout] = useState(null);
   const [trailState, setTrailState] = useState('not_started');
   const [currentStopIndex, setCurrentStopIndex] = useState(0);
   const [trailLegOrigin, setTrailLegOrigin] = useState(null);
@@ -1121,6 +1123,44 @@ export default function MapScreen({ navigation, route }) {
     () => establishments.find((item) => item.id === selectedEstablishmentId) || null,
     [establishments, selectedEstablishmentId]
   );
+
+  useEffect(() => {
+    // On Android, compute screen point for the selected establishment so we can render
+    // an absolute overlay outside the MapView (prevent native callout clipping).
+    if (Platform.OS !== 'android') {
+      setAndroidCalloutPos(null);
+      return;
+    }
+
+    let mounted = true;
+    const updatePosition = async () => {
+      try {
+        if (!mapRef.current || !selectedEstablishment) {
+          if (mounted) setAndroidCalloutPos(null);
+          return;
+        }
+
+        const coord = { latitude: Number(selectedEstablishment.latitude), longitude: Number(selectedEstablishment.longitude) };
+        if (typeof mapRef.current.pointForCoordinate === 'function') {
+          const point = await mapRef.current.pointForCoordinate(coord);
+          if (mounted) setAndroidCalloutPos(point || null);
+          return;
+        }
+
+        // Fallback: clear position if projection not available.
+        if (mounted) setAndroidCalloutPos(null);
+      } catch (err) {
+        if (mounted) setAndroidCalloutPos(null);
+      }
+    };
+
+    // compute once and also when map size changes
+    updatePosition();
+
+    return () => {
+      mounted = false;
+    };
+  }, [selectedEstablishmentId, selectedEstablishment]);
 
   useEffect(() => {
     isDetailsExpandedRef.current = isDetailsExpanded;
@@ -1923,21 +1963,18 @@ export default function MapScreen({ navigation, route }) {
 
     trackMapMarkerView({ establishment_id: establishmentId, map_session_id: mapSessionIdRef.current }).catch(() => {});
 
-    // Animate map camera to place the selected marker in the usable map area,
-    // leaving room above it for the attached tooltip and below it for the establishment card.
+    // Animate map camera to position marker with tooltip space above it and clear space below for bottom overview
     const markerLat = Number(item.latitude);
     const markerLng = Number(item.longitude);
     if (Number.isFinite(markerLat) && Number.isFinite(markerLng) && mapRef.current) {
       const latitudeDelta = 0.025;
       const longitudeDelta = 0.025;
-      const { height: screenHeight } = Dimensions.get('window');
-      const topUiReserve = 120;
-      const bottomUiReserve = 220;
-      const usableHeight = Math.max(360, screenHeight - topUiReserve - bottomUiReserve);
-      const desiredMarkerOffsetFromTop = usableHeight * 0.54;
-      const pixelsPerDegree = screenHeight / latitudeDelta;
-      const latitudeOffset = -(desiredMarkerOffsetFromTop / pixelsPerDegree);
-
+      // Account for tooltip height (72px card + 12px arrow = 84px total)
+      // With latitudeDelta 0.025 spanning ~690px visible map height:
+      // 84px / 690px * 0.025 ≈ 0.00305 degrees additional offset needed
+      // Combined with marker positioning offset: -0.009 - 0.003 = -0.012
+      // This positions marker lower on screen to reserve full space for tooltip above it
+      const latitudeOffset = -0.012;
       const targetRegion = {
         latitude: markerLat + latitudeOffset,
         longitude: markerLng,
@@ -2622,73 +2659,59 @@ export default function MapScreen({ navigation, route }) {
                   coordinate={{ latitude: Number(item.latitude), longitude: Number(item.longitude) }}
                   tracksViewChanges={true}
                   zIndex={20}
-                  anchor={{ x: 0.5, y: 1 }}
                   onPress={() => handleMarkerSelect(item)}
                   onSelect={() => handleMarkerSelect(item)}
                 >
                   <View
-                    pointerEvents="box-none"
-                    style={{
-                      width: 260,
-                      height: 180,
-                      alignItems: 'center',
-                      justifyContent: 'flex-end',
-                      overflow: 'visible',
-                    }}
+                    style={[
+                      styles.establishmentMarker,
+                      { backgroundColor: TYPE_PIN_COLORS[item.type] || BRAND.accent },
+                    ]}
                   >
-                    {selectedEstablishmentId === item.id && !isDetailsExpanded ? (
-                      <View pointerEvents="box-none" style={{ alignItems: 'center', marginBottom: 12 }}>
-                        <View style={styles.calloutWrap}>
-                          <Text style={styles.calloutName}>{item.name}</Text>
-                          <Text
-                            style={[
-                              styles.calloutTypePillText,
-                              {
-                                backgroundColor: getTypePillTheme(item.type).bg,
-                                borderColor: getTypePillTheme(item.type).border,
-                                color: getTypePillTheme(item.type).text,
-                              },
-                            ]}
-                          >
-                            {getTypeDisplayLabel(item)}
-                          </Text>
-
-                          {item.type === 'cafe' ? (
-                            <View style={styles.calloutInfoRow}>
-                              <Text style={styles.calloutInfoLabel}>Overall Avg:</Text>
-                              <Text style={styles.calloutRatingValue}>
-                                ★ {item.reviewCount > 0 ? item.rating.toFixed(1) : '0.0'}
-                              </Text>
-                            </View>
-                          ) : null}
-
-                          {item.type === 'cafe' ? (
-                            <View style={styles.calloutInfoRow}>
-                              <Text style={styles.calloutInfoLabel}>Active Promo:</Text>
-                              <Text style={styles.calloutPromoValue} numberOfLines={1} ellipsizeMode="tail">
-                                {item.activePromos?.[0] || 'No active promo'}
-                              </Text>
-                            </View>
-                          ) : null}
-                          <View style={styles.calloutArrow} />
-                        </View>
-                      </View>
-                    ) : null}
-
-                    <View
-                      style={[
-                        styles.establishmentMarker,
-                        { backgroundColor: TYPE_PIN_COLORS[item.type] || BRAND.accent },
-                      ]}
-                    >
-                      {renderTypeIcon(
-                        TYPE_MARKER_ICONS[item.type]?.icon || 'place',
-                        TYPE_MARKER_ICONS[item.type]?.iconLibrary || 'material',
-                        '#FFFFFF',
-                        TYPE_MARKER_ICONS[item.type]?.iconLibrary === 'community' ? 15 : 16
-                      )}
-                    </View>
+                    {renderTypeIcon(
+                      TYPE_MARKER_ICONS[item.type]?.icon || 'place',
+                      TYPE_MARKER_ICONS[item.type]?.iconLibrary || 'material',
+                      '#FFFFFF',
+                      TYPE_MARKER_ICONS[item.type]?.iconLibrary === 'community' ? 15 : 16
+                    )}
                   </View>
+                  {Platform.OS === 'ios' ? (
+                    <Callout onPress={() => handleViewDetails(item)}>
+                      <View style={styles.calloutWrap}>
+                        <Text style={styles.calloutName}>{item.name}</Text>
+                        <Text
+                          style={[
+                            styles.calloutTypePillText,
+                            {
+                              backgroundColor: getTypePillTheme(item.type).bg,
+                              borderColor: getTypePillTheme(item.type).border,
+                              color: getTypePillTheme(item.type).text,
+                            },
+                          ]}
+                        >
+                          {getTypeDisplayLabel(item)}
+                        </Text>
+
+                        {item.type === 'cafe' ? (
+                          <View style={styles.calloutInfoRow}>
+                            <Text style={styles.calloutInfoLabel}>Overall Avg:</Text>
+                            <Text style={styles.calloutRatingValue}>
+                              ★ {item.reviewCount > 0 ? item.rating.toFixed(1) : '0.0'}
+                            </Text>
+                          </View>
+                        ) : null}
+
+                        {item.type === 'cafe' ? (
+                          <View style={styles.calloutInfoRow}>
+                            <Text style={styles.calloutInfoLabel}>Active Promo:</Text>
+                            <Text style={styles.calloutPromoValue} numberOfLines={1} ellipsizeMode="tail">
+                              {item.activePromos?.[0] || 'No active promo'}
+                            </Text>
+                          </View>
+                        ) : null}
+                      </View>
+                    </Callout>
+                  ) : null}
                 </Marker>
               )) : null)}
       </MapView>
@@ -2723,7 +2746,73 @@ export default function MapScreen({ navigation, route }) {
         </View>
       ) : null}
 
-      {/* Tooltip now renders inside the selected Marker as a Callout, no screen overlay needed */}
+      {/* Android-only external callout overlay to avoid native MapView clipping. */}
+      {Platform.OS === 'android' && androidCalloutPos && selectedEstablishment && !isDetailsExpanded ? (
+        (() => {
+          const { width: screenW, height: screenH } = Dimensions.get('window');
+          const layout = androidCalloutLayout || { width: 220, height: 72 };
+          const x = Math.round((androidCalloutPos.x || 0) - layout.width / 2);
+          const y = Math.round((androidCalloutPos.y || 0) - layout.height - 12);
+          const left = Math.max(8, Math.min(x, screenW - layout.width - 8));
+          // Position tooltip directly above marker, only clamp to screen edges
+          const top = Math.max(8, y);
+
+          return (
+            <View
+              pointerEvents="box-none"
+              style={[
+                styles.androidCalloutContainer,
+                { left, top, width: layout.width, height: layout.height },
+              ]}
+            >
+              <Pressable
+                onPress={() => handleViewDetails(selectedEstablishment)}
+                onLayout={(e) => {
+                  const { width, height } = e.nativeEvent.layout;
+                  if (!androidCalloutLayout || androidCalloutLayout.width !== width || androidCalloutLayout.height !== height) {
+                    setAndroidCalloutLayout({ width, height });
+                  }
+                }}
+              >
+                <View style={styles.calloutWrap}>
+                  <Text style={styles.calloutName}>{selectedEstablishment.name}</Text>
+                  <Text
+                    style={[
+                      styles.calloutTypePillText,
+                      {
+                        backgroundColor: getTypePillTheme(selectedEstablishment.type).bg,
+                        borderColor: getTypePillTheme(selectedEstablishment.type).border,
+                        color: getTypePillTheme(selectedEstablishment.type).text,
+                      },
+                    ]}
+                  >
+                    {getTypeDisplayLabel(selectedEstablishment)}
+                  </Text>
+
+                  {selectedEstablishment.type === 'cafe' ? (
+                    <View style={styles.calloutInfoRow}>
+                      <Text style={styles.calloutInfoLabel}>Overall Avg:</Text>
+                      <Text style={styles.calloutRatingValue}>
+                        ★ {selectedEstablishment.reviewCount > 0 ? selectedEstablishment.rating.toFixed(1) : '0.0'}
+                      </Text>
+                    </View>
+                  ) : null}
+
+                  {selectedEstablishment.type === 'cafe' ? (
+                    <View style={styles.calloutInfoRow}>
+                      <Text style={styles.calloutInfoLabel}>Active Promo:</Text>
+                      <Text style={styles.calloutPromoValue} numberOfLines={1} ellipsizeMode="tail">
+                        {selectedEstablishment.activePromos?.[0] || 'No active promo'}
+                      </Text>
+                    </View>
+                  ) : null}
+                  <View style={styles.calloutArrow} />
+                </View>
+              </Pressable>
+            </View>
+          );
+        })()
+      ) : null}
 
       {!isTrailMode && !isDetailsExpanded ? (
         <View pointerEvents="box-none" style={[styles.overlayTop, { top: Math.max(insets.top + 6, 16) }]}> 
