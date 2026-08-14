@@ -2704,22 +2704,67 @@ export default function MapScreen({ navigation, route }) {
                   coordinate={{ latitude: Number(item.latitude), longitude: Number(item.longitude) }}
                   tracksViewChanges={true}
                   zIndex={20}
+                  anchor={{ x: 0.5, y: 1 }}
                   onPress={() => handleMarkerSelect(item)}
                   onSelect={() => handleMarkerSelect(item)}
                 >
-                  <View
-                    style={[
-                      styles.establishmentMarker,
-                      { backgroundColor: TYPE_PIN_COLORS[item.type] || BRAND.accent },
-                    ]}
-                  >
-                    {renderTypeIcon(
-                      TYPE_MARKER_ICONS[item.type]?.icon || 'place',
-                      TYPE_MARKER_ICONS[item.type]?.iconLibrary || 'material',
-                      '#FFFFFF',
-                      TYPE_MARKER_ICONS[item.type]?.iconLibrary === 'community' ? 15 : 16
-                    )}
+                  <View style={styles.markerAnchorStack}>
+                    {Platform.OS === 'android' && item.id === selectedEstablishmentId && !isDetailsExpanded ? (
+                      <View style={styles.markerTooltipAnchor}>
+                        <Pressable onPress={() => handleViewDetails(item)}>
+                          <View style={styles.calloutWrap}>
+                            <Text style={styles.calloutName}>{item.name}</Text>
+                            <Text
+                              style={[
+                                styles.calloutTypePillText,
+                                {
+                                  backgroundColor: getTypePillTheme(item.type).bg,
+                                  borderColor: getTypePillTheme(item.type).border,
+                                  color: getTypePillTheme(item.type).text,
+                                },
+                              ]}
+                            >
+                              {getTypeDisplayLabel(item)}
+                            </Text>
+
+                            {item.type === 'cafe' ? (
+                              <View style={styles.calloutInfoRow}>
+                                <Text style={styles.calloutInfoLabel}>Overall Avg:</Text>
+                                <Text style={styles.calloutRatingValue}>
+                                  ★ {item.reviewCount > 0 ? item.rating.toFixed(1) : '0.0'}
+                                </Text>
+                              </View>
+                            ) : null}
+
+                            {item.type === 'cafe' ? (
+                              <View style={styles.calloutInfoRow}>
+                                <Text style={styles.calloutInfoLabel}>Active Promo:</Text>
+                                <Text style={styles.calloutPromoValue} numberOfLines={1} ellipsizeMode="tail">
+                                  {item.activePromos?.[0] || 'No active promo'}
+                                </Text>
+                              </View>
+                            ) : null}
+                            <View style={styles.calloutArrow} />
+                          </View>
+                        </Pressable>
+                      </View>
+                    ) : null}
+
+                    <View
+                      style={[
+                        styles.establishmentMarker,
+                        { backgroundColor: TYPE_PIN_COLORS[item.type] || BRAND.accent },
+                      ]}
+                    >
+                      {renderTypeIcon(
+                        TYPE_MARKER_ICONS[item.type]?.icon || 'place',
+                        TYPE_MARKER_ICONS[item.type]?.iconLibrary || 'material',
+                        '#FFFFFF',
+                        TYPE_MARKER_ICONS[item.type]?.iconLibrary === 'community' ? 15 : 16
+                      )}
+                    </View>
                   </View>
+
                   {Platform.OS === 'ios' ? (
                     <Callout onPress={() => handleViewDetails(item)}>
                       <View style={styles.calloutWrap}>
@@ -2789,75 +2834,6 @@ export default function MapScreen({ navigation, route }) {
             </View>
           </View>
         </View>
-      ) : null}
-
-      {/* Android-only external callout overlay to avoid native MapView clipping. */}
-      {Platform.OS === 'android' && androidCalloutPos && selectedEstablishment && !isDetailsExpanded ? (
-        (() => {
-          const { width: screenW, height: screenH } = Dimensions.get('window');
-          const layout = androidCalloutLayout || { width: 220, height: 72 };
-          const x = Math.round((androidCalloutPos.x || 0) - layout.width / 2);
-          const markerRadius = 17;
-          const tooltipGap = 12;
-          const y = Math.round((androidCalloutPos.y || 0) - markerRadius - layout.height - tooltipGap);
-          const left = Math.max(8, Math.min(x, screenW - layout.width - 8));
-          const top = Math.max(12, y);
-
-          return (
-            <View
-              pointerEvents="box-none"
-              style={[
-                styles.androidCalloutContainer,
-                { left, top, width: layout.width, height: layout.height },
-              ]}
-            >
-              <Pressable
-                onPress={() => handleViewDetails(selectedEstablishment)}
-                onLayout={(e) => {
-                  const { width, height } = e.nativeEvent.layout;
-                  if (!androidCalloutLayout || androidCalloutLayout.width !== width || androidCalloutLayout.height !== height) {
-                    setAndroidCalloutLayout({ width, height });
-                  }
-                }}
-              >
-                <View style={styles.calloutWrap}>
-                  <Text style={styles.calloutName}>{selectedEstablishment.name}</Text>
-                  <Text
-                    style={[
-                      styles.calloutTypePillText,
-                      {
-                        backgroundColor: getTypePillTheme(selectedEstablishment.type).bg,
-                        borderColor: getTypePillTheme(selectedEstablishment.type).border,
-                        color: getTypePillTheme(selectedEstablishment.type).text,
-                      },
-                    ]}
-                  >
-                    {getTypeDisplayLabel(selectedEstablishment)}
-                  </Text>
-
-                  {selectedEstablishment.type === 'cafe' ? (
-                    <View style={styles.calloutInfoRow}>
-                      <Text style={styles.calloutInfoLabel}>Overall Avg:</Text>
-                      <Text style={styles.calloutRatingValue}>
-                        ★ {selectedEstablishment.reviewCount > 0 ? selectedEstablishment.rating.toFixed(1) : '0.0'}
-                      </Text>
-                    </View>
-                  ) : null}
-
-                  {selectedEstablishment.type === 'cafe' ? (
-                    <View style={styles.calloutInfoRow}>
-                      <Text style={styles.calloutInfoLabel}>Active Promo:</Text>
-                      <Text style={styles.calloutPromoValue} numberOfLines={1} ellipsizeMode="tail">
-                        {selectedEstablishment.activePromos?.[0] || 'No active promo'}
-                      </Text>
-                    </View>
-                  ) : null}
-                  <View style={styles.calloutArrow} />
-                </View>
-              </Pressable>
-            </View>
-          );
-        })()
       ) : null}
 
       {!isTrailMode && !isDetailsExpanded ? (
@@ -3772,6 +3748,15 @@ const styles = StyleSheet.create({
     fontFamily: 'PoppinsBold',
     fontSize: 12,
     lineHeight: 14,
+  },
+  markerAnchorStack: {
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+  },
+  markerTooltipAnchor: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 10,
   },
   establishmentMarker: {
     width: 34,
