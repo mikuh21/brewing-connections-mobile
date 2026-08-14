@@ -412,8 +412,16 @@ export default function MarketplaceCartScreen() {
 	};
 
 	const isReserveContactValid = () => {
-		const normalizedAddr = String(reserveAddress || '').trim();
 		const normalizedPhone = String(reserveContactNumber || '').replace(/\s+/g, '');
+		const isCafe = normalizeSellerRole(pendingReserveItem?.product) === 'cafe';
+
+		// For CAFE products, only validate phone number
+		if (isCafe) {
+			return /^09\d{9}$/.test(normalizedPhone);
+		}
+
+		// For other products, validate both address and phone number
+		const normalizedAddr = String(reserveAddress || '').trim();
 		return normalizedAddr.length >= 10 && /^09\d{9}$/.test(normalizedPhone);
 	};
 
@@ -566,9 +574,15 @@ export default function MarketplaceCartScreen() {
 								</>
 							)}
 
-							<Text style={styles.modalDetailText}>Pickup Date: {formatDisplayDate(selectedItem?.pickup_date)}</Text>
-							<Text style={styles.modalDetailText}>Pickup Time: {formatDisplayTime(selectedItem?.pickup_time)}</Text>
-							<Text style={styles.modalDetailText}>Price: {money(selectedItem?.product?.price_per_unit)}{sellerRole !== 'cafe' && selectedItem?.product?.unit ? ` / ${selectedItem.product.unit}` : ''}</Text>
+						{selectedItem?.payment_mode === 'cod' ? (
+							<Text style={styles.modalDetailText}>Mode of Payment: Cash on Delivery</Text>
+						) : (
+							<>
+								<Text style={styles.modalDetailText}>Pickup Date: {formatDisplayDate(selectedItem?.pickup_date)}</Text>
+								<Text style={styles.modalDetailText}>Pickup Time: {formatDisplayTime(selectedItem?.pickup_time)}</Text>
+							</>
+						)}
+						<Text style={styles.modalDetailText}>Total Price: {money((selectedItem?.quantity || 1) * (selectedItem?.product?.price_per_unit || 0))}{sellerRole !== 'cafe' && selectedItem?.product?.unit ? ` (${selectedItem.product.unit})` : ''}</Text>
 							<Pressable style={styles.closeModalButton} onPress={() => setSelectedItem(null)}>
 								<Text style={styles.closeModalButtonText}>Close</Text>
 							</Pressable>
@@ -591,16 +605,39 @@ export default function MarketplaceCartScreen() {
 				<View style={styles.modalBackdrop}>
 					<View style={styles.modalCard}>
 						<Text style={styles.modalTitle}>Reservation Details</Text>
-						<Text style={styles.modalDetailText}>Address</Text>
-						<TextInput
-							value={reserveAddress}
-							onChangeText={setReserveAddress}
-							placeholder="Enter complete address"
-							placeholderTextColor={theme.colors.textMuted}
-							style={styles.modalInput}
-						/>
-						{reserveAddress.trim().length > 0 && reserveAddress.trim().length < 10 && (
-							<Text style={styles.modalFieldError}>Enter a complete address (at least 10 characters).</Text>
+
+						{/* Product Information */}
+						{pendingReserveItem?.product && (
+							<>
+								<Text style={styles.modalDetailText}>{pendingReserveItem.product.name}</Text>
+								<Text style={[styles.modalDetailText, { fontSize: 12, color: theme.colors.textMuted, marginTop: -4 }]}>
+									Qty: {pendingReserveItem.quantity} x {money(pendingReserveItem.product.price_per_unit)}{pendingReserveItem.product.unit ? ` (${pendingReserveItem.product.unit})` : ''}
+								</Text>
+							</>
+						)}
+
+						{/* Mode of Payment */}
+						{pendingReserveItem?.payment_mode && (
+							<Text style={[styles.modalDetailText, { marginTop: 10 }]}>
+								Mode of Payment: {pendingReserveItem.payment_mode === 'pickup' ? 'Pick Up' : 'Cash on Delivery'}
+							</Text>
+						)}
+
+						{/* Address - Only for non-CAFE products */}
+						{normalizeSellerRole(pendingReserveItem?.product) !== 'cafe' && (
+							<>
+								<Text style={[styles.modalDetailText, { marginTop: 10 }]}>Address</Text>
+								<TextInput
+									value={reserveAddress}
+									onChangeText={setReserveAddress}
+									placeholder="Enter complete address"
+									placeholderTextColor={theme.colors.textMuted}
+									style={styles.modalInput}
+								/>
+								{reserveAddress.trim().length > 0 && reserveAddress.trim().length < 10 && (
+									<Text style={styles.modalFieldError}>Enter a complete address (at least 10 characters).</Text>
+								)}
+							</>
 						)}
 
 						<Text style={[styles.modalDetailText, { marginTop: 10 }]}>Phone Number</Text>
@@ -610,7 +647,7 @@ export default function MarketplaceCartScreen() {
 							placeholder="09XXXXXXXXX"
 							placeholderTextColor={theme.colors.textMuted}
 							keyboardType="number-pad"
-							style={styles.modalInput}
+							style={[styles.modalInput, { textAlign: 'left', paddingVertical: 8 }]}
 						/>
 						{reserveContactNumber.length > 0 && !/^09\d{9}$/.test(reserveContactNumber) && (
 							<Text style={styles.modalFieldError}>Use a valid PH mobile number format (09XXXXXXXXX).</Text>
@@ -890,7 +927,9 @@ const styles = StyleSheet.create({
 	quantityInput: {
 		flex: 1,
 		textAlign: 'center',
+		textAlignVertical: 'center',
 		minWidth: 72,
+		paddingVertical: 8,
 	},
 	closeModalButton: {
 		marginTop: 14,

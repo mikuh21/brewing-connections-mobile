@@ -1330,7 +1330,7 @@ const cancelOrder = async (order) => {
 										<View style={styles.pickerContainer}>
 											{sellerRole === 'cafe' ? (
 												<Pressable style={[styles.paymentModeButton, styles.paymentModeButtonActive]}>
-													<Text style={styles.paymentModeButtonText}>Pick Up</Text>
+													<Text style={[styles.paymentModeButtonText, styles.paymentModeButtonTextActive]}>Pick Up</Text>
 												</Pressable>
 											) : (
 												<>
