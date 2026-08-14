@@ -2622,12 +2622,13 @@ export default function MapScreen({ navigation, route }) {
                   coordinate={{ latitude: Number(item.latitude), longitude: Number(item.longitude) }}
                   tracksViewChanges={true}
                   zIndex={20}
+                  anchor={{ x: 0.5, y: 1 }}
                   onPress={() => handleMarkerSelect(item)}
                   onSelect={() => handleMarkerSelect(item)}
                 >
                   <View pointerEvents="box-none" style={{ alignItems: 'center' }}>
                     {selectedEstablishmentId === item.id && !isDetailsExpanded ? (
-                      <View pointerEvents="box-none" style={{ alignItems: 'center', marginBottom: 10 }}>
+                      <View pointerEvents="box-none" style={{ alignItems: 'center', marginBottom: 12 }}>
                         <View style={styles.calloutWrap}>
                           <Text style={styles.calloutName}>{item.name}</Text>
                           <Text
