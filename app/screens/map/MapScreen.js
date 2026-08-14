@@ -1118,6 +1118,7 @@ export default function MapScreen({ navigation, route }) {
   const dragY = useRef(new Animated.Value(0)).current;
   const aboutDragY = useRef(new Animated.Value(0)).current;
   const isDetailsExpandedRef = useRef(false);
+  const lastMapRegionRef = useRef(LIPA_REGION);
 
   const selectedEstablishment = useMemo(
     () => establishments.find((item) => item.id === selectedEstablishmentId) || null,
@@ -1845,6 +1846,8 @@ export default function MapScreen({ navigation, route }) {
 
   const handleRegionChangeComplete = useCallback((region) => {
     const constrained = constrainRegion(region);
+    lastMapRegionRef.current = constrained;
+
     if (!regionHasMeaningfulDiff(region, constrained) || !mapRef.current) {
       return;
     }
@@ -1854,7 +1857,21 @@ export default function MapScreen({ navigation, route }) {
     }
     lastAnimateRef.current = now;
     mapRef.current.animateToRegion(constrained, 120);
-  }, []);
+
+    if (Platform.OS === 'android' && selectedEstablishment && mapRef.current) {
+      mapRef.current
+        .pointForCoordinate({
+          latitude: Number(selectedEstablishment.latitude),
+          longitude: Number(selectedEstablishment.longitude),
+        })
+        .then((point) => {
+          setAndroidCalloutPos(point || null);
+        })
+        .catch(() => {
+          setAndroidCalloutPos(null);
+        });
+    }
+  }, [selectedEstablishment]);
 
   const fetchEstablishments = async () => {
     setIsLoading(true);
@@ -1939,7 +1956,7 @@ export default function MapScreen({ navigation, route }) {
     setIsDetailsExpanded(true);
   }, []);
 
-  const handleMarkerSelect = useCallback((item) => {
+  const handleMarkerSelect = useCallback(async (item) => {
     if (!item || !item.id) return;
     ignoreMapPressUntilRef.current = Date.now() + 320;
     setSelectedEstablishmentId((current) => (current === item.id ? current : item.id));
@@ -1963,27 +1980,46 @@ export default function MapScreen({ navigation, route }) {
 
     trackMapMarkerView({ establishment_id: establishmentId, map_session_id: mapSessionIdRef.current }).catch(() => {});
 
-    // Animate map camera to position marker with tooltip space above it and clear space below for bottom overview
     const markerLat = Number(item.latitude);
     const markerLng = Number(item.longitude);
-    if (Number.isFinite(markerLat) && Number.isFinite(markerLng) && mapRef.current) {
-      const latitudeDelta = 0.025;
-      const longitudeDelta = 0.025;
-      // Account for tooltip height (72px card + 12px arrow = 84px total)
-      // With latitudeDelta 0.025 spanning ~690px visible map height:
-      // 84px / 690px * 0.025 ≈ 0.00305 degrees additional offset needed
-      // Combined with marker positioning offset: -0.009 - 0.003 = -0.012
-      // This positions marker lower on screen to reserve full space for tooltip above it
-      const latitudeOffset = -0.012;
-      const targetRegion = {
-        latitude: markerLat + latitudeOffset,
-        longitude: markerLng,
-        latitudeDelta,
-        longitudeDelta,
-      };
-      mapRef.current.animateToRegion(targetRegion, 300);
+    if (!Number.isFinite(markerLat) || !Number.isFinite(markerLng) || !mapRef.current) {
+      return;
     }
-  }, []);
+
+    const currentRegion = lastMapRegionRef.current || LIPA_REGION;
+    const { height: screenHeight } = Dimensions.get('window');
+    const tooltipHeight = Math.max(androidCalloutLayout?.height || 72, 72) + 18;
+    const usableTop = Math.max(insets.top + 84, 110);
+    const usableBottom = Math.max(usableTop + 220, screenHeight - 180);
+    const usableHeight = Math.max(220, usableBottom - usableTop);
+    const desiredMarkerY = Math.min(
+      usableBottom - 48,
+      Math.max(usableTop + tooltipHeight + 18, usableTop + usableHeight * 0.52)
+    );
+
+    let projectedMarkerY = screenHeight * 0.52;
+    try {
+      const point = await mapRef.current.pointForCoordinate({ latitude: markerLat, longitude: markerLng });
+      if (point) {
+        projectedMarkerY = point.y;
+      }
+    } catch {
+      projectedMarkerY = screenHeight * 0.52;
+    }
+
+    const deltaPixels = desiredMarkerY - projectedMarkerY;
+    const latitudePerPixel = currentRegion.latitudeDelta / Math.max(screenHeight, 1);
+    const latitudeOffset = deltaPixels * latitudePerPixel;
+
+    const targetRegion = constrainRegion({
+      latitude: markerLat + latitudeOffset,
+      longitude: markerLng,
+      latitudeDelta: currentRegion.latitudeDelta,
+      longitudeDelta: currentRegion.longitudeDelta,
+    });
+
+    mapRef.current.animateToRegion(targetRegion, 300);
+  }, [androidCalloutLayout, insets.top]);
 
   const handleDismissSheet = useCallback(() => {
     setSelectedEstablishmentId(null);
