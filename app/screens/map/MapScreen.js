@@ -2527,10 +2527,10 @@ export default function MapScreen({ navigation, route }) {
         ref={mapRef}
         style={StyleSheet.absoluteFill}
         provider="google"
-        scrollEnabled={true}
-        zoomEnabled={true}
-        rotateEnabled={true}
-        pitchEnabled={true}
+        scrollEnabled={!selectedEstablishment}
+        zoomEnabled={!selectedEstablishment}
+        rotateEnabled={!selectedEstablishment}
+        pitchEnabled={!selectedEstablishment}
         moveOnMarkerPress={false}
         initialRegion={LIPA_REGION}
         onRegionChangeComplete={handleRegionChangeComplete}
@@ -2727,14 +2727,17 @@ export default function MapScreen({ navigation, route }) {
       ) : null}
 
       {/* Android-only external callout overlay to avoid native MapView clipping. */}
-      {Platform.OS === 'android' && androidCalloutPos && selectedEstablishment ? (
+      {Platform.OS === 'android' && androidCalloutPos && selectedEstablishment && !isDetailsExpanded ? (
         (() => {
           const { width: screenW, height: screenH } = Dimensions.get('window');
           const layout = androidCalloutLayout || { width: 220, height: 72 };
           const x = Math.round((androidCalloutPos.x || 0) - layout.width / 2);
           const y = Math.round((androidCalloutPos.y || 0) - layout.height - 12);
           const left = Math.max(8, Math.min(x, screenW - layout.width - 8));
-          const top = Math.max(8, Math.min(y, screenH - layout.height - 8));
+          // Ensure tooltip doesn't overlap bottom sheet (which starts ~160px from bottom when collapsed)
+          const bottomSheetMinGap = 180;
+          const maxAllowedTop = screenH - bottomSheetMinGap - layout.height - 8;
+          const top = Math.max(8, Math.min(y, maxAllowedTop));
 
           return (
             <View
@@ -2785,6 +2788,7 @@ export default function MapScreen({ navigation, route }) {
                       </Text>
                     </View>
                   ) : null}
+                  <View style={styles.calloutArrow} />
                 </View>
               </Pressable>
             </View>
@@ -4183,6 +4187,7 @@ const styles = StyleSheet.create({
   calloutWrap: {
     minWidth: 210,
     maxWidth: 250,
+    position: 'relative',
     paddingHorizontal: 12,
     paddingVertical: 8,
     backgroundColor: '#FFFFFF',
@@ -4270,6 +4275,20 @@ const styles = StyleSheet.create({
     fontFamily: 'PoppinsMedium',
     fontSize: 12,
     lineHeight: 15,
+  },
+  calloutArrow: {
+    position: 'absolute',
+    bottom: -8,
+    left: '50%',
+    marginLeft: -8,
+    width: 0,
+    height: 0,
+    borderLeftWidth: 8,
+    borderRightWidth: 8,
+    borderTopWidth: 8,
+    borderLeftColor: 'transparent',
+    borderRightColor: 'transparent',
+    borderTopColor: '#FFFFFF',
   },
   androidCalloutContainer: {
     position: 'absolute',
