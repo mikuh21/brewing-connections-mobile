@@ -2681,6 +2681,7 @@ export default function MapScreen({ navigation, route }) {
                   key={`trail-stop-${stop.id}-${idx}`}
                   coordinate={{ latitude: stop.latitude, longitude: stop.longitude }}
                   tracksViewChanges={false}
+                  zIndex={30}
                 >
                   <Animated.View
                     style={[
