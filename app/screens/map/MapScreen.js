@@ -2716,6 +2716,13 @@ export default function MapScreen({ navigation, route }) {
           ? coffeeTrailMarkerStops.map((stop, idx) => {
               const isCurrent = idx === currentStopIndex;
 
+              console.log('[COFFEE TRAIL CUSTOM MARKER] rendering', {
+                id: stop.id,
+                number: stop.number,
+                latitude: stop.latitude,
+                longitude: stop.longitude,
+              });
+
               return (
                 <Marker
                   key={`coffee-trail-stop-${stop.id ?? idx}`}
@@ -3816,27 +3823,31 @@ const styles = StyleSheet.create({
     lineHeight: 19,
   },
   trailMarker: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: '#2D4A1E',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
     borderColor: '#FFFFFF',
     overflow: 'visible',
+    position: 'relative',
+    opacity: 1,
   },
   trailMarkerCurrent: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
   },
   trailMarkerText: {
     color: '#FFFFFF',
     fontFamily: 'PoppinsBold',
-    fontSize: 12,
-    lineHeight: 14,
+    fontSize: 16,
+    lineHeight: 16,
+    fontWeight: '700',
     textAlign: 'center',
+    includeFontPadding: false,
   },
   establishmentMarker: {
     width: 34,
