@@ -2718,24 +2718,40 @@ export default function MapScreen({ navigation, route }) {
 
               return (
                 <Marker
-                  key={`coffee-debug-${stop.id ?? idx}`}
+                  key={`coffee-trail-stop-${stop.id ?? idx}`}
                   coordinate={{
                     latitude: Number(stop.latitude),
                     longitude: Number(stop.longitude),
                   }}
-                  tracksViewChanges={true}
+                  tracksViewChanges={false}
+                  zIndex={40}
+                  anchor={{ x: 0.5, y: 0.5 }}
                 >
                   <View
-                    style={{
-                      width: 50,
-                      height: 50,
-                      borderRadius: 25,
-                      backgroundColor: 'red',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}
+                    style={[
+                      {
+                        width: isCurrent ? 34 : 28,
+                        height: isCurrent ? 34 : 28,
+                        borderRadius: isCurrent ? 17 : 14,
+                        backgroundColor: '#2D4A1E',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        borderWidth: 2,
+                        borderColor: '#FFFFFF',
+                        overflow: 'visible',
+                      },
+                      isCurrent ? { width: 34, height: 34, borderRadius: 17 } : null,
+                    ]}
                   >
-                    <Text style={{ color: 'white', fontSize: 20, fontWeight: 'bold' }}>
+                    <Text
+                      style={{
+                        color: '#FFFFFF',
+                        fontFamily: 'PoppinsBold',
+                        fontSize: 12,
+                        lineHeight: 14,
+                        fontWeight: '700',
+                      }}
+                    >
                       {stop.number}
                     </Text>
                   </View>
@@ -3802,22 +3818,25 @@ const styles = StyleSheet.create({
   trailMarker: {
     width: 28,
     height: 28,
-    borderRadius: 999,
+    borderRadius: 14,
     backgroundColor: '#2D4A1E',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
     borderColor: '#FFFFFF',
+    overflow: 'visible',
   },
   trailMarkerCurrent: {
     width: 34,
     height: 34,
+    borderRadius: 17,
   },
   trailMarkerText: {
     color: '#FFFFFF',
     fontFamily: 'PoppinsBold',
     fontSize: 12,
     lineHeight: 14,
+    textAlign: 'center',
   },
   establishmentMarker: {
     width: 34,
