@@ -2718,36 +2718,24 @@ export default function MapScreen({ navigation, route }) {
 
               return (
                 <Marker
-                  key={`coffee-trail-stop-${stop.id ?? idx}`}
+                  key={`coffee-debug-${stop.id ?? idx}`}
                   coordinate={{
                     latitude: Number(stop.latitude),
                     longitude: Number(stop.longitude),
                   }}
-                  tracksViewChanges={false}
-                  zIndex={40}
-                  anchor={{ x: 0.5, y: 0.5 }}
+                  tracksViewChanges={true}
                 >
                   <View
                     style={{
-                      width: isCurrent ? 34 : 28,
-                      height: isCurrent ? 34 : 28,
-                      borderRadius: 999,
-                      backgroundColor: '#2D4A1E',
+                      width: 50,
+                      height: 50,
+                      borderRadius: 25,
+                      backgroundColor: 'red',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      borderWidth: 2,
-                      borderColor: '#FFFFFF',
                     }}
                   >
-                    <Text
-                      style={{
-                        color: '#FFFFFF',
-                        fontFamily: 'PoppinsBold',
-                        fontSize: 12,
-                        lineHeight: 14,
-                        fontWeight: '700',
-                      }}
-                    >
+                    <Text style={{ color: 'white', fontSize: 20, fontWeight: 'bold' }}>
                       {stop.number}
                     </Text>
                   </View>
