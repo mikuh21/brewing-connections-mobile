@@ -1112,6 +1112,62 @@ export default function MapScreen({ navigation, route }) {
     () => trailStops.filter((stop) => String(stop?.type || '').toLowerCase() === 'cafe'),
     [trailStops]
   );
+  const shouldRenderCoffeeTrailMarkers = Boolean(isTrailMode && Array.isArray(trailStops) && trailStops.length);
+  const coffeeTrailMarkerStops = useMemo(() => {
+    const markerStops = (Array.isArray(trailStops) ? trailStops : []).map((stop, index) => {
+      const candidateLatitude = Number(
+        stop?.latitude ??
+          stop?.lat ??
+          stop?.location?.latitude ??
+          stop?.coordinates?.latitude ??
+          stop?.properties?.latitude ??
+          stop?.establishment?.latitude ??
+          stop?.establishment?.coords?.latitude ??
+          0
+      );
+      const candidateLongitude = Number(
+        stop?.longitude ??
+          stop?.lng ??
+          stop?.location?.longitude ??
+          stop?.coordinates?.longitude ??
+          stop?.properties?.longitude ??
+          stop?.establishment?.longitude ??
+          stop?.establishment?.coords?.longitude ??
+          0
+      );
+      const latitude = Number(candidateLatitude);
+      const longitude = Number(candidateLongitude);
+      const id = stop?.establishment_id ?? stop?.establishmentId ?? stop?.id ?? stop?.establishment?.id ?? index;
+      const name = stop?.name ?? stop?.establishment?.name ?? `Stop ${index + 1}`;
+
+      return {
+        index,
+        number: index + 1,
+        id,
+        name,
+        latitude,
+        longitude,
+      };
+    });
+
+    console.log('[COFFEE TRAIL MARKERS] trail active:', isTrailMode);
+    console.log('[COFFEE TRAIL MARKERS] trail started:', trailState !== 'not_started');
+    console.log('[COFFEE TRAIL MARKERS] stops:', trailStops);
+    console.log('[COFFEE TRAIL MARKERS] stop count:', markerStops.length);
+
+    markerStops.forEach((stop) => {
+      console.log('[COFFEE TRAIL MARKER]', {
+        index: stop.index,
+        number: stop.number,
+        id: stop.id,
+        name: stop.name,
+        latitude: stop.latitude,
+        longitude: stop.longitude,
+      });
+    });
+
+    return markerStops.filter((stop) => Number.isFinite(stop.latitude) && Number.isFinite(stop.longitude));
+  }, [isTrailMode, trailState, trailStops]);
   const shouldDisableNextStop = false;
 
   const panelAnimation = useRef(new Animated.Value(160)).current;
@@ -2672,16 +2728,17 @@ export default function MapScreen({ navigation, route }) {
           </>
         ) : null}
 
-        {isTrailMode
-          ? trailStops.map((stop, idx) => {
+        {shouldRenderCoffeeTrailMarkers
+          ? coffeeTrailMarkerStops.map((stop, idx) => {
               const isCurrent = idx === currentStopIndex;
 
               return (
                 <Marker
-                  key={`trail-stop-${stop.id}-${idx}`}
+                  key={`coffee-trail-stop-${stop.id ?? idx}`}
                   coordinate={{ latitude: stop.latitude, longitude: stop.longitude }}
                   tracksViewChanges={false}
-                  zIndex={30}
+                  zIndex={40}
+                  anchor={{ x: 0.5, y: 0.5 }}
                 >
                   <Animated.View
                     style={[
@@ -2692,7 +2749,7 @@ export default function MapScreen({ navigation, route }) {
                       isCurrent ? styles.trailMarkerCurrent : null,
                     ]}
                   >
-                    <Text style={styles.trailMarkerText}>{idx + 1}</Text>
+                    <Text style={styles.trailMarkerText}>{stop.number}</Text>
                   </Animated.View>
                 </Marker>
               );
