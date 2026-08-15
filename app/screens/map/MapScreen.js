@@ -2740,7 +2740,7 @@ export default function MapScreen({ navigation, route }) {
                   zIndex={40}
                   anchor={{ x: 0.5, y: 0.5 }}
                 >
-                  <Animated.View
+                  <View
                     style={[
                       styles.trailMarker,
                       isCurrent && trailState === 'navigating'
@@ -2750,7 +2750,7 @@ export default function MapScreen({ navigation, route }) {
                     ]}
                   >
                     <Text style={styles.trailMarkerText}>{stop.number}</Text>
-                  </Animated.View>
+                  </View>
                 </Marker>
               );
             })
