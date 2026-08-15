@@ -2730,37 +2730,19 @@ export default function MapScreen({ navigation, route }) {
                     latitude: Number(stop.latitude),
                     longitude: Number(stop.longitude),
                   }}
-                  tracksViewChanges={false}
+                  tracksViewChanges={true}
+                  collapsable={false}
                   zIndex={40}
                   anchor={{ x: 0.5, y: 0.5 }}
                 >
                   <View
+                    collapsable={false}
                     style={[
-                      {
-                        width: isCurrent ? 34 : 28,
-                        height: isCurrent ? 34 : 28,
-                        borderRadius: isCurrent ? 17 : 14,
-                        backgroundColor: '#2D4A1E',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        borderWidth: 2,
-                        borderColor: '#FFFFFF',
-                        overflow: 'visible',
-                      },
-                      isCurrent ? { width: 34, height: 34, borderRadius: 17 } : null,
+                      styles.trailMarker,
+                      isCurrent ? styles.trailMarkerCurrent : null,
                     ]}
                   >
-                    <Text
-                      style={{
-                        color: '#FFFFFF',
-                        fontFamily: 'PoppinsBold',
-                        fontSize: 12,
-                        lineHeight: 14,
-                        fontWeight: '700',
-                      }}
-                    >
-                      {stop.number}
-                    </Text>
+                    <Text style={styles.trailMarkerText}>{stop.number}</Text>
                   </View>
                 </Marker>
               );
