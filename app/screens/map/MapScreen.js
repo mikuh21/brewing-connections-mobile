@@ -1150,24 +1150,8 @@ export default function MapScreen({ navigation, route }) {
       };
     });
 
-    console.log('[COFFEE TRAIL MARKERS] trail active:', isTrailMode);
-    console.log('[COFFEE TRAIL MARKERS] trail started:', trailState !== 'not_started');
-    console.log('[COFFEE TRAIL MARKERS] stops:', trailStops);
-    console.log('[COFFEE TRAIL MARKERS] stop count:', markerStops.length);
-
-    markerStops.forEach((stop) => {
-      console.log('[COFFEE TRAIL MARKER]', {
-        index: stop.index,
-        number: stop.number,
-        id: stop.id,
-        name: stop.name,
-        latitude: stop.latitude,
-        longitude: stop.longitude,
-      });
-    });
-
     return markerStops.filter((stop) => Number.isFinite(stop.latitude) && Number.isFinite(stop.longitude));
-  }, [isTrailMode, trailState, trailStops]);
+  }, [trailStops]);
   const shouldDisableNextStop = false;
 
   const panelAnimation = useRef(new Animated.Value(160)).current;
@@ -2728,7 +2712,7 @@ export default function MapScreen({ navigation, route }) {
           </>
         ) : null}
 
-        {shouldRenderCoffeeTrailMarkers
+        {isTrailMode && coffeeTrailMarkerStops.length > 0
           ? coffeeTrailMarkerStops.map((stop, idx) => {
               const isCurrent = idx === currentStopIndex;
 
@@ -2740,17 +2724,14 @@ export default function MapScreen({ navigation, route }) {
                   zIndex={40}
                   anchor={{ x: 0.5, y: 0.5 }}
                 >
-                  <Animated.View
+                  <View
                     style={[
                       styles.trailMarker,
-                      isCurrent && trailState === 'navigating'
-                        ? { transform: [{ scale: trailPulseAnim }] }
-                        : null,
                       isCurrent ? styles.trailMarkerCurrent : null,
                     ]}
                   >
                     <Text style={styles.trailMarkerText}>{stop.number}</Text>
-                  </Animated.View>
+                  </View>
                 </Marker>
               );
             })
