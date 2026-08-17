@@ -58,9 +58,11 @@ function MainTabNavigator() {
   const modalBottomPadding = useMemo(() => Math.max(insets.bottom + 16, 24), [insets.bottom]);
 
   const handleLegendDismiss = useCallback(async () => {
+    console.log('[LOCATION DEBUG] GOT IT pressed');
     setShowLegendModal(false);
 
     if (hasRequestedLegendLocationPermission.current) {
+      console.log('[LOCATION DEBUG] Permission request skipped: already requested once');
       return;
     }
 
@@ -68,14 +70,18 @@ function MainTabNavigator() {
 
     try {
       const { status } = await Location.getForegroundPermissionsAsync();
+      console.log('[LOCATION DEBUG] Existing permission status:', status);
 
       if (status === 'granted' || status === 'denied') {
+        console.log('[LOCATION DEBUG] Permission request skipped: existing status is', status);
         return;
       }
 
-      await Location.requestForegroundPermissionsAsync();
-    } catch {
-      // Ignore permission issues and respect the system state.
+      console.log('[LOCATION DEBUG] Requesting location permission');
+      const result = await Location.requestForegroundPermissionsAsync();
+      console.log('[LOCATION DEBUG] Permission result:', result?.status ?? 'unknown');
+    } catch (error) {
+      console.log('[LOCATION DEBUG] Permission request skipped: exception', error?.message || error);
     }
   }, []);
 
@@ -153,6 +159,7 @@ function MainTabNavigator() {
       </Tab.Navigator>
 
       <Modal visible={showLegendModal} transparent animationType="fade" onRequestClose={() => setShowLegendModal(false)}>
+        {console.log('[LOCATION DEBUG] Legend modal opened')}
         <View
           style={[
             styles.legendModalBackdrop,
