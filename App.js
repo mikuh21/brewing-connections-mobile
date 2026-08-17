@@ -1,8 +1,6 @@
-import React, { useEffect, useRef } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { ActivityIndicator, View } from 'react-native';
 import { useFonts } from 'expo-font';
-import * as Location from 'expo-location';
 import {
   Poppins_400Regular,
   Poppins_400Regular_Italic,
@@ -55,31 +53,6 @@ export default function App() {
     PlayfairDisplayMedium: PlayfairDisplay_500Medium,
     PlayfairDisplayMediumItalic: PlayfairDisplay_500Medium_Italic,
   });
-  const hasRequestedInitialLocationPermission = useRef(false);
-
-  useEffect(() => {
-    if (hasRequestedInitialLocationPermission.current) {
-      return;
-    }
-
-    hasRequestedInitialLocationPermission.current = true;
-
-    const requestInitialLocationPermission = async () => {
-      try {
-        const { status } = await Location.getForegroundPermissionsAsync();
-
-        if (status === 'granted' || status === 'denied') {
-          return;
-        }
-
-        await Location.requestForegroundPermissionsAsync();
-      } catch {
-        // Ignore startup permission issues and respect the OS-provided state.
-      }
-    };
-
-    requestInitialLocationPermission();
-  }, []);
 
   if (!fontsLoaded) {
     return (

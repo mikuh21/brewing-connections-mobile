@@ -1,8 +1,9 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { CardStyleInterpolators, createStackNavigator } from '@react-navigation/stack';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import * as Location from 'expo-location';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import MapScreen from '../screens/map';
 import TrailScreen from '../screens/trail';
@@ -52,8 +53,31 @@ function MainTabNavigator() {
   const insets = useSafeAreaInsets();
   const { unreadCount } = useChat();
   const [showLegendModal, setShowLegendModal] = useState(true);
+  const hasRequestedLegendLocationPermission = useRef(false);
   const modalTopPadding = useMemo(() => Math.max(insets.top + 12, 26), [insets.top]);
   const modalBottomPadding = useMemo(() => Math.max(insets.bottom + 16, 24), [insets.bottom]);
+
+  const handleLegendDismiss = useCallback(async () => {
+    setShowLegendModal(false);
+
+    if (hasRequestedLegendLocationPermission.current) {
+      return;
+    }
+
+    hasRequestedLegendLocationPermission.current = true;
+
+    try {
+      const { status } = await Location.getForegroundPermissionsAsync();
+
+      if (status === 'granted' || status === 'denied') {
+        return;
+      }
+
+      await Location.requestForegroundPermissionsAsync();
+    } catch {
+      // Ignore permission issues and respect the system state.
+    }
+  }, []);
 
   return (
     <View style={styles.tabShell}>
@@ -166,7 +190,7 @@ function MainTabNavigator() {
               ))}
             </View>
 
-            <Pressable style={styles.legendDismissButton} onPress={() => setShowLegendModal(false)}>
+            <Pressable style={styles.legendDismissButton} onPress={handleLegendDismiss}>
               <Text style={styles.legendDismissButtonText}>Got it!</Text>
             </Pressable>
           </View>
