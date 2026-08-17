@@ -69,11 +69,16 @@ function MainTabNavigator() {
     hasRequestedLegendLocationPermission.current = true;
 
     try {
-      const { status } = await Location.getForegroundPermissionsAsync();
-      console.log('[LOCATION DEBUG] Existing permission status:', status);
+      const { status, canAskAgain } = await Location.getForegroundPermissionsAsync();
+      console.log('[LOCATION DEBUG] Existing permission status:', status, 'canAskAgain:', canAskAgain);
 
-      if (status === 'granted' || status === 'denied') {
-        console.log('[LOCATION DEBUG] Permission request skipped: existing status is', status);
+      if (status === 'granted') {
+        console.log('[LOCATION DEBUG] Permission request skipped: already granted');
+        return;
+      }
+
+      if (status === 'denied' && canAskAgain === false) {
+        console.log('[LOCATION DEBUG] Permission request skipped: permanently denied or cannot ask again');
         return;
       }
 
