@@ -20,8 +20,8 @@ import { api, login as loginRequest } from '../../services';
 import theme from '../../theme';
 
 GoogleSignin.configure({
-  webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
-  iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
+  webClientId:
+    "1082763611243-tv1398j5lj8npu7g1op4tnm8pvl7pebj.apps.googleusercontent.com",
   offlineAccess: false,
 });
 
