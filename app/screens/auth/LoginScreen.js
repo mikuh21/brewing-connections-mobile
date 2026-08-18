@@ -42,6 +42,7 @@ export default function LoginScreen({ navigation }) {
     try {
       await GoogleSignin.hasPlayServices();
       const userInfo = await GoogleSignin.signIn();
+      await GoogleSignin.signOut();
       const idToken = userInfo.idToken || userInfo.data?.idToken || null;
 
       if (!idToken) {
