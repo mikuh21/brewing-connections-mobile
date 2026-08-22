@@ -487,7 +487,7 @@ export default function MarketplaceScreen() {
 			const message =
 				fetchError?.response?.data?.message ||
 				fetchError?.message ||
-				'Unable to load marketplace data right now.';
+				'Unable to load store data right now.';
 
 			setError(message);
 		} finally {
@@ -1130,7 +1130,7 @@ const cancelOrder = async (order) => {
 		<ScreenContainer>
 			<View style={styles.headerWrap}>
 				<View style={styles.headerRow}>
-					<Text style={styles.title}>Marketplace</Text>
+					<Text style={styles.title}>Store</Text>
 					<Pressable style={styles.backButton} onPress={() => navigation.goBack()}>
 						<MaterialIcons name="arrow-back" size={16} color={theme.colors.white} />
 						<Text style={styles.backButtonText}>Back</Text>
@@ -1209,7 +1209,7 @@ const cancelOrder = async (order) => {
 			{loading ? (
 				<View style={styles.loaderWrap}>
 					<ActivityIndicator size="large" color={theme.colors.primary} />
-					<Text style={styles.loaderText}>Loading marketplace...</Text>
+					<Text style={styles.loaderText}>Loading store...</Text>
 				</View>
 			) : (
 				<FlatList
@@ -1480,7 +1480,7 @@ const cancelOrder = async (order) => {
 							</View>
 						</View>
 
-						<Text style={styles.receiptFootnote}>This is an official BrewHub reservation record. Sellers can view this order in their marketplace dashboard in real time.</Text>
+						<Text style={styles.receiptFootnote}>This is an official BrewHub reservation record. Sellers can view this order in their store dashboard in real time.</Text>
 					</View>
 
 					<View style={styles.receiptActionsRow}>

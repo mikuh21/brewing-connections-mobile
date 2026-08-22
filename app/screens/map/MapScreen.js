@@ -2445,7 +2445,7 @@ export default function MapScreen({ navigation, route }) {
 
       navigation?.navigate?.('Marketplace');
     } catch {
-      Alert.alert('Unable to open Marketplace', 'Please try again in a moment.');
+      Alert.alert('Unable to open Store', 'Please try again in a moment.');
     }
   };
 
@@ -3327,7 +3327,7 @@ export default function MapScreen({ navigation, route }) {
                       onPress={handleOpenMarketplace}
                     >
                       <MaterialIcons name="shopping-bag" size={15} color="#FFFFFF" />
-                      <Text style={styles.marketplaceInlineButtonText}>Open Marketplace</Text>
+                      <Text style={styles.marketplaceInlineButtonText}>Open Store</Text>
                     </Pressable>
 
                     {selectedEstablishment.type === 'farm' ? (
