@@ -443,7 +443,8 @@ export default function MarketplaceCartScreen() {
 			<View style={styles.handoffBanner}>
 				<MaterialIcons name="open-in-browser" size={16} color="#2D4A1E" />
 				<Text style={styles.handoffBannerText}>
-					Farm owner and reseller products continue on landing web form. Cafe owner products are reserved in-app.
+					Complete full order / reservation details on the BrewHub website:{' '}
+					<Text style={styles.handoffWebsite}>brewing-hub.online</Text>.
 				</Text>
 			</View>
 
@@ -758,6 +759,9 @@ const styles = StyleSheet.create({
 		fontFamily: 'PoppinsRegular',
 		fontSize: 12,
 		lineHeight: 17,
+	},
+	handoffWebsite: {
+		fontFamily: 'PoppinsItalic',
 	},
 	emptyWrap: {
 		alignItems: 'center',
