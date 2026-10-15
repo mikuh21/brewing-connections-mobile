@@ -845,6 +845,9 @@ export default function MarketplaceScreen() {
 						productId: product.id,
 						quantity: selectedQuantity,
 						prefillToken,
+						paymentMode: selectedPaymentMode,
+						pickupDate: selectedPickupDate,
+						pickupTime: selectedPickupTime,
 					});
 				}
 
@@ -920,9 +923,6 @@ const cancelOrder = async (order) => {
 		const usesWebCheckout = sellerRole === 'farm' || sellerRole === 'reseller';
 		const sellerDisplayName = getSellerDisplayName(item);
 		const detailParts = [];
-		if (productType) {
-			detailParts.push(String(productType));
-		}
 		if (roastType) {
 			detailParts.push(`Roast: ${roastType}`);
 		}
@@ -1422,8 +1422,22 @@ const cancelOrder = async (order) => {
 													/>
 												) : null}
 											</View>
+											<View style={styles.paymentModeNotice}>
+												<MaterialIcons name="info-outline" size={16} color="#2D4A1E" />
+												<Text style={styles.paymentModeNoticeText}>
+													A grace period of up to 3 days applies after your scheduled pickup date and time. If you do not pick up your order within 3 days, it will be automatically canceled. You will receive an email when your order is ready for pickup.
+												</Text>
+											</View>
 										</>
 									)}
+									{paymentMode === 'cod' ? (
+										<View style={styles.paymentModeNotice}>
+											<MaterialIcons name="info-outline" size={16} color="#2D4A1E" />
+											<Text style={styles.paymentModeNoticeText}>
+												Complete your delivery details through the BrewHub website reservation form before submitting your order.
+											</Text>
+										</View>
+									) : null}
 
 									<View style={styles.modalActionsRow}>
 										<Pressable style={styles.modalCancelButton} onPress={closeReserveModal}>
@@ -1624,7 +1638,6 @@ const styles = StyleSheet.create({
 	},
 	handoffWebsite: {
 		fontFamily: 'PoppinsItalic',
-		fontStyle: 'italic',
 	},
 	tabRow: {
 		flexDirection: 'row',
@@ -1742,7 +1755,9 @@ const styles = StyleSheet.create({
 		alignItems: 'stretch',
 	},
 	productGridItem: {
-		flex: 1,
+		width: '48.5%',
+		flexGrow: 0,
+		flexShrink: 0,
 		minWidth: 0,
 	},
 	listContentProductsEmpty: {
@@ -1955,6 +1970,24 @@ const styles = StyleSheet.create({
 	},
 	addToCartButtonTextDisabled: {
 		color: '#8B8B8B',
+	},
+	paymentModeNotice: {
+		flexDirection: 'row',
+		alignItems: 'flex-start',
+		gap: 8,
+		marginTop: 4,
+		padding: 10,
+		backgroundColor: '#EEF6E6',
+		borderWidth: 1,
+		borderColor: '#C7DBB4',
+		borderRadius: theme.borderRadius.md,
+	},
+	paymentModeNoticeText: {
+		flex: 1,
+		color: '#2D4A1E',
+		fontFamily: 'PoppinsRegular',
+		fontSize: 12,
+		lineHeight: 17,
 	},
 	orderCard: {
 		backgroundColor: theme.colors.white,

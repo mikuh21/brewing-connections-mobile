@@ -378,6 +378,9 @@ export default function MarketplaceCartScreen() {
 							productId: latestProduct.id,
 							quantity: requestedQuantity,
 							prefillToken,
+							paymentMode: item.payment_mode,
+							pickupDate: item.pickup_date,
+							pickupTime: item.pickup_time,
 						});
 					}
 

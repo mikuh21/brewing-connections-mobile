@@ -33,7 +33,14 @@ function normalizeWebBaseUrl(rawUrl) {
 	}
 }
 
-export function buildMarketplaceLandingReservationUrl({ productId, quantity, prefillToken }) {
+export function buildMarketplaceLandingReservationUrl({
+	productId,
+	quantity,
+	prefillToken,
+	paymentMode,
+	pickupDate,
+	pickupTime,
+}) {
 	const runtimeWebBase = process.env.EXPO_PUBLIC_WEB_URL || API_CONFIG?.baseUrl || PRODUCTION_WEB_BASE_URL;
 	const baseUrl = normalizeWebBaseUrl(runtimeWebBase);
 
@@ -46,6 +53,15 @@ export function buildMarketplaceLandingReservationUrl({ productId, quantity, pre
 	}
 	if (prefillToken) {
 		params.set('prefill_token', String(prefillToken));
+	}
+	if (paymentMode === 'pickup' || paymentMode === 'cod') {
+		params.set('payment_mode', paymentMode);
+	}
+	if (/^\d{4}-\d{2}-\d{2}$/.test(String(pickupDate || ''))) {
+		params.set('pickup_date', pickupDate);
+	}
+	if (/^\d{2}:\d{2}$/.test(String(pickupTime || ''))) {
+		params.set('pickup_time', pickupTime);
 	}
 
 	const query = params.toString();
