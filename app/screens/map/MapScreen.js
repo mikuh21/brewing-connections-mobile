@@ -24,7 +24,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
-import { api, getCouponPromos, getEstablishments, trackMapMarkerView } from '../../services';
+import {
+  api,
+  getCouponPromos,
+  getEstablishments,
+  getProducts,
+  trackMapMarkerView,
+} from '../../services';
 
 const LIPA_REGION = {
   latitude: 13.9411,
@@ -964,6 +970,9 @@ function normalizeTrailStop(stop, index) {
 
   return {
     id: source?.establishment_id ?? source?.id ?? stop?.id ?? index,
+    establishment_id: source?.establishment_id ?? source?.establishmentId ?? source?.id ??
+      raw?.establishment_id ?? raw?.id ?? stop?.establishment_id ?? stop?.establishmentId ?? stop?.id ?? null,
+    raw: source?.raw || source,
     name: source?.name || stop?.name || `Stop ${index + 1}`,
     type: String(source?.type || stop?.type || 'establishment').toLowerCase(),
     address: source?.address || stop?.address || 'Address not available',
@@ -974,6 +983,83 @@ function normalizeTrailStop(stop, index) {
     eta_minutes: Number(source?.eta_minutes ?? stop?.eta_minutes ?? 0),
     why_recommended: source?.why_recommended || stop?.why_recommended || '',
   };
+}
+
+function getProductsList(response) {
+  let result = response;
+  for (let depth = 0; depth < 3; depth += 1) {
+    if (Array.isArray(result)) {
+      return result;
+    }
+    if (Array.isArray(result?.products)) {
+      return result.products;
+    }
+    if (Array.isArray(result?.data)) {
+      return result.data;
+    }
+    result = result?.data;
+  }
+  return [];
+}
+
+function getContentLines(value) {
+  if (typeof value === 'string' || typeof value === 'number') {
+    const text = String(value).trim();
+    return text ? [text] : [];
+  }
+  if (!Array.isArray(value) && value && typeof value === 'object') {
+    return ['content', 'text', 'description', 'body', 'name']
+      .flatMap((key) => getContentLines(value[key]));
+  }
+  return Array.isArray(value) ? value.flatMap((entry) => getContentLines(entry)) : [];
+}
+
+function getTrailTriviaSections(establishment) {
+  const fields = [
+    { title: 'Trivia', keys: ['trivia', 'coffee_trivia', 'trivia_content', 'trivia_text'] },
+    { title: 'History', keys: ['history', 'establishment_history', 'historical_background', 'history_text'] },
+    { title: 'Background', keys: ['background', 'background_info', 'background_text', 'about', 'about_us', 'about_text'] },
+    { title: 'About', keys: ['description', 'about_description'] },
+    { title: 'Activities', keys: ['activities'] },
+  ];
+
+  return fields
+    .map(({ title, keys }) => {
+      const key = keys.find((candidate) => getContentLines(establishment?.[candidate]).length);
+      return key ? { title, lines: getContentLines(establishment[key]) } : null;
+    })
+    .filter(Boolean);
+}
+
+function getTrailVarieties(establishment) {
+  const varieties =
+    establishment?.varieties ??
+    establishment?.coffee_varieties ??
+    establishment?.coffeeVarieties ??
+    establishment?.variety ??
+    [];
+  const list = Array.isArray(varieties) ? varieties : [varieties];
+  return list
+    .map((variety) => {
+      if (typeof variety === 'string' || typeof variety === 'number') {
+        return String(variety).trim();
+      }
+      return String(
+        variety?.name ?? variety?.variety_name ?? variety?.varietyName ?? variety?.title ?? ''
+      ).trim();
+    })
+    .filter(Boolean);
+}
+
+function getProductEstablishmentId(product) {
+  return (
+    product?.establishment_id ??
+    product?.establishmentId ??
+    product?.establishment?.id ??
+    product?.establishment?.establishment_id ??
+    product?.raw?.establishment_id ??
+    null
+  );
 }
 
 function formatAddressWithBarangay(address, barangay) {
@@ -1042,6 +1128,16 @@ export default function MapScreen({ navigation, route }) {
   const [showAboutModal, setShowAboutModal] = useState(false);
   const [showBeanPreviewModal, setShowBeanPreviewModal] = useState(false);
   const [beanPreviewSource, setBeanPreviewSource] = useState(ABOUT_VARIETY_CONTENT[0]?.imageSource || null);
+  const [showTrailTriviaPanel, setShowTrailTriviaPanel] = useState(false);
+  const [trailTriviaRecord, setTrailTriviaRecord] = useState(null);
+  const [trailTriviaRecordId, setTrailTriviaRecordId] = useState(null);
+  const [trailTriviaProducts, setTrailTriviaProducts] = useState([]);
+  const [isTrailTriviaLoading, setIsTrailTriviaLoading] = useState(false);
+  const [trailTriviaError, setTrailTriviaError] = useState('');
+  const [trailTriviaRequestVersion, setTrailTriviaRequestVersion] = useState(0);
+  const [trailBottomPanelHeight, setTrailBottomPanelHeight] = useState(220);
+  const trailTriviaProductsCacheRef = useRef(null);
+  const trailTriviaProductsRequestRef = useRef(null);
   const lastRerouteRef = useRef({
     point: null,
     at: 0,
@@ -1056,6 +1152,27 @@ export default function MapScreen({ navigation, route }) {
   const savedToastOpacity = useRef(new Animated.Value(0)).current;
   const aboutPulseAnim = useRef(new Animated.Value(1)).current;
   const beanPreviewAnim = useRef(new Animated.Value(0)).current;
+  const trailTriviaSlideAnim = useRef(new Animated.Value(1)).current;
+  const trailTriviaRequestIdRef = useRef(0);
+  const loadTrailTriviaProducts = useCallback(() => {
+    if (Array.isArray(trailTriviaProductsCacheRef.current)) {
+      return Promise.resolve(trailTriviaProductsCacheRef.current);
+    }
+
+    if (!trailTriviaProductsRequestRef.current) {
+      trailTriviaProductsRequestRef.current = getProducts()
+        .then((response) => {
+          const products = getProductsList(response);
+          trailTriviaProductsCacheRef.current = products;
+          return products;
+        })
+        .finally(() => {
+          trailTriviaProductsRequestRef.current = null;
+        });
+    }
+
+    return trailTriviaProductsRequestRef.current;
+  }, []);
 
   const rawTrailStops = route?.params?.trailStops;
   const rawTrailOrigin = route?.params?.trailOrigin;
@@ -1714,12 +1831,99 @@ export default function MapScreen({ navigation, route }) {
       ])
     );
 
-    if (!showAboutModal) {
+    if (!showAboutModal && !showTrailTriviaPanel) {
       pulse.start();
     }
 
     return () => pulse.stop();
-  }, [aboutPulseAnim, showAboutModal]);
+  }, [aboutPulseAnim, showAboutModal, showTrailTriviaPanel]);
+
+  useEffect(() => {
+    if (!showTrailTriviaPanel || !isTrailMode) {
+      if (!isTrailMode) {
+        setShowTrailTriviaPanel(false);
+      }
+      setTrailTriviaRecord(null);
+      setTrailTriviaRecordId(null);
+      setTrailTriviaProducts([]);
+      setIsTrailTriviaLoading(false);
+      setTrailTriviaError('');
+      return undefined;
+    }
+
+    const stopId = currentTrailStop?.establishment_id;
+    const requestId = ++trailTriviaRequestIdRef.current;
+    let isActive = true;
+    trailTriviaSlideAnim.setValue(1);
+    Animated.spring(trailTriviaSlideAnim, {
+      toValue: 0,
+      speed: 16,
+      bounciness: 2,
+      useNativeDriver: true,
+    }).start();
+
+    const localEstablishment = establishments.find(
+      (establishment) => String(establishment?.id) === String(stopId)
+    );
+    const localRecord = {
+      ...(currentTrailStop?.raw || {}),
+      ...(localEstablishment?.raw || {}),
+    };
+    setTrailTriviaRecord(localRecord);
+    setTrailTriviaRecordId(String(stopId));
+    setTrailTriviaProducts(
+      Array.isArray(localRecord?.products) ? localRecord.products : []
+    );
+    setTrailTriviaError('');
+
+    if (!isTrailMode || stopId === null || stopId === undefined || String(stopId).trim() === '') {
+      setIsTrailTriviaLoading(false);
+      setTrailTriviaError('Details are unavailable for this destination.');
+      return () => {
+        isActive = false;
+      };
+    }
+
+    setIsTrailTriviaLoading(true);
+    loadTrailTriviaProducts()
+      .then((catalog) => {
+        if (!isActive || requestId !== trailTriviaRequestIdRef.current) {
+          return;
+        }
+
+        const products = catalog.filter((product) => {
+          const establishmentId = getProductEstablishmentId(product);
+          return establishmentId !== null && String(establishmentId) === String(stopId);
+        });
+        setTrailTriviaProducts(products);
+      })
+      .catch(() => {
+        if (isActive && requestId === trailTriviaRequestIdRef.current) {
+          setTrailTriviaError('Some destination products could not be loaded. Available destination information is shown below.');
+        }
+      })
+      .finally(() => {
+        if (isActive && requestId === trailTriviaRequestIdRef.current) {
+          setIsTrailTriviaLoading(false);
+        }
+      });
+
+    return () => {
+      isActive = false;
+      if (requestId === trailTriviaRequestIdRef.current) {
+        trailTriviaRequestIdRef.current += 1;
+      }
+    };
+  }, [
+    currentTrailStop?.establishment_id,
+    currentTrailStop?.raw,
+    establishments,
+    isTrailMode,
+    loadTrailTriviaProducts,
+    showTrailTriviaPanel,
+    trailTriviaRequestVersion,
+    trailTriviaSlideAnim,
+  ]);
 
   useEffect(() => {
     if (showAboutModal) {
@@ -2488,6 +2692,15 @@ export default function MapScreen({ navigation, route }) {
   };
 
   const resetTrailMode = async () => {
+    trailTriviaRequestIdRef.current += 1;
+    trailTriviaSlideAnim.stopAnimation();
+    trailTriviaSlideAnim.setValue(1);
+    setShowTrailTriviaPanel(false);
+    setTrailTriviaRecord(null);
+    setTrailTriviaRecordId(null);
+    setTrailTriviaProducts([]);
+    setTrailTriviaError('');
+
     try {
       await AsyncStorage.setItem(TRAIL_RESET_SIGNAL_KEY, String(Date.now()));
     } catch {
@@ -2625,6 +2838,42 @@ export default function MapScreen({ navigation, route }) {
     setDistanceRemaining(formatDistanceKm(seedDistance));
     setEtaRemaining(formatEtaMinutes(estimateEtaFromDistance(seedDistance)));
   };
+
+  const toggleTrailTriviaPanel = () => {
+    if (showTrailTriviaPanel) {
+      Animated.timing(trailTriviaSlideAnim, {
+        toValue: 1,
+        duration: 220,
+        useNativeDriver: true,
+      }).start(({ finished }) => {
+        if (finished) {
+          setShowTrailTriviaPanel(false);
+        }
+      });
+      return;
+    }
+
+    setShowAboutModal(false);
+    trailTriviaSlideAnim.setValue(1);
+    setShowTrailTriviaPanel(true);
+  };
+
+  const isTrailTriviaForCurrentStop =
+    trailTriviaRecordId !== null &&
+    currentTrailStop?.establishment_id !== null &&
+    currentTrailStop?.establishment_id !== undefined &&
+    trailTriviaRecordId === String(currentTrailStop.establishment_id);
+  const activeTrailTriviaSections = isTrailTriviaForCurrentStop
+    ? getTrailTriviaSections(trailTriviaRecord)
+    : [];
+  const activeTrailVarieties = isTrailTriviaForCurrentStop
+    ? getTrailVarieties(trailTriviaRecord)
+    : [];
+  const activeTrailProducts = isTrailTriviaForCurrentStop ? trailTriviaProducts : [];
+  const hasTrailTriviaContent =
+    activeTrailTriviaSections.length > 0 ||
+    activeTrailVarieties.length > 0 ||
+    activeTrailProducts.length > 0;
 
   return (
     <View style={styles.screen}>
@@ -3066,13 +3315,40 @@ export default function MapScreen({ navigation, route }) {
       >
         <Pressable
           style={styles.aboutButton}
-          onPress={() => setShowAboutModal(true)}
+          onPress={() => {
+            if (showTrailTriviaPanel) {
+              toggleTrailTriviaPanel();
+            }
+            setShowAboutModal(true);
+          }}
           accessibilityRole="button"
           accessibilityLabel="Open coffee varieties guide"
         >
           <MaterialIcons name="help-outline" size={28} color="#FFFFFF" />
         </Pressable>
       </Animated.View>
+
+      {isTrailMode && currentTrailStop && !shouldHideTrailOverlays ? (
+        <Animated.View
+          style={[
+            styles.aboutButtonWrap,
+            {
+              bottom: Math.max(insets.bottom + 274, 284),
+              transform: [{ scale: aboutPulseAnim }],
+            },
+          ]}
+        >
+          <Pressable
+            style={styles.aboutButton}
+            onPress={toggleTrailTriviaPanel}
+            accessibilityRole="button"
+            accessibilityLabel={showTrailTriviaPanel ? 'Close destination trivia and history' : 'Open destination trivia and history'}
+            accessibilityState={{ expanded: showTrailTriviaPanel }}
+          >
+            <MaterialIcons name="lightbulb-outline" size={27} color="#FFFFFF" />
+          </Pressable>
+        </Animated.View>
+      ) : null}
 
       {(isLoading || isLocationBusy) && (
         <View style={styles.centerState}>
@@ -3468,7 +3744,10 @@ export default function MapScreen({ navigation, route }) {
       ) : null}
 
       {isTrailMode && currentTrailStop && !shouldHideTrailOverlays ? (
-        <View style={[styles.trailBottomPanel, { paddingBottom: Math.max(insets.bottom + 10, 16) }]}>
+        <View
+          style={[styles.trailBottomPanel, { paddingBottom: Math.max(insets.bottom + 10, 16) }]}
+          onLayout={({ nativeEvent }) => setTrailBottomPanelHeight(nativeEvent.layout.height)}
+        >
           {trailState === 'navigating' ? (
             <Text style={styles.trailNavHeader}>
               Navigating to Stop {Math.min(currentStopIndex + 1, trailStops.length)} of {trailStops.length}
@@ -3555,6 +3834,132 @@ export default function MapScreen({ navigation, route }) {
               )}
             </>
           ) : null}
+        </View>
+      ) : null}
+
+      {showTrailTriviaPanel && isTrailMode && currentTrailStop && !shouldHideTrailOverlays ? (
+        <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
+          <Animated.View
+            style={[
+              styles.trailTriviaPanel,
+              {
+                bottom: trailBottomPanelHeight + 12,
+                maxHeight: Math.max(
+                  72,
+                  Math.min(
+                    Dimensions.get('window').height * 0.48,
+                    410,
+                    Dimensions.get('window').height - trailBottomPanelHeight - insets.top - 24
+                  )
+                ),
+                opacity: trailTriviaSlideAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [1, 0],
+                }),
+                transform: [
+                  {
+                    translateY: trailTriviaSlideAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0, 420],
+                    }),
+                  },
+                ],
+              },
+            ]}
+          >
+            <View style={styles.trailTriviaHeader}>
+              <View style={styles.trailTriviaHeaderText}>
+                <Text style={styles.trailTriviaTitle}>Trivia & History</Text>
+                <Text style={styles.trailTriviaDestination} numberOfLines={1}>
+                  {currentTrailStop.name}
+                </Text>
+              </View>
+              <Pressable
+                style={styles.trailTriviaCloseButton}
+                onPress={toggleTrailTriviaPanel}
+                accessibilityRole="button"
+                accessibilityLabel="Close destination trivia and history"
+              >
+                <MaterialIcons name="close" size={20} color="#3A2E22" />
+              </Pressable>
+            </View>
+
+            <ScrollView
+              style={styles.trailTriviaScroll}
+              contentContainerStyle={styles.trailTriviaContent}
+              showsVerticalScrollIndicator
+              nestedScrollEnabled
+            >
+              {isTrailTriviaLoading ? (
+                <View style={styles.trailTriviaLoading}>
+                  <ActivityIndicator size="small" color={BRAND.accent} />
+                  <Text style={styles.trailTriviaMuted}>Loading destination details...</Text>
+                </View>
+              ) : null}
+
+              {trailTriviaError ? (
+                <View style={styles.trailTriviaErrorWrap}>
+                  <Text style={styles.trailTriviaError}>{trailTriviaError}</Text>
+                  {!isTrailTriviaLoading ? (
+                    <Pressable
+                      onPress={() => setTrailTriviaRequestVersion((version) => version + 1)}
+                      accessibilityRole="button"
+                      accessibilityLabel="Retry loading destination details"
+                    >
+                      <Text style={styles.trailTriviaRetry}>Retry</Text>
+                    </Pressable>
+                  ) : null}
+                </View>
+              ) : null}
+
+              {activeTrailTriviaSections.map((section) => (
+                <View key={section.title} style={styles.trailTriviaSection}>
+                  <Text style={styles.trailTriviaSectionTitle}>{section.title}</Text>
+                  {section.lines.map((line, index) => (
+                    <Text key={`${section.title}-${index}`} style={styles.trailTriviaText}>
+                      {line}
+                    </Text>
+                  ))}
+                </View>
+              ))}
+
+              {activeTrailVarieties.length ? (
+                <View style={styles.trailTriviaSection}>
+                  <Text style={styles.trailTriviaSectionTitle}>Coffee Varieties</Text>
+                  <Text style={styles.trailTriviaText}>{activeTrailVarieties.join(' · ')}</Text>
+                </View>
+              ) : null}
+
+              {activeTrailProducts.length ? (
+                <View style={styles.trailTriviaSection}>
+                  <Text style={styles.trailTriviaSectionTitle}>Products</Text>
+                  {activeTrailProducts.map((product, index) => {
+                    const productName =
+                      product?.name ?? product?.product_name ?? product?.title ?? '';
+                    const productDescription =
+                      product?.description ?? product?.details ?? '';
+                    const productKey = product?.id ?? `${productName || 'product'}-${index}`;
+                    return (
+                      <View key={String(productKey)} style={styles.trailTriviaProduct}>
+                        {productName ? (
+                          <Text style={styles.trailTriviaProductName}>{String(productName)}</Text>
+                        ) : null}
+                        {productDescription ? (
+                          <Text style={styles.trailTriviaText}>{String(productDescription)}</Text>
+                        ) : null}
+                      </View>
+                    );
+                  })}
+                </View>
+              ) : null}
+
+              {!isTrailTriviaLoading && !hasTrailTriviaContent ? (
+                <Text style={styles.trailTriviaEmpty}>
+                  No trivia, history, varieties, or products are available for this destination.
+                </Text>
+              ) : null}
+            </ScrollView>
+          </Animated.View>
         </View>
       ) : null}
 
@@ -3863,6 +4268,133 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.12,
     shadowRadius: 10,
     elevation: 8,
+  },
+  trailTriviaPanel: {
+    position: 'absolute',
+    left: 12,
+    right: 12,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#D9C9B2',
+    backgroundColor: '#FFF9F0',
+    paddingHorizontal: 14,
+    paddingTop: 13,
+    paddingBottom: 8,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 12,
+    zIndex: 40,
+  },
+  trailTriviaHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E4D8C8',
+  },
+  trailTriviaHeaderText: {
+    flex: 1,
+  },
+  trailTriviaTitle: {
+    color: '#3A2E22',
+    fontFamily: 'PoppinsBold',
+    fontSize: 16,
+    lineHeight: 21,
+  },
+  trailTriviaDestination: {
+    marginTop: 1,
+    color: '#6A5A4B',
+    fontFamily: 'PoppinsMedium',
+    fontSize: 12,
+    lineHeight: 16,
+  },
+  trailTriviaCloseButton: {
+    width: 34,
+    height: 34,
+    borderRadius: 999,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F0E7DA',
+  },
+  trailTriviaScroll: {
+    flexShrink: 1,
+  },
+  trailTriviaContent: {
+    paddingTop: 8,
+    paddingBottom: 12,
+    gap: 10,
+  },
+  trailTriviaLoading: {
+    minHeight: 52,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 9,
+  },
+  trailTriviaMuted: {
+    color: '#6A5A4B',
+    fontFamily: 'PoppinsRegular',
+    fontSize: 12,
+    lineHeight: 17,
+  },
+  trailTriviaErrorWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+    borderRadius: 10,
+    backgroundColor: '#F8EFE4',
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+  },
+  trailTriviaError: {
+    flex: 1,
+    color: '#80552F',
+    fontFamily: 'PoppinsRegular',
+    fontSize: 11,
+    lineHeight: 15,
+  },
+  trailTriviaRetry: {
+    color: '#2D4A1E',
+    fontFamily: 'PoppinsSemiBold',
+    fontSize: 12,
+  },
+  trailTriviaSection: {
+    gap: 4,
+  },
+  trailTriviaSectionTitle: {
+    color: '#2D4A1E',
+    fontFamily: 'PoppinsSemiBold',
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  trailTriviaText: {
+    color: '#4B3B2D',
+    fontFamily: 'PoppinsRegular',
+    fontSize: 12,
+    lineHeight: 18,
+  },
+  trailTriviaProduct: {
+    paddingVertical: 4,
+    borderTopWidth: 1,
+    borderTopColor: '#E4D8C8',
+  },
+  trailTriviaProductName: {
+    color: '#3A2E22',
+    fontFamily: 'PoppinsMedium',
+    fontSize: 12,
+    lineHeight: 17,
+  },
+  trailTriviaEmpty: {
+    paddingVertical: 10,
+    color: '#6A5A4B',
+    fontFamily: 'PoppinsRegular',
+    fontSize: 12,
+    lineHeight: 18,
+    textAlign: 'center',
   },
   trailNavHeader: {
     color: '#2D4A1E',
