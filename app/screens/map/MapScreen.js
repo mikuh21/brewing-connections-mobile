@@ -1018,9 +1018,7 @@ function getTrailTriviaSections(establishment) {
   const fields = [
     { title: 'Trivia', keys: ['trivia', 'coffee_trivia', 'trivia_content', 'trivia_text'] },
     { title: 'History', keys: ['history', 'establishment_history', 'historical_background', 'history_text'] },
-    { title: 'Background', keys: ['background', 'background_info', 'background_text', 'about', 'about_us', 'about_text'] },
-    { title: 'About', keys: ['description', 'about_description'] },
-    { title: 'Activities', keys: ['activities'] },
+    { title: 'Background', keys: ['background', 'background_info', 'background_text'] },
   ];
 
   return fields
@@ -2870,10 +2868,9 @@ export default function MapScreen({ navigation, route }) {
     ? getTrailVarieties(trailTriviaRecord)
     : [];
   const activeTrailProducts = isTrailTriviaForCurrentStop ? trailTriviaProducts : [];
+  const hasTrailTriviaHistory = activeTrailTriviaSections.length > 0;
   const hasTrailTriviaContent =
-    activeTrailTriviaSections.length > 0 ||
-    activeTrailVarieties.length > 0 ||
-    activeTrailProducts.length > 0;
+    hasTrailTriviaHistory || activeTrailVarieties.length > 0 || activeTrailProducts.length > 0;
 
   return (
     <View style={styles.screen}>
@@ -3342,7 +3339,7 @@ export default function MapScreen({ navigation, route }) {
             style={styles.aboutButton}
             onPress={toggleTrailTriviaPanel}
             accessibilityRole="button"
-            accessibilityLabel={showTrailTriviaPanel ? 'Close destination trivia and history' : 'Open destination trivia and history'}
+            accessibilityLabel={showTrailTriviaPanel ? 'Close Did you know panel' : 'Did you know?'}
             accessibilityState={{ expanded: showTrailTriviaPanel }}
           >
             <MaterialIcons name="lightbulb-outline" size={27} color="#FFFFFF" />
@@ -3869,7 +3866,7 @@ export default function MapScreen({ navigation, route }) {
           >
             <View style={styles.trailTriviaHeader}>
               <View style={styles.trailTriviaHeaderText}>
-                <Text style={styles.trailTriviaTitle}>Trivia & History</Text>
+                <Text style={styles.trailTriviaTitle}>Did you know?</Text>
                 <Text style={styles.trailTriviaDestination} numberOfLines={1}>
                   {currentTrailStop.name}
                 </Text>
@@ -3912,50 +3909,57 @@ export default function MapScreen({ navigation, route }) {
                 </View>
               ) : null}
 
-              {activeTrailTriviaSections.map((section) => (
-                <View key={section.title} style={styles.trailTriviaSection}>
-                  <Text style={styles.trailTriviaSectionTitle}>{section.title}</Text>
-                  {section.lines.map((line, index) => (
-                    <Text key={`${section.title}-${index}`} style={styles.trailTriviaText}>
-                      {line}
-                    </Text>
+              {hasTrailTriviaHistory ? (
+                <>
+                  <Text style={styles.trailTriviaSectionTitle}>TRIVIA / HISTORY</Text>
+                  {activeTrailTriviaSections.map((section) => (
+                    <View key={section.title} style={styles.trailTriviaSection}>
+                      <Text style={styles.trailTriviaSectionTitle}>{section.title}</Text>
+                      {section.lines.map((line, index) => (
+                        <Text key={`${section.title}-${index}`} style={styles.trailTriviaText}>
+                          {line}
+                        </Text>
+                      ))}
+                    </View>
                   ))}
-                </View>
-              ))}
+                </>
+              ) : (
+                <>
+                  {activeTrailVarieties.length ? (
+                    <View style={styles.trailTriviaSection}>
+                      <Text style={styles.trailTriviaSectionTitle}>COFFEE VARIETIES</Text>
+                      <Text style={styles.trailTriviaText}>{activeTrailVarieties.join(' · ')}</Text>
+                    </View>
+                  ) : null}
 
-              {activeTrailVarieties.length ? (
-                <View style={styles.trailTriviaSection}>
-                  <Text style={styles.trailTriviaSectionTitle}>Coffee Varieties</Text>
-                  <Text style={styles.trailTriviaText}>{activeTrailVarieties.join(' · ')}</Text>
-                </View>
-              ) : null}
-
-              {activeTrailProducts.length ? (
-                <View style={styles.trailTriviaSection}>
-                  <Text style={styles.trailTriviaSectionTitle}>Products</Text>
-                  {activeTrailProducts.map((product, index) => {
-                    const productName =
-                      product?.name ?? product?.product_name ?? product?.title ?? '';
-                    const productDescription =
-                      product?.description ?? product?.details ?? '';
-                    const productKey = product?.id ?? `${productName || 'product'}-${index}`;
-                    return (
-                      <View key={String(productKey)} style={styles.trailTriviaProduct}>
-                        {productName ? (
-                          <Text style={styles.trailTriviaProductName}>{String(productName)}</Text>
-                        ) : null}
-                        {productDescription ? (
-                          <Text style={styles.trailTriviaText}>{String(productDescription)}</Text>
-                        ) : null}
-                      </View>
-                    );
-                  })}
-                </View>
-              ) : null}
+                  {activeTrailProducts.length ? (
+                    <View style={styles.trailTriviaSection}>
+                      <Text style={styles.trailTriviaSectionTitle}>OFFERED PRODUCTS</Text>
+                      {activeTrailProducts.map((product, index) => {
+                        const productName =
+                          product?.name ?? product?.product_name ?? product?.title ?? '';
+                        const productDescription =
+                          product?.description ?? product?.details ?? '';
+                        const productKey = product?.id ?? `${productName || 'product'}-${index}`;
+                        return (
+                          <View key={String(productKey)} style={styles.trailTriviaProduct}>
+                            {productName ? (
+                              <Text style={styles.trailTriviaProductName}>{String(productName)}</Text>
+                            ) : null}
+                            {productDescription ? (
+                              <Text style={styles.trailTriviaText}>{String(productDescription)}</Text>
+                            ) : null}
+                          </View>
+                        );
+                      })}
+                    </View>
+                  ) : null}
+                </>
+              )}
 
               {!isTrailTriviaLoading && !hasTrailTriviaContent ? (
                 <Text style={styles.trailTriviaEmpty}>
-                  No trivia, history, varieties, or products are available for this destination.
+                  No trivia, history, coffee varieties, or offered products are available for this destination yet.
                 </Text>
               ) : null}
             </ScrollView>
