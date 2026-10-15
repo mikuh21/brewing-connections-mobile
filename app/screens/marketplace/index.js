@@ -15,7 +15,7 @@ import {
 	TextInput,
 	View,
 } from 'react-native';
-import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { MaterialIcons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -198,16 +198,6 @@ function normalizeSellerRole(product) {
 	return null;
 }
 
-function getProductEstablishmentId(product) {
-	return (
-		product?.establishment_id ??
-		product?.establishmentId ??
-		product?.establishment?.id ??
-		product?.establishment?.establishment_id ??
-		null
-	);
-}
-
 function getSellerRecipientId(source) {
 	const possibleIds = [
 		source?.seller_user_id,
@@ -269,18 +259,8 @@ function isProductReservable(product) {
 
 export default function MarketplaceScreen() {
 	const navigation = useNavigation();
-	const route = useRoute();
 	const insets = useSafeAreaInsets();
 	const { user } = useAuth();
-	const establishmentId = route?.params?.establishmentId;
-	const establishmentName = route?.params?.establishmentName;
-	const establishmentType = String(route?.params?.establishmentType || '').toLowerCase();
-	const establishmentScopeKey =
-		establishmentId === undefined || establishmentId === null || establishmentId === ''
-			? ''
-			: `${String(establishmentId)}:${establishmentType}`;
-	const isEstablishmentScoped = Boolean(establishmentScopeKey);
-	const isCafeMenuStore = isEstablishmentScoped && establishmentType === 'cafe';
 	const [activeTab, setActiveTab] = useState(TAB_PRODUCTS);
 	const [products, setProducts] = useState([]);
 	const [orders, setOrders] = useState([]);
@@ -308,7 +288,6 @@ export default function MarketplaceScreen() {
 	const [selectedReceiptOrder, setSelectedReceiptOrder] = useState(null);
 	const [receiptSavedNotice, setReceiptSavedNotice] = useState(false);
 	const requestIdRef = useRef(0);
-	const initializedStoreScopeRef = useRef(null);
 	const [confirmState, setConfirmState] = useState({
 		visible: false,
 		title: '',
@@ -493,7 +472,6 @@ export default function MarketplaceScreen() {
 
 	const fetchMarketplaceData = useCallback(async (isRefresh = false) => {
 		const requestId = ++requestIdRef.current;
-		const currentScopeKey = establishmentScopeKey;
 		if (isRefresh) {
 			setRefreshing(true);
 		} else {
@@ -511,13 +489,6 @@ export default function MarketplaceScreen() {
 			const nextProducts = Array.isArray(productsPayload?.products) ? productsPayload.products : [];
 			setProducts(nextProducts);
 			setOrders(Array.isArray(ordersPayload?.orders) ? ordersPayload.orders : []);
-			if (initializedStoreScopeRef.current !== currentScopeKey) {
-				const hasCafeMenuItems =
-					establishmentType === 'cafe' &&
-					nextProducts.some((product) => String(getProductEstablishmentId(product)) === String(establishmentId));
-				setSelectedTypeFilter(hasCafeMenuItems ? 'cafe menus' : 'all');
-				initializedStoreScopeRef.current = currentScopeKey;
-			}
 		} catch (fetchError) {
 			if (requestId !== requestIdRef.current) {
 				return;
@@ -528,11 +499,6 @@ export default function MarketplaceScreen() {
 				'Unable to load store data right now.';
 
 			setError(message);
-			if (initializedStoreScopeRef.current !== currentScopeKey) {
-				setProducts([]);
-				setSelectedTypeFilter('all');
-				initializedStoreScopeRef.current = currentScopeKey;
-			}
 		} finally {
 			if (requestId === requestIdRef.current) {
 				if (isRefresh) {
@@ -542,7 +508,7 @@ export default function MarketplaceScreen() {
 				}
 			}
 		}
-	}, [establishmentId, establishmentScopeKey, establishmentType]);
+	}, []);
 
 	useFocusEffect(
 		useCallback(() => {
@@ -554,27 +520,10 @@ export default function MarketplaceScreen() {
 		}, [fetchMarketplaceData, loadCartFromStorage])
 	);
 
-	useEffect(() => {
-		setQuery('');
-		setSelectedTypeFilter('all');
-		setActiveTab(TAB_PRODUCTS);
-		setProducts([]);
-		setError('');
-		setReserveModalOpen(false);
-		setSelectedProduct(null);
-	}, [establishmentScopeKey]);
-
 	const filteredProducts = useMemo(() => {
 		const normalizedQuery = query.trim().toLowerCase();
 
 		return products.filter((product) => {
-			if (
-				isEstablishmentScoped &&
-				String(getProductEstablishmentId(product)) !== String(establishmentId)
-			) {
-				return false;
-			}
-
 			const sellerRole = normalizeSellerRole(product);
 			const productTypeFields = [product?.category, product?.type, product?.product_type]
 				.filter(Boolean)
@@ -583,7 +532,7 @@ export default function MarketplaceScreen() {
 
 			if (selectedTypeFilter !== 'all') {
 				if (selectedTypeFilter === 'cafe menus') {
-					if (sellerRole !== 'cafe' && !isCafeMenuStore) {
+					if (sellerRole !== 'cafe') {
 						return false;
 					}
 				} else if (!productTypeFields.includes(selectedTypeFilter)) {
@@ -608,7 +557,7 @@ export default function MarketplaceScreen() {
 
 			return searchable.includes(normalizedQuery);
 		});
-	}, [establishmentId, isEstablishmentScoped, products, query, selectedTypeFilter]);
+	}, [products, query, selectedTypeFilter]);
 
 	const activeOrders = useMemo(
 		() =>
@@ -654,7 +603,7 @@ export default function MarketplaceScreen() {
 	}, []);
 
 	const openReserveModal = (product, action = 'order') => {
-		if (isCafeMenuStore || normalizeSellerRole(product) === 'cafe') {
+		if (normalizeSellerRole(product) === 'cafe') {
 			return;
 		}
 
@@ -736,11 +685,7 @@ export default function MarketplaceScreen() {
 	};
 
 	const submitOrder = async () => {
-		if (
-			!selectedProduct ||
-			isCafeMenuStore ||
-			normalizeSellerRole(selectedProduct) === 'cafe'
-		) {
+		if (!selectedProduct || normalizeSellerRole(selectedProduct) === 'cafe') {
 			return;
 		}
 
@@ -963,7 +908,7 @@ const cancelOrder = async (order) => {
 	const renderProductCard = ({ item }) => {
 		const imageUrl = getImageUrl(item?.image_url);
 		const sellerRole = normalizeSellerRole(item);
-		const isMenuProduct = isCafeMenuStore || sellerRole === 'cafe';
+		const isMenuProduct = sellerRole === 'cafe';
 		const stock = getAvailableStock(item);
 		const minimum = getMinimumQuantity(item);
 		const reservable = stock >= minimum;
@@ -973,9 +918,7 @@ const cancelOrder = async (order) => {
 		const hasPrice = item?.price_per_unit !== null && item?.price_per_unit !== undefined && item?.price_per_unit !== '';
 		const sellerRoleTheme = sellerRole ? ROLE_PILL_THEME[sellerRole] : null;
 		const usesWebCheckout = sellerRole === 'farm' || sellerRole === 'reseller';
-		const sellerDisplayName = isEstablishmentScoped
-			? establishmentName || getSellerDisplayName(item)
-			: getSellerDisplayName(item);
+		const sellerDisplayName = getSellerDisplayName(item);
 		const detailParts = [];
 		if (productType) {
 			detailParts.push(String(productType));
@@ -999,7 +942,7 @@ const cancelOrder = async (order) => {
 				)}
 
 				<View style={styles.productBody}>
-					<Text numberOfLines={3} style={styles.productName}>{item?.name || 'Product'}</Text>
+					<Text numberOfLines={4} ellipsizeMode="tail" style={styles.productName}>{item?.name || 'Product'}</Text>
 					<Text numberOfLines={2} style={styles.productMeta}>{sellerDisplayName}</Text>
 					{productType ? <Text numberOfLines={2} style={styles.productCategory}>{String(productType)}</Text> : null}
 
@@ -1045,20 +988,20 @@ const cancelOrder = async (order) => {
 						</View>
 					) : null}
 
-					<Text numberOfLines={2} style={styles.productDescription}>
+					<Text numberOfLines={3} ellipsizeMode="tail" style={styles.productDescription}>
 						{item?.description || 'No description available.'}
 					</Text>
 
 					{hasPrice || !isMenuProduct ? (
 						<View style={styles.productInfoRow}>
 							{hasPrice ? (
-								<Text numberOfLines={1} style={styles.productPrice}>
+								<Text numberOfLines={2} style={styles.productPrice}>
 									{money(item?.price_per_unit)}
 										{!isMenuProduct && item?.unit ? (
 										<Text style={styles.productUnit}>{` / ${item.unit}`}</Text>
 									) : null}
 								</Text>
-							) : <View />}
+							) : null}
 								{!isMenuProduct ? (
 								<Text style={styles.productStock}>{`Stock: ${stock}`}</Text>
 							) : null}
@@ -1219,19 +1162,14 @@ const cancelOrder = async (order) => {
 						<Text style={styles.backButtonText}>Back</Text>
 					</Pressable>
 				</View>
-				<Text style={styles.subtitle}>
-					{isEstablishmentScoped
-						? `Products from ${establishmentName || 'this establishment'}`
-						: 'Browse coffee products and manage your orders'}
-				</Text>
-				{!isCafeMenuStore ? (
-					<View style={styles.handoffBanner}>
-						<MaterialIcons name="open-in-browser" size={16} color="#2D4A1E" />
-						<Text style={styles.handoffBannerText}>
-							Farm owner and reseller products continue on landing web form.
-						</Text>
-					</View>
-				) : null}
+				<Text style={styles.subtitle}>Reserve fresh coffee products and track your orders</Text>
+				<View style={styles.handoffBanner}>
+					<MaterialIcons name="open-in-browser" size={16} color="#2D4A1E" />
+					<Text style={styles.handoffBannerText}>
+						Complete full order / reservation details on the BrewHub website:{' '}
+						<Text style={styles.handoffWebsite}>brewing-hub.online</Text>.
+					</Text>
+				</View>
 			</View>
 
 			<View style={styles.tabRow}>
@@ -1242,19 +1180,19 @@ const cancelOrder = async (order) => {
 					<Text style={[styles.tabButtonText, activeTab === TAB_PRODUCTS && styles.tabButtonTextActive]}>Products</Text>
 				</Pressable>
 
-				{!isCafeMenuStore ? <Pressable
+				<Pressable
 					style={[styles.tabButton, activeTab === TAB_TRACKING && styles.tabButtonActive]}
 					onPress={() => setActiveTab(TAB_TRACKING)}
 				>
 					<Text style={[styles.tabButtonText, activeTab === TAB_TRACKING && styles.tabButtonTextActive]}>Tracking</Text>
-				</Pressable> : null}
+				</Pressable>
 
-				{!isCafeMenuStore ? <Pressable
+				<Pressable
 					style={[styles.tabButton, activeTab === TAB_HISTORY && styles.tabButtonActive]}
 					onPress={() => setActiveTab(TAB_HISTORY)}
 				>
 					<Text style={[styles.tabButtonText, activeTab === TAB_HISTORY && styles.tabButtonTextActive]}>History</Text>
-				</Pressable> : null}
+				</Pressable>
 			</View>
 
 			{activeTab === TAB_PRODUCTS ? (
@@ -1323,9 +1261,7 @@ const cancelOrder = async (order) => {
 							<MaterialIcons name="inventory" size={24} color={theme.colors.textMuted} />
 							<Text style={styles.emptyStateText}>
 								{activeTab === TAB_PRODUCTS
-									? isEstablishmentScoped
-										? 'No products found. Try another category or search.'
-										: 'No products available right now.'
+									? 'No products available right now.'
 									: activeTab === TAB_TRACKING
 										? 'No active orders yet.'
 										: 'No completed/cancelled orders yet.'}
@@ -1336,7 +1272,7 @@ const cancelOrder = async (order) => {
 			)}
 
 			<Modal
-				visible={reserveModalOpen && !isCafeMenuStore && normalizeSellerRole(selectedProduct) !== 'cafe'}
+				visible={reserveModalOpen && normalizeSellerRole(selectedProduct) !== 'cafe'}
 				transparent
 				animationType="fade"
 				onRequestClose={closeReserveModal}
@@ -1603,7 +1539,7 @@ const cancelOrder = async (order) => {
 			</View>
 		</Modal>
 
-			{!isCafeMenuStore ? <Pressable
+			<Pressable
 				style={[styles.floatingCartButton, { bottom: Math.max(insets.bottom + 18, 26) }]}
 				onPress={() => navigation.navigate('MarketplaceCart')}
 			>
@@ -1613,7 +1549,7 @@ const cancelOrder = async (order) => {
 						<Text style={styles.floatingCartBadgeText}>{cartItems.length}</Text>
 					</View>
 				) : null}
-			</Pressable> : null}
+			</Pressable>
 
 			<ConfirmToastModal
 				visible={confirmState.visible}
@@ -1685,6 +1621,10 @@ const styles = StyleSheet.create({
 		fontFamily: 'PoppinsRegular',
 		fontSize: 12,
 		lineHeight: 17,
+	},
+	handoffWebsite: {
+		fontFamily: 'PoppinsItalic',
+		fontStyle: 'italic',
 	},
 	tabRow: {
 		flexDirection: 'row',
@@ -1799,6 +1739,7 @@ const styles = StyleSheet.create({
 	},
 	productGridRow: {
 		gap: 8,
+		alignItems: 'stretch',
 	},
 	productGridItem: {
 		flex: 1,
@@ -1820,7 +1761,7 @@ const styles = StyleSheet.create({
 	},
 	productImage: {
 		width: '100%',
-		aspectRatio: 1.25,
+		aspectRatio: 1.15,
 		backgroundColor: '#EFE6D7',
 	},
 	productImagePlaceholder: {
@@ -1828,47 +1769,49 @@ const styles = StyleSheet.create({
 		justifyContent: 'center',
 	},
 	productBody: {
-		padding: 10,
+		flex: 1,
+		padding: 12,
 	},
 	productName: {
-		fontSize: theme.fontSizes.md,
-		lineHeight: 19,
+		fontSize: 15,
+		lineHeight: 21,
 		color: theme.colors.sidebar,
 		fontFamily: 'PoppinsSemiBold',
 		fontWeight: '600',
+		minHeight: 42,
 	},
 	productMeta: {
-		marginTop: 2,
+		marginTop: 6,
 		color: theme.colors.textMuted,
-		fontSize: theme.fontSizes.xs,
-		lineHeight: 15,
+		fontSize: 12,
+		lineHeight: 17,
 		fontFamily: 'PoppinsRegular',
 	},
 	productCategory: {
-		marginTop: 3,
+		marginTop: 4,
 		color: '#6B5B4A',
-		fontSize: theme.fontSizes.xs,
-		lineHeight: 15,
+		fontSize: 12,
+		lineHeight: 17,
 		fontFamily: 'PoppinsMedium',
 	},
 	rolePill: {
 		alignSelf: 'flex-start',
-		marginTop: 6,
-		paddingHorizontal: 8,
-		paddingVertical: 4,
+		marginTop: 8,
+		paddingHorizontal: 7,
+		paddingVertical: 3,
 		borderRadius: theme.borderRadius.pill,
 		borderWidth: 1,
 	},
 	rolePillText: {
 		fontFamily: 'PoppinsMedium',
-		fontSize: 11,
-		lineHeight: 14,
+		fontSize: 10,
+		lineHeight: 13,
 	},
 	checkoutModePill: {
 		alignSelf: 'flex-start',
 		marginTop: 6,
-		paddingHorizontal: 8,
-		paddingVertical: 4,
+		paddingHorizontal: 7,
+		paddingVertical: 3,
 		borderRadius: theme.borderRadius.pill,
 		borderWidth: 1,
 	},
@@ -1894,7 +1837,8 @@ const styles = StyleSheet.create({
 	},
 	productRoastGrind: {
 		color: '#6B5B4A',
-		fontSize: theme.fontSizes.xs,
+		fontSize: 12,
+		lineHeight: 17,
 		fontFamily: 'PoppinsMedium',
 	},
 	productDetailRow: {
@@ -1906,73 +1850,79 @@ const styles = StyleSheet.create({
 	productDetailItem: {
 		flexDirection: 'row',
 		alignItems: 'center',
-		marginRight: 8,
-		marginBottom: 2,
+		marginRight: 6,
+		marginBottom: 4,
 	},
 	productDetailIcon: {
 		marginRight: 4,
 	},
 	productDescription: {
-		marginTop: 8,
+		marginTop: 10,
 		color: '#6B5B4A',
-		fontSize: theme.fontSizes.sm,
-		lineHeight: 20,
+		fontSize: 12,
+		lineHeight: 18,
 		fontFamily: 'PoppinsRegular',
 	},
 	productInfoRow: {
-		marginTop: 10,
-		flexDirection: 'row',
-		justifyContent: 'space-between',
-		alignItems: 'center',
+		marginTop: 12,
+		gap: 4,
 	},
 	productPrice: {
 		color: theme.colors.primary,
-		fontSize: theme.fontSizes.md,
+		fontSize: 16,
+		lineHeight: 22,
 		fontFamily: 'PoppinsBold',
 	},
 	productUnit: {
 		color: theme.colors.primary,
-		fontSize: theme.fontSizes.md,
+		fontSize: 13,
 		fontFamily: 'PoppinsRegular',
 	},
 	productStock: {
 		color: theme.colors.textMuted,
-		fontSize: theme.fontSizes.sm,
-		fontFamily: theme.fonts.body,
+		fontSize: 12,
+		lineHeight: 17,
+		fontFamily: 'PoppinsRegular',
 	},
 	productStockOut: {
 		color: '#B00020',
 		fontWeight: '700',
 	},
 	productHint: {
-		marginTop: 4,
+		marginTop: 5,
 		color: '#826D54',
-		fontSize: theme.fontSizes.xs,
-		fontFamily: theme.fonts.body,
+		fontSize: 12,
+		lineHeight: 17,
+		fontFamily: 'PoppinsRegular',
 	},
 	unavailableHint: {
 		marginTop: 6,
 		color: '#B00020',
-		fontSize: theme.fontSizes.xs,
+		fontSize: 12,
+		lineHeight: 17,
 		fontFamily: 'PoppinsMedium',
 	},
 	productActionsRow: {
-		marginTop: 12,
-		flexDirection: 'row',
-		gap: 8,
+		marginTop: 'auto',
+		paddingTop: 12,
+		flexDirection: 'column',
+		gap: 7,
 	},
 	reserveButton: {
-		flex: 1,
+		width: '100%',
+		minHeight: 42,
 		backgroundColor: MARKETPLACE_ACTION_GREEN,
 		borderRadius: theme.borderRadius.md,
 		flexDirection: 'row',
 		alignItems: 'center',
 		justifyContent: 'center',
-		paddingVertical: 10,
-		gap: 6,
+		paddingVertical: 8,
+		paddingHorizontal: 6,
+		gap: 5,
 	},
 	addToCartButton: {
-		flex: 1,
+		width: '100%',
+		minHeight: 42,
 		borderRadius: theme.borderRadius.md,
 		borderWidth: 1,
 		borderColor: theme.colors.primary,
@@ -1980,8 +1930,9 @@ const styles = StyleSheet.create({
 		flexDirection: 'row',
 		alignItems: 'center',
 		justifyContent: 'center',
-		paddingVertical: 10,
-		gap: 6,
+		paddingVertical: 8,
+		paddingHorizontal: 6,
+		gap: 5,
 	},
 	actionButtonDisabled: {
 		opacity: 0.55,
@@ -1993,13 +1944,13 @@ const styles = StyleSheet.create({
 	reserveButtonText: {
 		color: theme.colors.white,
 		fontWeight: '600',
-		fontSize: theme.fontSizes.sm,
+		fontSize: 12,
 		fontFamily: 'PoppinsSemiBold',
 	},
 	addToCartButtonText: {
 		color: theme.colors.primary,
 		fontWeight: '600',
-		fontSize: theme.fontSizes.sm,
+		fontSize: 12,
 		fontFamily: 'PoppinsSemiBold',
 	},
 	addToCartButtonTextDisabled: {
