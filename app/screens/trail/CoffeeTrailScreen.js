@@ -68,6 +68,15 @@ function toNumber(value, fallback = 0) {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
+function getTrailTriviaHistory(...values) {
+  for (const value of values) {
+    if (typeof value === 'string' && value.trim()) {
+      return value.trim();
+    }
+  }
+  return null;
+}
+
 function getTrailConfidenceScore(varieties, types, maxStops) {
   let score = 20;
 
@@ -205,6 +214,14 @@ function normalizeTrailResponse(response) {
 
       return {
         establishment_id: source?.establishment_id ?? source?.id ?? stop?.id ?? index,
+        trivia_history: getTrailTriviaHistory(
+          source?.trivia_history,
+          source?.establishment?.trivia_history,
+          source?.raw?.trivia_history,
+          raw?.trivia_history,
+          stop?.trivia_history,
+          stop?.establishment?.trivia_history
+        ),
         name: source?.name || stop?.name || 'Coffee Stop',
         type: String(source?.type || stop?.type || 'establishment').toLowerCase(),
         address: source?.address || stop?.address || 'Address not available',
