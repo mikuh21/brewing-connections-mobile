@@ -473,36 +473,26 @@ export default function CoffeeTrailScreen({ navigation }) {
     const hasVarieties = selectedVarieties.length > 0;
     const hasTypes = selectedTypes.length > 0;
 
-    const headline = hasVarieties && hasTypes
-      ? 'Recommendation Preview'
-      : 'Setup Tip';
+    const headline = 'Trail Planning Tips';
 
     const summary = hasVarieties && hasTypes
-      ? `Your trail will prioritize ${selectedVarietyNames || 'your selected varieties'} across ${selectedTypeLabels || 'your selected stop types'} with ${maxStops} stop${maxStops > 1 ? 's' : ''}.`
-      : 'Select at least one variety and one visit type to personalize your route.';
+      ? `Your trail will focus on ${selectedVarietyNames || 'your selected varieties'} across ${selectedTypeLabels || 'your selected stop types'} with ${maxStops} stop${maxStops > 1 ? 's' : ''}.`
+      : !hasVarieties && !hasTypes
+        ? 'Select at least one coffee variety and one visit type to personalize your trail.'
+        : !hasVarieties
+          ? 'Select at least one coffee variety to personalize your trail.'
+          : 'Choose at least one visit type to help tailor your trail.';
 
-    const routeHint = maxStops >= 4
-      ? 'Longer trail mode: Optimize pacing for more stops.'
-      : 'Compact trail mode: Prioritize faster travel time between stops.';
+    const routeHint = maxStops <= 3
+      ? 'Compact trail: Prioritize shorter travel times between stops.'
+      : '';
 
-    let balanceHint = 'Balanced trail: includes both sourcing and tasting opportunities.';
-    if (selectedTypes.length === 1 && selectedTypes[0] === 'farm') {
-      balanceHint = 'Farm-focused route: best for bean-origin discovery.';
-    } else if (selectedTypes.length === 1 && selectedTypes[0] === 'cafe') {
-      balanceHint = 'Cafe-focused route: best for tasting and atmosphere variety.';
-    }
+    const balanceHint =
+      selectedTypes.includes('farm') && selectedTypes.includes('cafe')
+        ? 'Balanced trail: Include a mix of coffee sourcing and tasting destinations when supported by your selected preferences.'
+        : '';
 
-    return {
-      headline,
-      summary,
-      routeHint,
-      balanceHint,
-      confidence: hasVarieties && hasTypes ? 'High confidence' : 'Low confidence',
-      confidenceScore: hasVarieties && hasTypes ? 78 : 38,
-      suggestion: hasVarieties && hasTypes
-        ? 'Your setup looks balanced. You can generate now.'
-        : 'Complete your selections to unlock stronger recommendations.',
-    };
+    return { headline, summary, routeHint, balanceHint };
   }, [selectedVarieties, selectedTypes, maxStops]);
 
   useEffect(() => {
@@ -510,6 +500,7 @@ export default function CoffeeTrailScreen({ navigation }) {
       return undefined;
     }
 
+    setServerAiPreview(null);
     let isActive = true;
 
     const timer = setTimeout(async () => {
@@ -524,14 +515,15 @@ export default function CoffeeTrailScreen({ navigation }) {
           return;
         }
 
+        const serverSummary = preview?.summary;
         setServerAiPreview({
-          headline: preview?.headline,
-          summary: preview?.summary,
-          routeHint: preview?.route_hint,
-          balanceHint: preview?.balance_hint,
-          confidence: preview?.confidence_label,
-          confidenceScore: toNumber(preview?.confidence_score, 35),
-          suggestion: preview?.suggestion,
+          summary:
+            selectedVarieties.length > 0 &&
+            selectedTypes.length > 0 &&
+            typeof serverSummary === 'string' &&
+            !/\bAI\b|artificial intelligence|machine learning/i.test(serverSummary)
+              ? serverSummary
+              : null,
         });
       } catch {
         if (!isActive) {
@@ -547,7 +539,11 @@ export default function CoffeeTrailScreen({ navigation }) {
     };
   }, [activeTab, step, selectedVarieties, selectedTypes, maxStops]);
 
-  const displayedAiPreview = serverAiPreview || aiPreview;
+  const displayedAiPreview = {
+    ...aiPreview,
+    ...serverAiPreview,
+    summary: serverAiPreview?.summary || aiPreview.summary,
+  };
 
   const loadTrailHistory = useCallback(
     async ({ silent = false } = {}) => {
@@ -1155,7 +1151,7 @@ export default function CoffeeTrailScreen({ navigation }) {
     <SafeAreaView style={styles.screen} edges={['top', 'left', 'right']}>
       <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
         <Text style={styles.title}>Generate Your Coffee Trail</Text>
-        <Text style={styles.subtitle}>Discover Lipa's finest coffee spots</Text>
+        <Text style={styles.subtitle}>Coffee Trail Planner for Lipa's finest coffee spots</Text>
         {tabSwitch}
 
         <View style={styles.resetAllRow}>
@@ -1250,27 +1246,26 @@ export default function CoffeeTrailScreen({ navigation }) {
         <View style={styles.aiPreviewCard}>
           <View style={styles.aiPreviewHeaderRow}>
             <View style={styles.aiBadge}>
-              <MaterialIcons name="auto-awesome" size={12} color="#FFFFFF" />
-              <Text style={styles.aiBadgeText}>AI</Text>
+              <MaterialIcons name="tips-and-updates" size={12} color="#FFFFFF" />
+              <Text style={styles.aiBadgeText}>TRAIL TIPS</Text>
             </View>
-            <Text style={styles.aiConfidenceText}>{displayedAiPreview.confidence}</Text>
-          </View>
-          <View style={styles.aiConfidenceBarTrack}>
-            <View
-              style={[
-                styles.aiConfidenceBarFill,
-                { width: `${Math.max(8, Math.min(100, toNumber(displayedAiPreview.confidenceScore, 35)))}%` },
-              ]}
-            />
           </View>
           <Text style={styles.aiPreviewTitle}>{displayedAiPreview.headline}</Text>
           <Text style={styles.aiPreviewBody}>{displayedAiPreview.summary}</Text>
-          <Text style={styles.aiPreviewHint}>{displayedAiPreview.routeHint}</Text>
-          <Text style={styles.aiPreviewHint}>{displayedAiPreview.balanceHint}</Text>
-          <View style={styles.aiSuggestionRow}>
-            <MaterialIcons name="tips-and-updates" size={14} color={COLORS.primary} />
-            <Text style={styles.aiSuggestionText}>{displayedAiPreview.suggestion}</Text>
-          </View>
+          <Text style={styles.aiPreviewHint}>
+            <Text style={styles.aiPreviewHintLabel}>Personalize your trail: </Text>
+            Select at least one coffee variety and one visit type.
+          </Text>
+          {displayedAiPreview.routeHint ? (
+            <Text style={styles.aiPreviewHint}>{displayedAiPreview.routeHint}</Text>
+          ) : null}
+          {displayedAiPreview.balanceHint ? (
+            <Text style={styles.aiPreviewHint}>{displayedAiPreview.balanceHint}</Text>
+          ) : null}
+          <Text style={styles.aiPreviewHint}>
+            <Text style={styles.aiPreviewHintLabel}>Choose your stops: </Text>
+            Adjust the number of destinations to fit your available time.
+          </Text>
         </View>
 
         <Pressable
@@ -1608,25 +1603,6 @@ const styles = StyleSheet.create({
     lineHeight: 12,
     fontFamily: 'PoppinsBold',
   },
-  aiConfidenceText: {
-    color: '#7A6A57',
-    fontSize: 11,
-    lineHeight: 14,
-    fontFamily: 'PoppinsMedium',
-  },
-  aiConfidenceBarTrack: {
-    marginTop: 2,
-    width: '100%',
-    height: 6,
-    borderRadius: 999,
-    backgroundColor: '#E6DDCF',
-    overflow: 'hidden',
-  },
-  aiConfidenceBarFill: {
-    height: '100%',
-    borderRadius: 999,
-    backgroundColor: COLORS.primary,
-  },
   aiPreviewTitle: {
     marginTop: 2,
     color: COLORS.text,
@@ -1641,23 +1617,15 @@ const styles = StyleSheet.create({
     fontFamily: 'PoppinsRegular',
   },
   aiPreviewHint: {
+    flexShrink: 1,
     color: '#6B7280',
     fontSize: 11,
     lineHeight: 15,
     fontFamily: 'PoppinsMedium',
   },
-  aiSuggestionRow: {
-    marginTop: 2,
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 6,
-  },
-  aiSuggestionText: {
-    flex: 1,
+  aiPreviewHintLabel: {
     color: '#4D4338',
-    fontSize: 11,
-    lineHeight: 15,
-    fontFamily: 'PoppinsMedium',
+    fontFamily: 'PoppinsBold',
   },
   generateButton: {
     marginTop: 24,

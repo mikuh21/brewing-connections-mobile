@@ -410,7 +410,7 @@ To summarize, the reseller side of BrewHub is designed to help verified reseller
 
 ## Mobile App Side Functionality Summary
 
-The mobile app side of BrewHub serves as the consumer-facing part of the system. It allows users to register and log in, explore establishments on the map, generate AI-assisted coffee trails, browse marketplace products, reserve products, cancel eligible orders, view promos, read and submit ratings, manage saved content, and communicate with sellers through the built-in messaging feature.
+The mobile app side of BrewHub serves as the consumer-facing part of the system. It allows users to register and log in, explore establishments on the map, plan and generate coffee trails, browse marketplace products, reserve products, cancel eligible orders, view promos, read and submit ratings, manage saved content, and communicate with sellers through the built-in messaging feature.
 
 ## Main Mobile Navigation
 
@@ -458,7 +458,7 @@ The map screen is the user's geographic exploration screen. It loads establishme
 
 ### 6. Trail Screen
 
-The trail screen is the AI Coffee Trail screen. It allows the user to select preferred coffee varieties, preferred establishment types, and the maximum number of stops. It also shows an AI recommendation preview before generation, lets the user generate a trail using the current location, view the generated stops with distance and ETA, save the trail locally, navigate the trail on the map, and view previously generated trail history from the backend.
+The Coffee Trail Planner allows the user to select preferred coffee varieties, preferred establishment types, and the maximum number of stops. It also shows a planning preview before generation, lets the user generate a trail using the current location, view the generated stops with distance and ETA, save the trail locally, navigate the trail on the map, and view previously generated trail history from the backend.
 
 ### 7. Ratings Screen
 
@@ -549,21 +549,18 @@ The marketplace flow is the consumer's product reservation and order tracking fl
 
 In simple terms, the marketplace flow allows the user to reserve products, monitor order progress, and cancel valid orders while keeping receipts and order history connected.
 
-## Simple Process Flow: AI Coffee Trail
+## Simple Process Flow: Coffee Trail Planner
 
-The AI Coffee Trail flow is the mobile app's guided route-generation process for coffee exploration.
-
-Important term:
-The Coffee Trail can be described as an AI-assisted route recommendation feature. It is not a generative AI chat system. It combines user preferences, nearby establishment filtering, route optimization, and recommendation hints to produce a suggested travel sequence.
+The Coffee Trail Planner is the mobile app's guided route-planning process for coffee exploration. It combines user preferences, nearby establishment filtering, route optimization, and route guidance to produce a suggested travel sequence.
 
 1. The user opens the Trail screen.
 2. The screen starts in the trail-generation tab.
 3. The user selects one or more coffee varieties from options such as Liberica, Excelsa, Robusta, and Arabica.
 4. The user selects one or more establishment types such as farm, cafe, roaster, or reseller.
 5. The user selects the maximum number of stops, from 2 up to 5.
-6. While the user is still adjusting the setup, the mobile app requests an AI preview from the backend preview endpoint.
-7. The preview endpoint does not generate the final route yet. Instead, it returns a setup interpretation such as headline, summary, route hint, balance hint, suggestion, and confidence label.
-8. This preview helps the user understand whether the selected setup is balanced, too narrow, or suitable for generation.
+6. While the user is still adjusting the setup, the mobile app requests a preview from the backend preview endpoint.
+7. The preview endpoint does not generate the final route yet. It returns the existing preview response, including a summary and planning hints; the screen does not display a confidence indicator.
+8. The preview shows the selected preferences and relevant planning guidance before generation.
 9. Once the user taps Generate Trail, the app first validates that at least one coffee variety and one visit type were chosen.
 10. The app then requests foreground location permission from the device.
 11. If location permission is denied, generation stops because the trail requires the user's current origin point.
@@ -598,7 +595,7 @@ The Coffee Trail can be described as an AI-assisted route recommendation feature
 40. The backend returns previously generated trail records for that user, ordered by latest first.
 41. The app then shows those historical trail entries with stop count, total distance, total ETA, and timestamps.
 
-In simple terms, the AI Coffee Trail flow starts with user preferences and current location, filters the best nearby coffee-related places, uses route optimization to arrange them efficiently, explains why the stops were chosen, saves the result, and returns a ready-to-follow coffee exploration route.
+In simple terms, the Coffee Trail Planner starts with user preferences and current location, filters nearby coffee-related places, uses route optimization to arrange them, explains why the stops were chosen, saves the result, and returns a ready-to-follow coffee exploration route.
 
 ## Defense-Ready Script: Mobile App Side
 
@@ -608,7 +605,7 @@ First, the authentication screens allow the user to register, log in, request a 
 
 Second, the Map screen allows the user to explore farms, cafes, roasters, and resellers geographically. It also lets the user inspect place details such as address, ratings, coffee varieties, and active promos.
 
-Third, the AI Coffee Trail screen allows the user to generate a guided coffee route based on selected coffee varieties, selected visit types, current location, and preferred number of stops. It also shows an AI preview before generation, displays the generated stops with route information, and keeps a trail history for the user.
+Third, the Coffee Trail Planner allows the user to generate a guided coffee route based on selected coffee varieties, selected visit types, current location, and preferred number of stops. It also shows a planning preview before generation, displays the generated stops with route information, and keeps a trail history for the user.
 
 Fourth, the Ratings screen allows the user to browse the community ratings feed and submit new ratings for establishments and farm products.
 
@@ -622,11 +619,11 @@ Finally, the Profile screen lets the user manage saved trails, saved coffee vari
 
 Overall, the mobile app side is designed to combine discovery, route planning, ratings, promos, ordering, and communication into one consumer-friendly experience.
 
-## Defense-Ready Script: AI Coffee Trail Flow
+## Defense-Ready Script: Coffee Trail Planner
 
-For the AI Coffee Trail flow, the process starts when the user opens the Trail screen and selects the preferred coffee varieties, preferred stop types, and the maximum number of stops.
+The Coffee Trail Planner flow starts when the user opens the Trail screen and selects the preferred coffee varieties, preferred stop types, and the maximum number of stops.
 
-Before generating the final trail, the app first requests an AI preview from the backend. This preview gives the user a short explanation of what kind of route setup the current selections will likely produce. It may describe whether the trail is balanced, farm-focused, cafe-focused, compact, or longer in pacing.
+Before generating the final trail, the app requests a preview from the backend. The screen displays a summary of the selected preferences and planning guidance for compact trails, balanced destination preferences, and the number of stops.
 
 When the user taps Generate Trail, the app checks that the setup is complete and then requests the device's current location. After getting the coordinates, the app sends the location and selected preferences to the backend generation endpoint.
 
@@ -636,7 +633,7 @@ The backend then builds the final trail result. Each stop includes the place nam
 
 After that, the mobile app receives the trail, computes per-leg distance and ETA for display, and shows the final list of stops to the user. The user can view the trail on the map, save it locally, and later review it again through the trail history screen.
 
-In summary, the AI Coffee Trail flow combines user preferences, location awareness, nearby establishment filtering, route optimization, recommendation reasoning, and saved history into one guided coffee exploration feature.
+In summary, the Coffee Trail Planner combines user preferences, location awareness, nearby establishment filtering, route optimization, route explanations, and saved history into one guided coffee exploration feature.
 
 ## Defense-Ready Closing Line: Mobile App Side
 
