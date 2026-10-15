@@ -15,7 +15,7 @@ import {
 	TextInput,
 	View,
 } from 'react-native';
-import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
 import { MaterialIcons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -198,6 +198,16 @@ function normalizeSellerRole(product) {
 	return null;
 }
 
+function getProductEstablishmentId(product) {
+	return (
+		product?.establishment_id ??
+		product?.establishmentId ??
+		product?.establishment?.id ??
+		product?.establishment?.establishment_id ??
+		null
+	);
+}
+
 function getSellerRecipientId(source) {
 	const possibleIds = [
 		source?.seller_user_id,
@@ -259,8 +269,18 @@ function isProductReservable(product) {
 
 export default function MarketplaceScreen() {
 	const navigation = useNavigation();
+	const route = useRoute();
 	const insets = useSafeAreaInsets();
 	const { user } = useAuth();
+	const establishmentId = route?.params?.establishmentId;
+	const establishmentName = route?.params?.establishmentName;
+	const establishmentType = String(route?.params?.establishmentType || '').toLowerCase();
+	const establishmentScopeKey =
+		establishmentId === undefined || establishmentId === null || establishmentId === ''
+			? ''
+			: `${String(establishmentId)}:${establishmentType}`;
+	const isEstablishmentScoped = Boolean(establishmentScopeKey);
+	const isCafeMenuStore = isEstablishmentScoped && establishmentType === 'cafe';
 	const [activeTab, setActiveTab] = useState(TAB_PRODUCTS);
 	const [products, setProducts] = useState([]);
 	const [orders, setOrders] = useState([]);
@@ -287,6 +307,8 @@ export default function MarketplaceScreen() {
 	const [receiptModalOpen, setReceiptModalOpen] = useState(false);
 	const [selectedReceiptOrder, setSelectedReceiptOrder] = useState(null);
 	const [receiptSavedNotice, setReceiptSavedNotice] = useState(false);
+	const requestIdRef = useRef(0);
+	const initializedStoreScopeRef = useRef(null);
 	const [confirmState, setConfirmState] = useState({
 		visible: false,
 		title: '',
@@ -469,7 +491,9 @@ export default function MarketplaceScreen() {
 		return () => clearTimeout(timer);
 	}, [toastState.visible]);
 
-	const fetchMarketplaceData = async (isRefresh = false) => {
+	const fetchMarketplaceData = useCallback(async (isRefresh = false) => {
+		const requestId = ++requestIdRef.current;
+		const currentScopeKey = establishmentScopeKey;
 		if (isRefresh) {
 			setRefreshing(true);
 		} else {
@@ -480,36 +504,77 @@ export default function MarketplaceScreen() {
 
 		try {
 			const [productsPayload, ordersPayload] = await Promise.all([getProducts(), getMyOrders()]);
+			if (requestId !== requestIdRef.current) {
+				return;
+			}
 
-			setProducts(Array.isArray(productsPayload?.products) ? productsPayload.products : []);
+			const nextProducts = Array.isArray(productsPayload?.products) ? productsPayload.products : [];
+			setProducts(nextProducts);
 			setOrders(Array.isArray(ordersPayload?.orders) ? ordersPayload.orders : []);
+			if (initializedStoreScopeRef.current !== currentScopeKey) {
+				const hasCafeMenuItems =
+					establishmentType === 'cafe' &&
+					nextProducts.some((product) => String(getProductEstablishmentId(product)) === String(establishmentId));
+				setSelectedTypeFilter(hasCafeMenuItems ? 'cafe menus' : 'all');
+				initializedStoreScopeRef.current = currentScopeKey;
+			}
 		} catch (fetchError) {
+			if (requestId !== requestIdRef.current) {
+				return;
+			}
 			const message =
 				fetchError?.response?.data?.message ||
 				fetchError?.message ||
 				'Unable to load store data right now.';
 
 			setError(message);
+			if (initializedStoreScopeRef.current !== currentScopeKey) {
+				setProducts([]);
+				setSelectedTypeFilter('all');
+				initializedStoreScopeRef.current = currentScopeKey;
+			}
 		} finally {
-			if (isRefresh) {
-				setRefreshing(false);
-			} else {
-				setLoading(false);
+			if (requestId === requestIdRef.current) {
+				if (isRefresh) {
+					setRefreshing(false);
+				} else {
+					setLoading(false);
+				}
 			}
 		}
-	};
+	}, [establishmentId, establishmentScopeKey, establishmentType]);
 
 	useFocusEffect(
 		useCallback(() => {
-			fetchMarketplaceData(false);
+			void fetchMarketplaceData(false);
 			void loadCartFromStorage();
-		}, [loadCartFromStorage])
+			return () => {
+				requestIdRef.current += 1;
+			};
+		}, [fetchMarketplaceData, loadCartFromStorage])
 	);
+
+	useEffect(() => {
+		setQuery('');
+		setSelectedTypeFilter('all');
+		setActiveTab(TAB_PRODUCTS);
+		setProducts([]);
+		setError('');
+		setReserveModalOpen(false);
+		setSelectedProduct(null);
+	}, [establishmentScopeKey]);
 
 	const filteredProducts = useMemo(() => {
 		const normalizedQuery = query.trim().toLowerCase();
 
 		return products.filter((product) => {
+			if (
+				isEstablishmentScoped &&
+				String(getProductEstablishmentId(product)) !== String(establishmentId)
+			) {
+				return false;
+			}
+
 			const sellerRole = normalizeSellerRole(product);
 			const productTypeFields = [product?.category, product?.type, product?.product_type]
 				.filter(Boolean)
@@ -518,7 +583,7 @@ export default function MarketplaceScreen() {
 
 			if (selectedTypeFilter !== 'all') {
 				if (selectedTypeFilter === 'cafe menus') {
-					if (sellerRole !== 'cafe') {
+					if (sellerRole !== 'cafe' && !isCafeMenuStore) {
 						return false;
 					}
 				} else if (!productTypeFields.includes(selectedTypeFilter)) {
@@ -543,7 +608,7 @@ export default function MarketplaceScreen() {
 
 			return searchable.includes(normalizedQuery);
 		});
-	}, [products, query, selectedTypeFilter]);
+	}, [establishmentId, isEstablishmentScoped, products, query, selectedTypeFilter]);
 
 	const activeOrders = useMemo(
 		() =>
@@ -589,6 +654,10 @@ export default function MarketplaceScreen() {
 	}, []);
 
 	const openReserveModal = (product, action = 'order') => {
+		if (isCafeMenuStore || normalizeSellerRole(product) === 'cafe') {
+			return;
+		}
+
 		if (!isProductReservable(product)) {
 			setError('This product is currently unavailable.');
 			return;
@@ -667,7 +736,11 @@ export default function MarketplaceScreen() {
 	};
 
 	const submitOrder = async () => {
-		if (!selectedProduct) {
+		if (
+			!selectedProduct ||
+			isCafeMenuStore ||
+			normalizeSellerRole(selectedProduct) === 'cafe'
+		) {
 			return;
 		}
 
@@ -890,15 +963,19 @@ const cancelOrder = async (order) => {
 	const renderProductCard = ({ item }) => {
 		const imageUrl = getImageUrl(item?.image_url);
 		const sellerRole = normalizeSellerRole(item);
+		const isMenuProduct = isCafeMenuStore || sellerRole === 'cafe';
 		const stock = getAvailableStock(item);
 		const minimum = getMinimumQuantity(item);
 		const reservable = stock >= minimum;
 		const productType = item?.category || item?.type || item?.product_type || null;
 		const roastType = item?.roast_type || item?.roast_level || item?.roast || null;
 		const grindType = item?.grind_type || item?.grind || null;
+		const hasPrice = item?.price_per_unit !== null && item?.price_per_unit !== undefined && item?.price_per_unit !== '';
 		const sellerRoleTheme = sellerRole ? ROLE_PILL_THEME[sellerRole] : null;
 		const usesWebCheckout = sellerRole === 'farm' || sellerRole === 'reseller';
-		const sellerDisplayName = getSellerDisplayName(item);
+		const sellerDisplayName = isEstablishmentScoped
+			? establishmentName || getSellerDisplayName(item)
+			: getSellerDisplayName(item);
 		const detailParts = [];
 		if (productType) {
 			detailParts.push(String(productType));
@@ -911,9 +988,10 @@ const cancelOrder = async (order) => {
 		}
 
 		return (
-			<View style={styles.productCard}>
+			<View style={styles.productGridItem}>
+				<View style={styles.productCard}>
 				{imageUrl ? (
-					<Image source={{ uri: imageUrl }} style={styles.productImage} />
+					<Image source={{ uri: imageUrl }} style={styles.productImage} resizeMode="cover" />
 				) : (
 					<View style={[styles.productImage, styles.productImagePlaceholder]}>
 						<MaterialIcons name="image-not-supported" size={22} color={theme.colors.textMuted} />
@@ -921,8 +999,9 @@ const cancelOrder = async (order) => {
 				)}
 
 				<View style={styles.productBody}>
-					<Text style={styles.productName}>{item?.name || 'Product'}</Text>
-					<Text style={styles.productMeta}>{sellerDisplayName}</Text>
+					<Text numberOfLines={3} style={styles.productName}>{item?.name || 'Product'}</Text>
+					<Text numberOfLines={2} style={styles.productMeta}>{sellerDisplayName}</Text>
+					{productType ? <Text numberOfLines={2} style={styles.productCategory}>{String(productType)}</Text> : null}
 
 					{sellerRoleTheme ? (
 						<View
@@ -935,21 +1014,23 @@ const cancelOrder = async (order) => {
 						</View>
 					) : null}
 
-					<View
-						style={[
-							styles.checkoutModePill,
-							usesWebCheckout ? styles.checkoutModePillWeb : styles.checkoutModePillInApp,
-						]}
-					>
-						<Text
+					{!isMenuProduct ? (
+						<View
 							style={[
-								styles.checkoutModePillText,
-								usesWebCheckout ? styles.checkoutModePillTextWeb : styles.checkoutModePillTextInApp,
+								styles.checkoutModePill,
+								usesWebCheckout ? styles.checkoutModePillWeb : styles.checkoutModePillInApp,
 							]}
 						>
-							{usesWebCheckout ? 'Web Checkout' : 'In-App Checkout'}
-						</Text>
-					</View>
+							<Text
+								style={[
+									styles.checkoutModePillText,
+									usesWebCheckout ? styles.checkoutModePillTextWeb : styles.checkoutModePillTextInApp,
+								]}
+							>
+								{usesWebCheckout ? 'Web Checkout' : 'In-App Checkout'}
+							</Text>
+						</View>
+					) : null}
 
 					{detailParts.length ? (
 						<View style={styles.productDetailRow}>
@@ -968,23 +1049,27 @@ const cancelOrder = async (order) => {
 						{item?.description || 'No description available.'}
 					</Text>
 
-					<View style={styles.productInfoRow}>
-						<Text style={styles.productPrice}>
-							{money(item?.price_per_unit)}
-							{sellerRole !== 'cafe' && item?.unit ? (
-								<Text style={styles.productUnit}>{` / ${item.unit}`}</Text>
+					{hasPrice || !isMenuProduct ? (
+						<View style={styles.productInfoRow}>
+							{hasPrice ? (
+								<Text numberOfLines={1} style={styles.productPrice}>
+									{money(item?.price_per_unit)}
+										{!isMenuProduct && item?.unit ? (
+										<Text style={styles.productUnit}>{` / ${item.unit}`}</Text>
+									) : null}
+								</Text>
+							) : <View />}
+								{!isMenuProduct ? (
+								<Text style={styles.productStock}>{`Stock: ${stock}`}</Text>
 							) : null}
-						</Text>
-						{sellerRole !== 'cafe' && (
-							<Text style={styles.productStock}>{`Stock: ${stock}`}</Text>
-						)}
-					</View>
-					{sellerRole !== 'cafe' && (
+						</View>
+					) : null}
+					{!isMenuProduct && (
 						<Text style={styles.productHint}>{`MOQ: ${item?.moq || 1}${item?.unit ? ` ${item.unit}` : ''}`}</Text>
 					)}
-					{!reservable ? <Text style={styles.unavailableHint}>{sellerRole === 'cafe' ? 'Unavailable' : 'Out of stock'}</Text> : null}
+					{!isMenuProduct && !reservable ? <Text style={styles.unavailableHint}>Out of stock</Text> : null}
 
-					<View style={styles.productActionsRow}>
+					{!isMenuProduct ? <View style={styles.productActionsRow}>
 						<Pressable
 							style={[styles.reserveButton, !reservable && styles.actionButtonDisabled]}
 							onPress={() => openReserveModal(item, 'order')}
@@ -1007,7 +1092,8 @@ const cancelOrder = async (order) => {
 								Add to Cart
 							</Text>
 						</Pressable>
-					</View>
+					</View> : null}
+				</View>
 				</View>
 			</View>
 		);
@@ -1116,13 +1202,10 @@ const cancelOrder = async (order) => {
 		}
 
 		const sellerRole = normalizeSellerRole(selectedProduct);
-		
-		// For cafe products, payment mode must be pickup
-		if (sellerRole === 'cafe' && paymentMode !== 'pickup') {
+		if (sellerRole === 'cafe') {
 			return false;
 		}
 
-		// Cafe products no longer require address/phone for mobile
 		return true;
 	}, [selectedProduct, paymentMode]);
 
@@ -1136,13 +1219,19 @@ const cancelOrder = async (order) => {
 						<Text style={styles.backButtonText}>Back</Text>
 					</Pressable>
 				</View>
-				<Text style={styles.subtitle}>Reserve fresh coffee products and track your orders</Text>
-				<View style={styles.handoffBanner}>
-					<MaterialIcons name="open-in-browser" size={16} color="#2D4A1E" />
-					<Text style={styles.handoffBannerText}>
-						Farm owner and reseller products continue on landing web form. Cafe owner products are reserved in-app.
-					</Text>
-				</View>
+				<Text style={styles.subtitle}>
+					{isEstablishmentScoped
+						? `Products from ${establishmentName || 'this establishment'}`
+						: 'Browse coffee products and manage your orders'}
+				</Text>
+				{!isCafeMenuStore ? (
+					<View style={styles.handoffBanner}>
+						<MaterialIcons name="open-in-browser" size={16} color="#2D4A1E" />
+						<Text style={styles.handoffBannerText}>
+							Farm owner and reseller products continue on landing web form.
+						</Text>
+					</View>
+				) : null}
 			</View>
 
 			<View style={styles.tabRow}>
@@ -1153,19 +1242,19 @@ const cancelOrder = async (order) => {
 					<Text style={[styles.tabButtonText, activeTab === TAB_PRODUCTS && styles.tabButtonTextActive]}>Products</Text>
 				</Pressable>
 
-				<Pressable
+				{!isCafeMenuStore ? <Pressable
 					style={[styles.tabButton, activeTab === TAB_TRACKING && styles.tabButtonActive]}
 					onPress={() => setActiveTab(TAB_TRACKING)}
 				>
 					<Text style={[styles.tabButtonText, activeTab === TAB_TRACKING && styles.tabButtonTextActive]}>Tracking</Text>
-				</Pressable>
+				</Pressable> : null}
 
-				<Pressable
+				{!isCafeMenuStore ? <Pressable
 					style={[styles.tabButton, activeTab === TAB_HISTORY && styles.tabButtonActive]}
 					onPress={() => setActiveTab(TAB_HISTORY)}
 				>
 					<Text style={[styles.tabButtonText, activeTab === TAB_HISTORY && styles.tabButtonTextActive]}>History</Text>
-				</Pressable>
+				</Pressable> : null}
 			</View>
 
 			{activeTab === TAB_PRODUCTS ? (
@@ -1213,14 +1302,18 @@ const cancelOrder = async (order) => {
 				</View>
 			) : (
 				<FlatList
+					key={activeTab === TAB_PRODUCTS ? 'products-grid' : 'orders-list'}
 					data={activeList}
-					keyExtractor={(item) => String(item?.id || Math.random())}
+					numColumns={activeTab === TAB_PRODUCTS ? 2 : 1}
+					columnWrapperStyle={activeTab === TAB_PRODUCTS ? styles.productGridRow : undefined}
+					keyExtractor={(item, index) => String(item?.id ?? `item-${index}`)}
 					renderItem={activeTab === TAB_PRODUCTS ? renderProductCard : renderOrderCard}
 					removeClippedSubviews={false}
 					style={styles.list}
 					refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => fetchMarketplaceData(true)} tintColor={theme.colors.primary} />}
 					contentContainerStyle={[
 						styles.listContent,
+						activeTab === TAB_PRODUCTS && styles.productGridContent,
 						{ paddingBottom: listBottomSpacing },
 						isProductsEmpty && styles.listContentProductsEmpty,
 					]}
@@ -1230,7 +1323,9 @@ const cancelOrder = async (order) => {
 							<MaterialIcons name="inventory" size={24} color={theme.colors.textMuted} />
 							<Text style={styles.emptyStateText}>
 								{activeTab === TAB_PRODUCTS
-									? 'No products available right now.'
+									? isEstablishmentScoped
+										? 'No products found. Try another category or search.'
+										: 'No products available right now.'
 									: activeTab === TAB_TRACKING
 										? 'No active orders yet.'
 										: 'No completed/cancelled orders yet.'}
@@ -1240,7 +1335,12 @@ const cancelOrder = async (order) => {
 				/>
 			)}
 
-			<Modal visible={reserveModalOpen} transparent animationType="fade" onRequestClose={closeReserveModal}>
+			<Modal
+				visible={reserveModalOpen && !isCafeMenuStore && normalizeSellerRole(selectedProduct) !== 'cafe'}
+				transparent
+				animationType="fade"
+				onRequestClose={closeReserveModal}
+			>
 				<KeyboardAvoidingView
 					style={[styles.modalBackdrop, styles.reserveModalBackdrop]}
 					behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -1503,7 +1603,7 @@ const cancelOrder = async (order) => {
 			</View>
 		</Modal>
 
-			<Pressable
+			{!isCafeMenuStore ? <Pressable
 				style={[styles.floatingCartButton, { bottom: Math.max(insets.bottom + 18, 26) }]}
 				onPress={() => navigation.navigate('MarketplaceCart')}
 			>
@@ -1513,7 +1613,7 @@ const cancelOrder = async (order) => {
 						<Text style={styles.floatingCartBadgeText}>{cartItems.length}</Text>
 					</View>
 				) : null}
-			</Pressable>
+			</Pressable> : null}
 
 			<ConfirmToastModal
 				visible={confirmState.visible}
@@ -1694,21 +1794,33 @@ const styles = StyleSheet.create({
 	listContent: {
 		paddingTop: 8,
 	},
+	productGridContent: {
+		paddingHorizontal: 4,
+	},
+	productGridRow: {
+		gap: 8,
+	},
+	productGridItem: {
+		flex: 1,
+		minWidth: 0,
+	},
 	listContentProductsEmpty: {
 		paddingTop: 0,
 	},
 	productCard: {
+		flex: 1,
 		backgroundColor: theme.colors.white,
 		borderWidth: 1,
 		borderColor: theme.colors.border,
 		borderRadius: theme.borderRadius.lg,
 		marginBottom: theme.spacing.md,
+		width: '100%',
 		overflow: 'hidden',
 		...theme.shadows.sm,
 	},
 	productImage: {
 		width: '100%',
-		height: 150,
+		aspectRatio: 1.25,
 		backgroundColor: '#EFE6D7',
 	},
 	productImagePlaceholder: {
@@ -1716,10 +1828,11 @@ const styles = StyleSheet.create({
 		justifyContent: 'center',
 	},
 	productBody: {
-		padding: theme.spacing.md,
+		padding: 10,
 	},
 	productName: {
-		fontSize: theme.fontSizes.lg,
+		fontSize: theme.fontSizes.md,
+		lineHeight: 19,
 		color: theme.colors.sidebar,
 		fontFamily: 'PoppinsSemiBold',
 		fontWeight: '600',
@@ -1727,8 +1840,16 @@ const styles = StyleSheet.create({
 	productMeta: {
 		marginTop: 2,
 		color: theme.colors.textMuted,
-		fontSize: theme.fontSizes.sm,
+		fontSize: theme.fontSizes.xs,
+		lineHeight: 15,
 		fontFamily: 'PoppinsRegular',
+	},
+	productCategory: {
+		marginTop: 3,
+		color: '#6B5B4A',
+		fontSize: theme.fontSizes.xs,
+		lineHeight: 15,
+		fontFamily: 'PoppinsMedium',
 	},
 	rolePill: {
 		alignSelf: 'flex-start',

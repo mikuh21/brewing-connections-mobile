@@ -2439,11 +2439,19 @@ export default function MapScreen({ navigation, route }) {
       const parentRouteNames = parentNavigation?.getState?.()?.routeNames || [];
 
       if (parentNavigation && parentRouteNames.includes('Marketplace')) {
-        parentNavigation.navigate('Marketplace');
+        parentNavigation.navigate('Marketplace', {
+          establishmentId: selectedEstablishment?.id,
+          establishmentName: selectedEstablishment?.name,
+          establishmentType: selectedEstablishment?.type,
+        });
         return;
       }
 
-      navigation?.navigate?.('Marketplace');
+      navigation?.navigate?.('Marketplace', {
+        establishmentId: selectedEstablishment?.id,
+        establishmentName: selectedEstablishment?.name,
+        establishmentType: selectedEstablishment?.type,
+      });
     } catch {
       Alert.alert('Unable to open Store', 'Please try again in a moment.');
     }
