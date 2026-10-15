@@ -68,6 +68,35 @@ function toNumber(value, fallback = 0) {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
+function getTrailConfidenceScore(varieties, types, maxStops) {
+  let score = 20;
+
+  if (varieties.length > 0) {
+    score += 30;
+  }
+  if (types.length > 0) {
+    score += 30;
+  }
+  if (maxStops >= 3 && maxStops <= 4) {
+    score += 10;
+  }
+  if (types.includes('farm') && types.includes('cafe')) {
+    score += 5;
+  }
+
+  return Math.max(20, Math.min(95, score));
+}
+
+function getTrailConfidenceLabel(score) {
+  if (score >= 75) {
+    return 'High confidence';
+  }
+  if (score >= 50) {
+    return 'Medium confidence';
+  }
+  return 'Low confidence';
+}
+
 function formatDistance(kmValue) {
   return `${toNumber(kmValue).toFixed(1)} km`;
 }
@@ -492,7 +521,16 @@ export default function CoffeeTrailScreen({ navigation }) {
         ? 'Balanced trail: Include a mix of coffee sourcing and tasting destinations when supported by your selected preferences.'
         : '';
 
-    return { headline, summary, routeHint, balanceHint };
+    const confidenceScore = getTrailConfidenceScore(selectedVarieties, selectedTypes, maxStops);
+
+    return {
+      headline,
+      summary,
+      routeHint,
+      balanceHint,
+      confidence: getTrailConfidenceLabel(confidenceScore),
+      confidenceScore,
+    };
   }, [selectedVarieties, selectedTypes, maxStops]);
 
   useEffect(() => {
@@ -516,6 +554,8 @@ export default function CoffeeTrailScreen({ navigation }) {
         }
 
         const serverSummary = preview?.summary;
+        const localConfidenceScore = getTrailConfidenceScore(selectedVarieties, selectedTypes, maxStops);
+        const confidenceScore = toNumber(preview?.confidence_score, localConfidenceScore);
         setServerAiPreview({
           summary:
             selectedVarieties.length > 0 &&
@@ -524,6 +564,8 @@ export default function CoffeeTrailScreen({ navigation }) {
             !/\bAI\b|artificial intelligence|machine learning/i.test(serverSummary)
               ? serverSummary
               : null,
+          confidence: getTrailConfidenceLabel(confidenceScore),
+          confidenceScore,
         });
       } catch {
         if (!isActive) {
@@ -1249,6 +1291,26 @@ export default function CoffeeTrailScreen({ navigation }) {
               <MaterialIcons name="tips-and-updates" size={12} color="#FFFFFF" />
               <Text style={styles.aiBadgeText}>TRAIL TIPS</Text>
             </View>
+            <Text style={styles.aiConfidenceText}>{displayedAiPreview.confidence}</Text>
+          </View>
+          <View
+            accessibilityRole="progressbar"
+            accessibilityLabel={displayedAiPreview.confidence}
+            accessibilityValue={{
+              min: 0,
+              max: 100,
+              now: displayedAiPreview.confidenceScore,
+            }}
+            style={styles.aiConfidenceBarTrack}
+          >
+            <View
+              style={[
+                styles.aiConfidenceBarFill,
+                {
+                  width: `${Math.max(0, Math.min(100, displayedAiPreview.confidenceScore))}%`,
+                },
+              ]}
+            />
           </View>
           <Text style={styles.aiPreviewTitle}>{displayedAiPreview.headline}</Text>
           <Text style={styles.aiPreviewBody}>{displayedAiPreview.summary}</Text>
@@ -1602,6 +1664,25 @@ const styles = StyleSheet.create({
     fontSize: 10,
     lineHeight: 12,
     fontFamily: 'PoppinsBold',
+  },
+  aiConfidenceText: {
+    color: '#7A6A57',
+    fontSize: 11,
+    lineHeight: 14,
+    fontFamily: 'PoppinsMedium',
+  },
+  aiConfidenceBarTrack: {
+    marginTop: 2,
+    width: '100%',
+    height: 6,
+    borderRadius: 999,
+    backgroundColor: '#E6DDCF',
+    overflow: 'hidden',
+  },
+  aiConfidenceBarFill: {
+    height: '100%',
+    borderRadius: 999,
+    backgroundColor: COLORS.primary,
   },
   aiPreviewTitle: {
     marginTop: 2,
