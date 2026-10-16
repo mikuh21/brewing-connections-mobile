@@ -414,17 +414,19 @@ export default function RegisterScreen({ navigation }) {
             {successMessage ? <Text style={styles.success}>{successMessage}</Text> : null}
 
             <View style={styles.legalAgreement}>
-              <Pressable
-                accessibilityRole="checkbox"
-                accessibilityState={{ checked: termsAccepted }}
-                onPress={() => setTermsAccepted((previous) => !previous)}
-                style={styles.termsCheckboxRow}
-              >
-                <MaterialIcons
-                  name={termsAccepted ? 'check-box' : 'check-box-outline-blank'}
-                  size={22}
-                  color={termsAccepted ? '#2E5A3D' : '#6F5948'}
-                />
+              <View style={styles.termsCheckboxRow}>
+                <Pressable
+                  accessibilityRole="checkbox"
+                  accessibilityState={{ checked: termsAccepted }}
+                  onPress={() => setTermsAccepted((previous) => !previous)}
+                  hitSlop={6}
+                >
+                  <MaterialIcons
+                    name={termsAccepted ? 'check-box' : 'check-box-outline-blank'}
+                    size={22}
+                    color={termsAccepted ? '#2E5A3D' : '#6F5948'}
+                  />
+                </Pressable>
                 <Text style={styles.termsCheckboxText}>
                   I agree to the{' '}
                   <Text
@@ -433,7 +435,7 @@ export default function RegisterScreen({ navigation }) {
                     accessibilityRole="link"
                   >Terms & Conditions</Text>
                 </Text>
-              </Pressable>
+              </View>
               <Text style={styles.privacyPrompt}>
                 Please review BrewHub's{' '}
                 <Text
