@@ -1948,7 +1948,7 @@ const styles = StyleSheet.create({
     paddingTop: 10,
     marginHorizontal: -16,
     paddingHorizontal: 16,
-    paddingBottom: 0,
+    paddingBottom: 6,
     borderTopWidth: 1,
     borderTopColor: '#D7CFC4',
     backgroundColor: COLORS.bg,
