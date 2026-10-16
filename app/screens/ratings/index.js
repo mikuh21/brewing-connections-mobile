@@ -404,7 +404,7 @@ function RatingsFeedView({ navigation, onSwitchToForm }) {
 		if (activeFeedTab === 'location_checks') {
 			const openEstablishmentOnMap = () => {
 				if (!item.establishment_id) return;
-				navigation.navigate('Map', { highlightId: String(item.establishment_id) });
+				navigation.navigate('Map', { highlightId: String(item.establishment_id), highlightRequestAt: Date.now() });
 			};
 			return (
 				<Pressable
