@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { register as registerRequest } from '../../services';
+import { checkEmailAvailability, register as registerRequest } from '../../services';
 import theme from '../../theme';
 
 export default function RegisterScreen({ navigation }) {
@@ -26,6 +26,7 @@ export default function RegisterScreen({ navigation }) {
   const [fieldErrors, setFieldErrors] = useState({});
   const [formError, setFormError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
+  const [emailTaken, setEmailTaken] = useState(false);
 
   const validateName = (value) => {
     const trimmed = value.trim();
@@ -55,6 +56,40 @@ export default function RegisterScreen({ navigation }) {
 
     return '';
   };
+
+  useEffect(() => {
+    const normalizedEmail = email.trim();
+    if (!normalizedEmail || validateEmail(normalizedEmail)) {
+      setEmailTaken(false);
+      return undefined;
+    }
+
+    let cancelled = false;
+    const timeoutId = setTimeout(async () => {
+      try {
+        const result = await checkEmailAvailability(normalizedEmail);
+        if (cancelled) return;
+
+        const taken = result?.available === false;
+        setEmailTaken(taken);
+        setFieldErrors((previous) => ({
+          ...previous,
+          email: taken
+            ? 'This email is already registered. Please use another email.'
+            : previous.email === 'This email is already registered. Please use another email.'
+              ? ''
+              : previous.email,
+        }));
+      } catch {
+        // Availability checks are advisory; registration still validates email on the server.
+      }
+    }, 450);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timeoutId);
+    };
+  }, [email]);
 
   const validatePassword = (value) => {
     const hasSpecialCharacter = /[@$!%*#?&]/.test(value);
@@ -89,7 +124,9 @@ export default function RegisterScreen({ navigation }) {
   const validateAllFields = () => {
     const nextErrors = {
       name: validateName(name),
-      email: validateEmail(email),
+      email: emailTaken
+        ? 'This email is already registered. Please use another email.'
+        : validateEmail(email),
       password: validatePassword(password),
       confirmPassword: validateConfirmPassword(confirmPassword, password),
     };
@@ -125,9 +162,16 @@ export default function RegisterScreen({ navigation }) {
         navigation.navigate('Login');
       }, 500);
     } catch (submitError) {
-      setFormError(
-        submitError?.response?.data?.message || submitError.message || 'Unable to register.'
-      );
+      const emailError = submitError?.response?.data?.errors?.email;
+      if (Array.isArray(emailError) && emailError.length > 0) {
+        updateFieldError('email', emailError[0]);
+        setEmailTaken(/already (been )?taken|already registered/i.test(emailError[0]));
+        setFormError('');
+      } else {
+        setFormError(
+          submitError?.response?.data?.message || submitError.message || 'Unable to register.'
+        );
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -183,9 +227,8 @@ export default function RegisterScreen({ navigation }) {
                 value={email}
                 onChangeText={(value) => {
                   setEmail(value);
-                  if (fieldErrors.email) {
-                    updateFieldError('email', validateEmail(value));
-                  }
+                  setEmailTaken(false);
+                  updateFieldError('email', validateEmail(value));
                 }}
                 onBlur={() => updateFieldError('email', validateEmail(email))}
               />
