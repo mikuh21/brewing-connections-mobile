@@ -42,7 +42,7 @@ async function clearStoredToken() {
 }
 
 export const api = axios.create({
-  baseURL: 'https://brewing-hub.online',
+  baseURL: API_CONFIG.baseUrl,
   headers: {
     'Content-Type': 'application/json',
     Accept: 'application/json',
@@ -57,14 +57,16 @@ api.interceptors.request.use(async (config) => {
     ? resolvedPath
     : `${resolvedBaseUrl}${resolvedPath.startsWith('/') ? resolvedPath : `/${resolvedPath}`}`;
 
+  const token = await readStoredToken();
+
   console.log('[API REQUEST]', {
     method: String(config?.method || 'get').toUpperCase(),
-    url: resolvedUrl,
+    url: api.getUri(config) || resolvedUrl,
     baseURL: config?.baseURL || api.defaults.baseURL || '',
     path: resolvedPath,
+    authenticated: Boolean(token),
   });
 
-  const token = await readStoredToken();
   if (token) {
     config.headers = config.headers || {};
     config.headers.Authorization = `Bearer ${token}`;
@@ -76,21 +78,23 @@ api.interceptors.request.use(async (config) => {
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
+    const requestUrl = error?.config
+      ? api.getUri(error.config)
+      : '';
+    const authorizationHeader =
+      error?.config?.headers?.get?.('Authorization') ??
+      error?.config?.headers?.Authorization ??
+      error?.config?.headers?.authorization;
+
     console.log('[API RESPONSE ERROR]', {
       message: error?.message,
       code: error?.code,
       method: String(error?.config?.method || '').toUpperCase(),
-      url: error?.config?.url || '',
-      baseURL: error?.config?.baseURL || '',
-      fullUrl:
-        error?.config?.url && /^https?:\/\//i.test(String(error.config.url))
-          ? error.config.url
-          : `${String(error?.config?.baseURL || api.defaults.baseURL || '').replace(/\/+$/, '')}${String(error?.config?.url || '').startsWith('/') ? String(error?.config?.url || '') : `/${String(error?.config?.url || '')}`}`,
+      url: requestUrl,
       status: error?.response?.status,
       statusText: error?.response?.statusText,
       data: error?.response?.data,
-      headers: error?.response?.headers,
-      requestHeaders: error?.config?.headers,
+      authenticated: Boolean(authorizationHeader),
     });
 
     if (error?.response?.status === 401) {
@@ -102,6 +106,77 @@ api.interceptors.response.use(
 );
 
 const unwrap = (response) => response.data;
+
+export function getApiErrorMessage(error, action = 'complete this request') {
+  const status = error?.response?.status;
+  const responseData = error?.response?.data;
+  const serverMessage =
+    typeof responseData?.message === 'string' ? responseData.message.trim() : '';
+
+  if (status === 401) {
+    return 'Your session has expired. Please log in again.';
+  }
+  if (status === 403) {
+    return 'Your account is not permitted to complete this request.';
+  }
+  if (status === 404) {
+    return (
+      serverMessage ||
+      'The saved Coffee Trail or location-check endpoint could not be found or is not available to this account. Reopen a saved trail and retry.'
+    );
+  }
+  if (status === 422) {
+    const validationErrors = Object.values(responseData?.errors || {})
+      .flat()
+      .filter((message) => typeof message === 'string' && message.trim());
+    return validationErrors.join(' ') || serverMessage || 'The server rejected this location check.';
+  }
+  if (status >= 500) {
+    return `The server could not ${action}. Please retry in a moment.`;
+  }
+  if (!error?.response) {
+    if (error?.code === 'ERR_NETWORK' || error?.request) {
+      return 'Unable to reach BrewHub. Check your connection and retry.';
+    }
+    return error?.message || `Unable to ${action}. Please retry.`;
+  }
+
+  return serverMessage || `Unable to ${action}. Please retry.`;
+}
+
+function normalizeLocationChecksResponse(response) {
+  const payload =
+    response && !Array.isArray(response) && response.status !== undefined && response.data !== undefined
+      ? response.data
+      : response;
+  const checks = Array.isArray(payload)
+    ? payload
+    : Array.isArray(payload?.data)
+      ? payload.data
+      : Array.isArray(payload?.checks)
+        ? payload.checks
+        : Array.isArray(payload?.data?.data)
+          ? payload.data.data
+          : null;
+
+  if (!checks) {
+    throw new Error('BrewHub returned an unexpected location-check response.');
+  }
+
+  return checks.map((check) => {
+    const reviewStatus = String(check?.review_status || '').toLowerCase();
+
+    return {
+      ...check,
+      trail_id: check?.trail_id ?? check?.coffee_trail_id ?? null,
+      needs_review:
+        check?.needs_review ??
+        ['flagged', 'needs_review', 'pending', 'pending_review', 'reported', 'under_review'].includes(
+          reviewStatus
+        ),
+    };
+  });
+}
 
 function shouldUseNetworkFallback(error) {
   return error?.code === 'ERR_NETWORK' && !error?.response;
@@ -253,15 +328,24 @@ export const getCoffeeTrailHistory = async () => {
 };
 
 export const getLocationChecks = async (trailId) => {
+  if (trailId !== undefined && trailId !== null && !/^[1-9]\d*$/.test(String(trailId).trim())) {
+    throw new Error('A valid saved Coffee Trail ID is required to load its location checks.');
+  }
+
   const response = await api.get('/api/location-checks', {
     params: trailId ? { trail_id: trailId } : undefined,
   });
-  return unwrap(response);
+  return normalizeLocationChecksResponse(unwrap(response));
 };
 
 export const submitLocationCheck = async (trailId, data) => {
+  if (!/^[1-9]\d*$/.test(String(trailId ?? '').trim())) {
+    throw new Error('A valid saved Coffee Trail ID is required to submit a location check.');
+  }
+
   const response = await api.post(`/api/coffee-trails/${trailId}/location-checks`, data);
-  return unwrap(response);
+  const result = unwrap(response);
+  return result?.data ?? result;
 };
 
 export const trackMapMarkerView = async (data) => {

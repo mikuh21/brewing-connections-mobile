@@ -1,6 +1,7 @@
 export { API_CONFIG } from './config';
 export {
 	api,
+	getApiErrorMessage,
 	login,
 	register,
 	logout,

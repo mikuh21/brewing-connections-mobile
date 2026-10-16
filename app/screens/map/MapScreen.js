@@ -25,9 +25,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
+import { useAuth } from '../../context';
 import {
   api,
   getCouponPromos,
+  getApiErrorMessage,
   getLocationChecks,
   getEstablishments,
   getProducts,
@@ -1086,6 +1088,9 @@ function normalizeWebsiteUrl(websiteValue) {
 export default function MapScreen({ navigation, route }) {
   const insets = useSafeAreaInsets();
   const { height: windowHeight } = useWindowDimensions();
+  const { logout } = useAuth();
+  const authLogoutRef = useRef(logout);
+  authLogoutRef.current = logout;
   const mapRef = useRef(null);
   const sheetScrollRef = useRef(null);
   const ignoreMapPressUntilRef = useRef(0);
@@ -1241,17 +1246,17 @@ export default function MapScreen({ navigation, route }) {
     setLocationChecksError('');
     try {
       const response = await getLocationChecks(trailId);
-      const checks = Array.isArray(response)
-        ? response
-        : Array.isArray(response?.data)
-          ? response.data
-          : [];
       if (locationChecksRequestIdRef.current === requestId) {
-        setLocationChecks(checks);
+        setLocationChecks(response);
       }
-    } catch {
+    } catch (requestError) {
       if (locationChecksRequestIdRef.current === requestId) {
-        setLocationChecksError('Unable to load saved location checks. Check your connection and retry.');
+        if (requestError?.response?.status === 401) {
+          void authLogoutRef.current().catch((logoutError) => {
+            console.warn('Unable to clear expired mobile session', logoutError);
+          });
+        }
+        setLocationChecksError(getApiErrorMessage(requestError, 'load saved location checks'));
       }
     } finally {
       if (locationChecksRequestIdRef.current === requestId) {
@@ -3168,11 +3173,12 @@ export default function MapScreen({ navigation, route }) {
           : 'Your location check has been saved.'
       );
     } catch (error) {
-      setLocationCheckError(
-        error?.response?.data?.message ||
-          error?.message ||
-          'Unable to save your location check. Please retry when you are back online.'
-      );
+      if (error?.response?.status === 401) {
+        void authLogoutRef.current().catch((logoutError) => {
+          console.warn('Unable to clear expired mobile session', logoutError);
+        });
+      }
+      setLocationCheckError(getApiErrorMessage(error, 'save your location check'));
     } finally {
       locationCheckSubmissionRef.current = false;
       setIsSavingLocationCheck(false);

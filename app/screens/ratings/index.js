@@ -18,7 +18,8 @@ import { MaterialIcons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ConfirmToastModal } from '../../components';
-import { getLocationChecks, getRatingsFeed, submitRating } from '../../services';
+import { useAuth } from '../../context';
+import { getApiErrorMessage, getLocationChecks, getRatingsFeed, submitRating } from '../../services';
 import { getImageUrl } from '../../utils/imageHelper';
 
 const INITIAL_RATINGS = {
@@ -165,6 +166,10 @@ const SORT_OPTIONS = [
 ];
 
 function RatingsFeedView({ navigation, onSwitchToForm }) {
+	const { logout } = useAuth();
+	const authLogoutRef = useRef(logout);
+	authLogoutRef.current = logout;
+	const locationChecksRequestIdRef = useRef(0);
 	const [feedItems, setFeedItems] = useState([]);
 	const [isLoading, setIsLoading] = useState(true);
 	const [refreshing, setRefreshing] = useState(false);
@@ -210,6 +215,9 @@ function RatingsFeedView({ navigation, onSwitchToForm }) {
 	const RATINGS_PER_PAGE = 5;
 
 	const loadLocationChecks = useCallback(async (isRefresh = false) => {
+		const requestId = locationChecksRequestIdRef.current + 1;
+		locationChecksRequestIdRef.current = requestId;
+
 		if (isRefresh) {
 			setIsLocationChecksRefreshing(true);
 		} else {
@@ -217,18 +225,24 @@ function RatingsFeedView({ navigation, onSwitchToForm }) {
 		}
 		setLocationChecksError(null);
 		try {
-			const result = await getLocationChecks();
-			const rawChecks = Array.isArray(result)
-				? result
-				: Array.isArray(result?.data)
-					? result.data
-					: [];
-			setLocationChecks(rawChecks);
-		} catch {
-			setLocationChecksError('Unable to load location checks.');
+			const checks = await getLocationChecks();
+			if (locationChecksRequestIdRef.current === requestId) {
+				setLocationChecks(checks);
+			}
+		} catch (requestError) {
+			if (locationChecksRequestIdRef.current === requestId) {
+				if (requestError?.response?.status === 401) {
+					void authLogoutRef.current().catch((logoutError) => {
+						console.warn('Unable to clear expired mobile session', logoutError);
+					});
+				}
+				setLocationChecksError(getApiErrorMessage(requestError, 'load location checks'));
+			}
 		} finally {
-			setIsLocationChecksLoading(false);
-			setIsLocationChecksRefreshing(false);
+			if (locationChecksRequestIdRef.current === requestId) {
+				setIsLocationChecksLoading(false);
+				setIsLocationChecksRefreshing(false);
+			}
 		}
 	}, []);
 
@@ -270,6 +284,9 @@ function RatingsFeedView({ navigation, onSwitchToForm }) {
 	useFocusEffect(
 		useCallback(() => {
 			void loadLocationChecks();
+			return () => {
+				locationChecksRequestIdRef.current += 1;
+			};
 		}, [loadLocationChecks])
 	);
 
@@ -476,6 +493,22 @@ function RatingsFeedView({ navigation, onSwitchToForm }) {
 								);
 							})}
 						</View>
+						{activeFeedTab === 'location_checks' &&
+						locationChecksError &&
+						locationChecks.length > 0 ? (
+							<View style={styles.locationChecksRefreshError}>
+								<Text style={styles.feedEmptyText}>{locationChecksError}</Text>
+								<Pressable
+									style={styles.feedRetryButton}
+									onPress={() => void loadLocationChecks(true)}
+									disabled={isLocationChecksRefreshing}
+								>
+									<Text style={styles.feedRetryButtonText}>
+										{isLocationChecksRefreshing ? 'Retrying…' : 'Retry'}
+									</Text>
+								</Pressable>
+							</View>
+						) : null}
 						<Pressable
 							style={styles.feedActionButton}
 							onPress={() => {
@@ -1472,6 +1505,11 @@ const styles = StyleSheet.create({
 		fontFamily: 'PoppinsMedium',
 		fontSize: 13,
 		lineHeight: 18,
+	},
+	locationChecksRefreshError: {
+		marginTop: 12,
+		alignItems: 'center',
+		gap: 8,
 	},
 	feedCard: {
 		marginTop: 12,
