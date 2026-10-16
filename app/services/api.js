@@ -338,6 +338,11 @@ export const getLocationChecks = async (trailId) => {
   return normalizeLocationChecksResponse(unwrap(response));
 };
 
+export const getCommunityLocationChecks = async () => {
+  const response = await api.get('/api/location-checks/community');
+  return normalizeLocationChecksResponse(unwrap(response));
+};
+
 export const submitLocationCheck = async (trailId, data) => {
   if (!/^[1-9]\d*$/.test(String(trailId ?? '').trim())) {
     throw new Error('A valid saved Coffee Trail ID is required to submit a location check.');
