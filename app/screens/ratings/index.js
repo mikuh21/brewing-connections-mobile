@@ -19,7 +19,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ConfirmToastModal } from '../../components';
 import { useAuth } from '../../context';
-import { getApiErrorMessage, getLocationChecks, getRatingsFeed, submitRating } from '../../services';
+import { getApiErrorMessage, getCommunityLocationChecks, getRatingsFeed, submitRating } from '../../services';
 import { getImageUrl } from '../../utils/imageHelper';
 
 const INITIAL_RATINGS = {
@@ -181,7 +181,8 @@ function groupLocationChecks(checks) {
 		}
 		const key = String(establishmentId);
 		const response = String(check?.response ?? check?.answer ?? '').toLowerCase();
-		if (response !== 'yes' && response !== 'no') return;
+		const hasAggregateCounts = check?.correct_count !== undefined || check?.incorrect_count !== undefined;
+		if (!hasAggregateCounts && response !== 'yes' && response !== 'no') return;
 
 		let item = grouped.get(key);
 		if (!item) {
@@ -200,8 +201,13 @@ function groupLocationChecks(checks) {
 			};
 			grouped.set(key, item);
 		}
-		if (response === 'yes') item.correct_count += 1;
-		if (response === 'no') item.incorrect_count += 1;
+		if (hasAggregateCounts) {
+			item.correct_count += Number(check?.correct_count) || 0;
+			item.incorrect_count += Number(check?.incorrect_count) || 0;
+		} else {
+			if (response === 'yes') item.correct_count += 1;
+			if (response === 'no') item.incorrect_count += 1;
+		}
 		if (check?.needs_review) item.needs_review = true;
 		const timestamp = check?.created_at || check?.createdAt || null;
 		if (timestamp && (!item.latest_at || new Date(timestamp) > new Date(item.latest_at))) {
@@ -274,7 +280,7 @@ function RatingsFeedView({ navigation, onSwitchToForm }) {
 		}
 		setLocationChecksError(null);
 		try {
-			const checks = await getLocationChecks();
+			const checks = await getCommunityLocationChecks();
 			if (locationChecksRequestIdRef.current === requestId) {
 				setLocationChecks(checks);
 			}
