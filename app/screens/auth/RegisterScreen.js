@@ -230,7 +230,12 @@ export default function RegisterScreen({ navigation }) {
                   setEmailTaken(false);
                   updateFieldError('email', validateEmail(value));
                 }}
-                onBlur={() => updateFieldError('email', validateEmail(email))}
+                onBlur={() => updateFieldError(
+                  'email',
+                  emailTaken
+                    ? 'This email is already registered. Please use another email.'
+                    : validateEmail(email)
+                )}
               />
               <View style={styles.errorSlot}>
                 <Text style={styles.inlineError}>{fieldErrors.email || ' '}</Text>
