@@ -1382,7 +1382,7 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 16,
     paddingTop: 16,
-    paddingBottom: 14,
+    paddingBottom: 0,
   },
   title: {
     fontSize: 28,
@@ -1948,7 +1948,7 @@ const styles = StyleSheet.create({
     paddingTop: 10,
     marginHorizontal: -16,
     paddingHorizontal: 16,
-    paddingBottom: 16,
+    paddingBottom: 0,
     borderTopWidth: 1,
     borderTopColor: '#D7CFC4',
     backgroundColor: COLORS.bg,
