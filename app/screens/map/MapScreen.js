@@ -4193,7 +4193,12 @@ export default function MapScreen({ navigation, route }) {
                       isSavingLocationCheck,
                   }}
                 >
-                  <Text style={styles.trailPrimaryBtnText}>{isOnLastTrailStop ? 'Complete Trail' : 'Next Stop'}</Text>
+                  <View style={styles.trailButtonContentRow}>
+                    <Text style={styles.trailPrimaryBtnText}>{isOnLastTrailStop ? 'Complete Trail' : 'Next Stop'}</Text>
+                    {!isOnLastTrailStop ? (
+                      <MaterialIcons name="arrow-forward" size={16} color="#FFFFFF" />
+                    ) : null}
+                  </View>
                 </Pressable>
               </View>
             </>
@@ -4402,8 +4407,12 @@ export default function MapScreen({ navigation, route }) {
                   />
                   <View style={styles.locationValidationSavedTextWrap}>
                     <Text style={styles.locationValidationSavedTitle}>
-                      {currentLocationCheck.result ||
-                        (currentLocationCheck.response === 'yes' ? 'Correct Location' : 'Incorrect Location')}
+                      {(() => {
+                        const resultLabel = String(currentLocationCheck.result || '').trim().toLowerCase();
+                        if (['correct_location', 'correct location', 'yes'].includes(resultLabel)) return 'Correct location';
+                        if (['incorrect_location', 'incorrect location', 'no'].includes(resultLabel)) return 'Incorrect location';
+                        return currentLocationCheck.response === 'yes' ? 'Correct location' : 'Incorrect location';
+                      })()}
                     </Text>
                     <Text style={styles.locationValidationMessage}>
                       {currentLocationCheck.response === 'no'
@@ -4425,8 +4434,8 @@ export default function MapScreen({ navigation, route }) {
               ) : (
                 <View style={styles.locationValidationResponses}>
                   {[
-                    { response: 'yes', label: 'Yes, correct', icon: 'thumb-up' },
                     { response: 'no', label: 'No, incorrect', icon: 'thumb-down' },
+                    { response: 'yes', label: 'Yes, correct', icon: 'thumb-up' },
                   ].map((option) => {
                     const selected = selectedLocationResponse === option.response;
                     return (
