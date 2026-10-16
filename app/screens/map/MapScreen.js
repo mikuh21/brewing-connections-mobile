@@ -2325,7 +2325,7 @@ export default function MapScreen({ navigation, route }) {
       }),
       320
     );
-  }, [route?.params?.highlightId, establishments, isTrailMode]);
+  }, [route?.params?.highlightId, route?.params?.highlightRequestAt, establishments, isTrailMode]);
 
   const handleRegionChangeComplete = useCallback((region) => {
     const constrained = constrainRegion(region);
