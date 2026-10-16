@@ -341,7 +341,7 @@ function RatingsFeedView({ navigation, onSwitchToForm }) {
 
 	useEffect(() => {
 		setCurrentPage(0);
-	}, [feedItems, activeFeedTab, sortBy]);
+	}, [feedItems, activeFeedTab, sortBy, locationSortBy]);
 
 	useEffect(() => {
 		setCurrentPage(0);
@@ -413,7 +413,7 @@ function RatingsFeedView({ navigation, onSwitchToForm }) {
 								<Text style={styles.feedCardEstablishment} numberOfLines={2}>{item.establishment_name}</Text>
 								{item.establishment_type ? (
 									<Text style={styles.locationCheckType}>
-										{String(item.establishment_type).replace(/^\\w/, (type) => type.toUpperCase())}
+										{String(item.establishment_type).replace(/^\w/, (type) => type.toUpperCase())}
 									</Text>
 								) : null}
 							</View>
