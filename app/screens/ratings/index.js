@@ -165,6 +165,54 @@ const SORT_OPTIONS = [
 	{ id: 'oldest', label: 'Oldest First', icon: 'history' },
 ];
 
+const LOCATION_SORT_OPTIONS = [
+	{ id: 'all', label: 'All', icon: 'format-list-bulleted' },
+	{ id: 'top_validated', label: 'Top Validated', icon: 'trending-up' },
+	{ id: 'lowest_validated', label: 'Lowest Validated', icon: 'trending-down' },
+];
+
+function groupLocationChecks(checks) {
+	const grouped = new Map();
+	(checks || []).forEach((check) => {
+		const establishment = check?.establishment || {};
+		const establishmentId = check?.establishment_id ?? check?.establishmentId ?? establishment?.id;
+		if (establishmentId === null || establishmentId === undefined || String(establishmentId).trim() === '') {
+			return;
+		}
+		const key = String(establishmentId);
+		const response = String(check?.response ?? check?.answer ?? '').toLowerCase();
+		if (response !== 'yes' && response !== 'no') return;
+
+		let item = grouped.get(key);
+		if (!item) {
+			item = {
+				id: key,
+				establishment_id: establishmentId,
+				establishment_name: check?.establishment_name || check?.establishmentName || establishment?.name || 'Establishment',
+				establishment_type: check?.establishment_type || check?.establishmentType || establishment?.type || '',
+				establishment_address: check?.establishment_address || check?.address || establishment?.address || '',
+				latitude: check?.establishment_latitude ?? check?.latitude ?? establishment?.latitude ?? establishment?.lat ?? null,
+				longitude: check?.establishment_longitude ?? check?.longitude ?? establishment?.longitude ?? establishment?.lng ?? establishment?.lon ?? null,
+				correct_count: 0,
+				incorrect_count: 0,
+				latest_at: check?.created_at || check?.createdAt || null,
+				needs_review: false,
+			};
+			grouped.set(key, item);
+		}
+		if (response === 'yes') item.correct_count += 1;
+		if (response === 'no') item.incorrect_count += 1;
+		if (check?.needs_review) item.needs_review = true;
+		const timestamp = check?.created_at || check?.createdAt || null;
+		if (timestamp && (!item.latest_at || new Date(timestamp) > new Date(item.latest_at))) {
+			item.latest_at = timestamp;
+		}
+		if (!item.latitude) item.latitude = check?.establishment_latitude ?? check?.latitude ?? establishment?.latitude ?? establishment?.lat ?? null;
+		if (!item.longitude) item.longitude = check?.establishment_longitude ?? check?.longitude ?? establishment?.longitude ?? establishment?.lng ?? establishment?.lon ?? null;
+	});
+	return Array.from(grouped.values()).filter((item) => item.correct_count + item.incorrect_count > 0);
+}
+
 function RatingsFeedView({ navigation, onSwitchToForm }) {
 	const { logout } = useAuth();
 	const authLogoutRef = useRef(logout);
@@ -179,6 +227,7 @@ function RatingsFeedView({ navigation, onSwitchToForm }) {
 	const [isLocationChecksRefreshing, setIsLocationChecksRefreshing] = useState(false);
 	const [locationChecksError, setLocationChecksError] = useState(null);
 	const [sortBy, setSortBy] = useState('newest');
+	const [locationSortBy, setLocationSortBy] = useState('all');
 	const [showSortMenu, setShowSortMenu] = useState(false);
 	const [activeFeedTab, setActiveFeedTab] = useState('location_checks');
 	const [currentPage, setCurrentPage] = useState(0);
@@ -321,16 +370,20 @@ function RatingsFeedView({ navigation, onSwitchToForm }) {
 	}, [filteredFeedItems, sortBy]);
 
 	const sortedLocationChecks = useMemo(() => {
-		const checks = [...locationChecks];
-		if (sortBy === 'oldest') {
-			checks.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+		const checks = groupLocationChecks(locationChecks);
+		if (locationSortBy === 'top_validated') {
+			checks.sort((a, b) => (b.correct_count + b.incorrect_count) - (a.correct_count + a.incorrect_count) || a.establishment_name.localeCompare(b.establishment_name));
+		} else if (locationSortBy === 'lowest_validated') {
+			checks.sort((a, b) => (a.correct_count + a.incorrect_count) - (b.correct_count + b.incorrect_count) || a.establishment_name.localeCompare(b.establishment_name));
 		} else {
-			checks.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+			checks.sort((a, b) => a.establishment_name.localeCompare(b.establishment_name));
 		}
 		return checks;
-	}, [locationChecks, sortBy]);
+	}, [locationChecks, locationSortBy]);
 
 	const activeFeedItems = activeFeedTab === 'location_checks' ? sortedLocationChecks : sortedRatings;
+	const activeSortOptions = activeFeedTab === 'location_checks' ? LOCATION_SORT_OPTIONS : SORT_OPTIONS;
+	const activeSortBy = activeFeedTab === 'location_checks' ? locationSortBy : sortBy;
 	const paginatedRatings = useMemo(() => {
 		const startIdx = currentPage * RATINGS_PER_PAGE;
 		const endIdx = startIdx + RATINGS_PER_PAGE;
@@ -338,27 +391,33 @@ function RatingsFeedView({ navigation, onSwitchToForm }) {
 	}, [activeFeedItems, currentPage]);
 
 	const totalPages = Math.ceil(activeFeedItems.length / RATINGS_PER_PAGE);
-	const selectedSort = SORT_OPTIONS.find(opt => opt.id === sortBy);
+	const selectedSort = activeSortOptions.find((opt) => opt.id === activeSortBy);
 	const selectedFeedTab = FEED_TABS.find((tab) => tab.id === activeFeedTab);
 
 	const renderItem = useCallback(({ item }) => {
 		if (activeFeedTab === 'location_checks') {
-			const isCorrect = item.response === 'yes';
+			const openEstablishmentOnMap = () => {
+				if (!item.establishment_id) return;
+				navigation.navigate('Map', { highlightId: String(item.establishment_id) });
+			};
 			return (
-				<View style={styles.feedCard}>
+				<Pressable
+					style={styles.feedCard}
+					onPress={openEstablishmentOnMap}
+					accessibilityRole="button"
+					accessibilityLabel={`View ${item.establishment_name} on the map. ${item.correct_count} correct and ${item.incorrect_count} incorrect location validations.`}
+				>
 					<View style={styles.locationCheckCardBody}>
 						<View style={styles.locationCheckCardHeader}>
 							<View style={styles.locationCheckTitleWrap}>
-								<Text style={styles.feedCardEstablishment} numberOfLines={2}>
-									{item.establishment_name || item.establishment?.name || 'Establishment'}
-								</Text>
+								<Text style={styles.feedCardEstablishment} numberOfLines={2}>{item.establishment_name}</Text>
 								{item.establishment_type ? (
 									<Text style={styles.locationCheckType}>
-										{String(item.establishment_type).replace(/^\w/, (type) => type.toUpperCase())}
+										{String(item.establishment_type).replace(/^\\w/, (type) => type.toUpperCase())}
 									</Text>
 								) : null}
 							</View>
-							<Text style={styles.feedCardTime}>{timeAgo(item.created_at)}</Text>
+							<Text style={styles.locationCheckMapLink}>View in Map &gt;</Text>
 						</View>
 						{item.establishment_address ? (
 							<View style={styles.feedCardLocationRow}>
@@ -366,31 +425,20 @@ function RatingsFeedView({ navigation, onSwitchToForm }) {
 								<Text style={styles.feedCardLocation}>{item.establishment_address}</Text>
 							</View>
 						) : null}
-						<View
-							style={[
-								styles.locationCheckResult,
-								isCorrect ? styles.locationCheckResultCorrect : styles.locationCheckResultIncorrect,
-							]}
-						>
-							<MaterialIcons
-								name={isCorrect ? 'thumb-up' : 'thumb-down'}
-								size={19}
-								color={isCorrect ? '#2D4A1E' : '#A33939'}
-							/>
-							<Text
-								style={[
-									styles.locationCheckResultText,
-									isCorrect ? styles.locationCheckResultTextCorrect : styles.locationCheckResultTextIncorrect,
-								]}
-							>
-								{isCorrect ? 'Correct Location' : 'Incorrect Location'}
-							</Text>
+						<View style={styles.locationCheckResultsRow}>
+							<View style={[styles.locationCheckResult, styles.locationCheckResultCorrect]}>
+								<Text style={[styles.locationCheckResultCount, styles.locationCheckResultTextCorrect]}>{item.correct_count}</Text>
+								<MaterialIcons name="thumb-up" size={19} color="#2D4A1E" />
+								<Text style={[styles.locationCheckResultText, styles.locationCheckResultTextCorrect]}>Correct Location</Text>
+							</View>
+							<View style={[styles.locationCheckResult, styles.locationCheckResultIncorrect]}>
+								<Text style={[styles.locationCheckResultCount, styles.locationCheckResultTextIncorrect]}>{item.incorrect_count}</Text>
+								<MaterialIcons name="thumb-down" size={19} color="#A33939" />
+								<Text style={[styles.locationCheckResultText, styles.locationCheckResultTextIncorrect]}>Incorrect Location</Text>
+							</View>
 						</View>
-						{!isCorrect && item.needs_review ? (
-							<Text style={styles.locationCheckReviewNote}>Reported for review; the pinned coordinates have not been changed.</Text>
-						) : null}
 					</View>
-				</View>
+				</Pressable>
 			);
 		}
 
@@ -645,32 +693,33 @@ function RatingsFeedView({ navigation, onSwitchToForm }) {
 					<View style={styles.sortMenuContainer}>
 						<Text style={styles.sortMenuTitle}>Sort By</Text>
 						<View style={styles.sortMenuDivider} />
-						{SORT_OPTIONS.map(option => (
+						{activeSortOptions.map(option => (
 							<Pressable
 								key={option.id}
 								style={[
 									styles.sortMenuItem,
-									sortBy === option.id && styles.sortMenuItemActive,
+									activeSortBy === option.id && styles.sortMenuItemActive,
 								]}
 								onPress={() => {
-									setSortBy(option.id);
+									if (activeFeedTab === 'location_checks') setLocationSortBy(option.id);
+									else setSortBy(option.id);
 									setShowSortMenu(false);
 								}}
 							>
 								<MaterialIcons
 									name={option.icon}
 									size={20}
-									color={sortBy === option.id ? '#2D4A1E' : '#6B7280'}
+									color={activeSortBy === option.id ? '#2D4A1E' : '#6B7280'}
 								/>
 								<Text
 									style={[
 										styles.sortMenuItemText,
-										sortBy === option.id && styles.sortMenuItemTextActive,
+										activeSortBy === option.id && styles.sortMenuItemTextActive,
 									]}
 								>
 									{option.label}
 								</Text>
-								{sortBy === option.id && (
+								{activeSortBy === option.id && (
 									<MaterialIcons name="check" size={20} color="#2D4A1E" />
 								)}
 							</Pressable>
@@ -1536,6 +1585,19 @@ const styles = StyleSheet.create({
 		justifyContent: 'space-between',
 		gap: 8,
 	},
+	locationCheckMapLink: {
+		color: '#2D4A1E',
+		fontFamily: 'PoppinsMedium',
+		fontSize: 11,
+		lineHeight: 16,
+		marginTop: 2,
+	},
+	locationCheckResultsRow: {
+		flexDirection: 'row',
+		flexWrap: 'wrap',
+		alignItems: 'flex-start',
+		gap: 8,
+	},
 	locationCheckTitleWrap: {
 		flex: 1,
 		minWidth: 0,
@@ -1566,6 +1628,11 @@ const styles = StyleSheet.create({
 		borderColor: '#E2B9B5',
 	},
 	locationCheckResultText: {
+		fontFamily: 'PoppinsBold',
+		fontSize: 12,
+		lineHeight: 16,
+	},
+	locationCheckResultCount: {
 		fontFamily: 'PoppinsBold',
 		fontSize: 12,
 		lineHeight: 16,
