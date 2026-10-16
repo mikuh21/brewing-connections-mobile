@@ -214,6 +214,7 @@ function normalizeTrailResponse(response) {
 
       return {
         establishment_id: source?.establishment_id ?? source?.id ?? stop?.id ?? index,
+        sequence: Number(source?.sequence ?? stop?.sequence ?? index + 1),
         trivia_history: getTrailTriviaHistory(
           source?.trivia_history,
           source?.establishment?.trivia_history,
@@ -235,11 +236,11 @@ function normalizeTrailResponse(response) {
           stop?.why_recommended ||
           'Recommended based on your trail preferences.',
       };
-    })
-    .sort((a, b) => a.distance_km - b.distance_km);
+    });
 
   return {
     stops,
+    trailId: response?.trail_id ?? response?.id ?? null,
     totalDistanceKm: toNumber(response?.total_distance_km, 0),
     totalEtaMinutes: toNumber(response?.total_duration_min, 0),
   };
@@ -335,6 +336,7 @@ export default function CoffeeTrailScreen({ navigation }) {
   const [selectedTypes, setSelectedTypes] = useState([]);
   const [maxStops, setMaxStops] = useState(2);
   const [trailData, setTrailData] = useState([]);
+  const [trailId, setTrailId] = useState(null);
   const [trailTotals, setTrailTotals] = useState({ totalDistanceKm: 0, totalEtaMinutes: 0 });
   const [trailOrigin, setTrailOrigin] = useState(null);
   const [errorMessage, setErrorMessage] = useState('');
@@ -360,6 +362,7 @@ export default function CoffeeTrailScreen({ navigation }) {
     resetPreferences();
     setStep(1);
     setTrailData([]);
+    setTrailId(null);
     setTrailOrigin(null);
     setTrailTotals({ totalDistanceKm: 0, totalEtaMinutes: 0 });
     setIsTrailSaved(false);
@@ -696,6 +699,7 @@ export default function CoffeeTrailScreen({ navigation }) {
       });
 
       setTrailData(stopsWithLegMetrics);
+      setTrailId(normalized.trailId);
       setTrailTotals({
         totalDistanceKm: normalized.totalDistanceKm,
         totalEtaMinutes: normalized.totalEtaMinutes,
@@ -845,6 +849,7 @@ export default function CoffeeTrailScreen({ navigation }) {
     navigation.navigate('Map', {
       trailStops: trailData,
       trailOrigin,
+      trailId,
       isTrailMode: true,
     });
   };
@@ -889,6 +894,7 @@ export default function CoffeeTrailScreen({ navigation }) {
         id: Date.now().toString(),
         savedAt: new Date().toISOString(),
         signature,
+        trailId,
         trailStops: trailData,
         trailTotals,
         trailOrigin,
@@ -988,6 +994,7 @@ export default function CoffeeTrailScreen({ navigation }) {
                       navigation.navigate('Map', {
                         trailStops: trailItem.stops,
                         trailOrigin: trailItem.origin,
+                        trailId: trailItem.trailId,
                         isTrailMode: true,
                       })
                     }

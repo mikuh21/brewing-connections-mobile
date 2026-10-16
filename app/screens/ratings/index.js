@@ -18,7 +18,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ConfirmToastModal } from '../../components';
-import { getRatingsFeed, submitRating } from '../../services';
+import { getLocationChecks, getRatingsFeed, submitRating } from '../../services';
 import { getImageUrl } from '../../utils/imageHelper';
 
 const INITIAL_RATINGS = {
@@ -29,6 +29,7 @@ const INITIAL_RATINGS = {
 };
 const TRAIL_RESET_SIGNAL_KEY = 'trail_reset_signal_at';
 const FEED_TABS = [
+	{ id: 'location_checks', label: 'Location Checks' },
 	{ id: 'cafe', label: 'Cafes' },
 	{ id: 'farm_product', label: 'Farm Products' },
 ];
@@ -168,9 +169,13 @@ function RatingsFeedView({ navigation, onSwitchToForm }) {
 	const [isLoading, setIsLoading] = useState(true);
 	const [refreshing, setRefreshing] = useState(false);
 	const [error, setError] = useState(null);
+	const [locationChecks, setLocationChecks] = useState([]);
+	const [isLocationChecksLoading, setIsLocationChecksLoading] = useState(true);
+	const [isLocationChecksRefreshing, setIsLocationChecksRefreshing] = useState(false);
+	const [locationChecksError, setLocationChecksError] = useState(null);
 	const [sortBy, setSortBy] = useState('newest');
 	const [showSortMenu, setShowSortMenu] = useState(false);
-	const [activeFeedTab, setActiveFeedTab] = useState('cafe');
+	const [activeFeedTab, setActiveFeedTab] = useState('location_checks');
 	const [currentPage, setCurrentPage] = useState(0);
 	const [confirmState, setConfirmState] = useState({
 		visible: false,
@@ -203,6 +208,29 @@ function RatingsFeedView({ navigation, onSwitchToForm }) {
 	};
 
 	const RATINGS_PER_PAGE = 5;
+
+	const loadLocationChecks = useCallback(async (isRefresh = false) => {
+		if (isRefresh) {
+			setIsLocationChecksRefreshing(true);
+		} else {
+			setIsLocationChecksLoading(true);
+		}
+		setLocationChecksError(null);
+		try {
+			const result = await getLocationChecks();
+			const rawChecks = Array.isArray(result)
+				? result
+				: Array.isArray(result?.data)
+					? result.data
+					: [];
+			setLocationChecks(rawChecks);
+		} catch {
+			setLocationChecksError('Unable to load location checks.');
+		} finally {
+			setIsLocationChecksLoading(false);
+			setIsLocationChecksRefreshing(false);
+		}
+	}, []);
 
 	const loadFeed = useCallback(async (isRefresh = false) => {
 		if (isRefresh) {
@@ -239,9 +267,19 @@ function RatingsFeedView({ navigation, onSwitchToForm }) {
 		void loadFeed();
 	}, [loadFeed]);
 
+	useFocusEffect(
+		useCallback(() => {
+			void loadLocationChecks();
+		}, [loadLocationChecks])
+	);
+
 	useEffect(() => {
 		setCurrentPage(0);
 	}, [feedItems, activeFeedTab, sortBy]);
+
+	useEffect(() => {
+		setCurrentPage(0);
+	}, [locationChecks]);
 
 	const filteredFeedItems = useMemo(() => {
 		return feedItems.filter((item) => item.feedType === activeFeedTab);
@@ -265,17 +303,80 @@ function RatingsFeedView({ navigation, onSwitchToForm }) {
 		return sorted;
 	}, [filteredFeedItems, sortBy]);
 
+	const sortedLocationChecks = useMemo(() => {
+		const checks = [...locationChecks];
+		if (sortBy === 'oldest') {
+			checks.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+		} else {
+			checks.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+		}
+		return checks;
+	}, [locationChecks, sortBy]);
+
+	const activeFeedItems = activeFeedTab === 'location_checks' ? sortedLocationChecks : sortedRatings;
 	const paginatedRatings = useMemo(() => {
 		const startIdx = currentPage * RATINGS_PER_PAGE;
 		const endIdx = startIdx + RATINGS_PER_PAGE;
-		return sortedRatings.slice(startIdx, endIdx);
-	}, [sortedRatings, currentPage]);
+		return activeFeedItems.slice(startIdx, endIdx);
+	}, [activeFeedItems, currentPage]);
 
-	const totalPages = Math.ceil(sortedRatings.length / RATINGS_PER_PAGE);
+	const totalPages = Math.ceil(activeFeedItems.length / RATINGS_PER_PAGE);
 	const selectedSort = SORT_OPTIONS.find(opt => opt.id === sortBy);
 	const selectedFeedTab = FEED_TABS.find((tab) => tab.id === activeFeedTab);
 
 	const renderItem = useCallback(({ item }) => {
+		if (activeFeedTab === 'location_checks') {
+			const isCorrect = item.response === 'yes';
+			return (
+				<View style={styles.feedCard}>
+					<View style={styles.locationCheckCardBody}>
+						<View style={styles.locationCheckCardHeader}>
+							<View style={styles.locationCheckTitleWrap}>
+								<Text style={styles.feedCardEstablishment} numberOfLines={2}>
+									{item.establishment_name || item.establishment?.name || 'Establishment'}
+								</Text>
+								{item.establishment_type ? (
+									<Text style={styles.locationCheckType}>
+										{String(item.establishment_type).replace(/^\w/, (type) => type.toUpperCase())}
+									</Text>
+								) : null}
+							</View>
+							<Text style={styles.feedCardTime}>{timeAgo(item.created_at)}</Text>
+						</View>
+						{item.establishment_address ? (
+							<View style={styles.feedCardLocationRow}>
+								<MaterialIcons name="location-on" size={14} color="#6B7280" />
+								<Text style={styles.feedCardLocation}>{item.establishment_address}</Text>
+							</View>
+						) : null}
+						<View
+							style={[
+								styles.locationCheckResult,
+								isCorrect ? styles.locationCheckResultCorrect : styles.locationCheckResultIncorrect,
+							]}
+						>
+							<MaterialIcons
+								name={isCorrect ? 'thumb-up' : 'thumb-down'}
+								size={19}
+								color={isCorrect ? '#2D4A1E' : '#A33939'}
+							/>
+							<Text
+								style={[
+									styles.locationCheckResultText,
+									isCorrect ? styles.locationCheckResultTextCorrect : styles.locationCheckResultTextIncorrect,
+								]}
+							>
+								{isCorrect ? 'Correct Location' : 'Incorrect Location'}
+							</Text>
+						</View>
+						{!isCorrect && item.needs_review ? (
+							<Text style={styles.locationCheckReviewNote}>Reported for review; the pinned coordinates have not been changed.</Text>
+						) : null}
+					</View>
+				</View>
+			);
+		}
+
 		const avgRating =
 			(item.taste + item.environment + item.cleanliness + item.service) /
 			4;
@@ -335,20 +436,23 @@ function RatingsFeedView({ navigation, onSwitchToForm }) {
 				</View>
 			</View>
 		);
-	}, []);
+	}, [activeFeedTab]);
 
 	return (
 		<SafeAreaView style={styles.screen} edges={['top', 'left', 'right']}>
 			<FlatList
 				data={paginatedRatings}
-				keyExtractor={(item, index) => String(`${item.feedType}-${item.id ?? `${item.createdAt ?? 'rating'}-${index}`}`)}
+				keyExtractor={(item, index) => String(`${activeFeedTab}-${item.id ?? `${item.created_at ?? item.createdAt ?? 'rating'}-${index}`}`)}
 				renderItem={renderItem}
 				contentContainerStyle={styles.feedContainer}
 				showsVerticalScrollIndicator={false}
 				refreshControl={
 					<RefreshControl
-						refreshing={refreshing}
-						onRefresh={() => void loadFeed(true)}
+						refreshing={refreshing || isLocationChecksRefreshing}
+						onRefresh={() => {
+							void loadFeed(true);
+							void loadLocationChecks(true);
+						}}
 						tintColor="#2D4A1E"
 						colors={['#2D4A1E']}
 					/>
@@ -396,7 +500,26 @@ function RatingsFeedView({ navigation, onSwitchToForm }) {
 					</View>
 				}
 				ListEmptyComponent={
-					isLoading ? (
+					activeFeedTab === 'location_checks' ? (
+						isLocationChecksLoading ? (
+							<ActivityIndicator size="large" color="#2D4A1E" style={styles.feedLoader} />
+						) : locationChecksError ? (
+							<View style={styles.feedEmptyWrap}>
+								<MaterialIcons name="error-outline" size={36} color="#B9AB96" />
+								<Text style={styles.feedEmptyText}>{locationChecksError}</Text>
+								<Pressable style={styles.feedRetryButton} onPress={() => void loadLocationChecks()}>
+									<Text style={styles.feedRetryButtonText}>Retry</Text>
+								</Pressable>
+							</View>
+						) : (
+							<View style={styles.feedEmptyWrap}>
+								<MaterialIcons name="location-on" size={36} color="#B9AB96" />
+								<Text style={styles.feedEmptyText}>
+									No location checks yet. Complete a Coffee Trail stop to verify its pinned location.
+								</Text>
+							</View>
+						)
+					) : isLoading ? (
 						<ActivityIndicator size="large" color="#2D4A1E" style={styles.feedLoader} />
 					) : error ? (
 						<View style={styles.feedEmptyWrap}>
@@ -1364,6 +1487,62 @@ const styles = StyleSheet.create({
 	},
 	feedCardBody: {
 		padding: 12,
+	},
+	locationCheckCardBody: {
+		padding: 12,
+		gap: 8,
+	},
+	locationCheckCardHeader: {
+		flexDirection: 'row',
+		alignItems: 'flex-start',
+		justifyContent: 'space-between',
+		gap: 8,
+	},
+	locationCheckTitleWrap: {
+		flex: 1,
+		minWidth: 0,
+	},
+	locationCheckType: {
+		marginTop: 2,
+		color: '#8A5A20',
+		fontFamily: 'PoppinsMedium',
+		fontSize: 11,
+		lineHeight: 15,
+	},
+	locationCheckResult: {
+		alignSelf: 'flex-start',
+		flexDirection: 'row',
+		alignItems: 'center',
+		gap: 7,
+		paddingHorizontal: 10,
+		paddingVertical: 7,
+		borderRadius: 999,
+		borderWidth: 1,
+	},
+	locationCheckResultCorrect: {
+		backgroundColor: '#EEF6E6',
+		borderColor: '#B8CEAA',
+	},
+	locationCheckResultIncorrect: {
+		backgroundColor: '#FBEDEC',
+		borderColor: '#E2B9B5',
+	},
+	locationCheckResultText: {
+		fontFamily: 'PoppinsBold',
+		fontSize: 12,
+		lineHeight: 16,
+	},
+	locationCheckResultTextCorrect: {
+		color: '#2D4A1E',
+	},
+	locationCheckResultTextIncorrect: {
+		color: '#A33939',
+	},
+	locationCheckReviewNote: {
+		color: '#6B4F35',
+		fontFamily: 'PoppinsRegular',
+		fontSize: 11,
+		lineHeight: 16,
 	},
 	feedCardBadgeRow: {
 		marginBottom: 8,

@@ -252,6 +252,18 @@ export const getCoffeeTrailHistory = async () => {
   return unwrap(response);
 };
 
+export const getLocationChecks = async (trailId) => {
+  const response = await api.get('/api/location-checks', {
+    params: trailId ? { trail_id: trailId } : undefined,
+  });
+  return unwrap(response);
+};
+
+export const submitLocationCheck = async (trailId, data) => {
+  const response = await api.post(`/api/coffee-trails/${trailId}/location-checks`, data);
+  return unwrap(response);
+};
+
 export const trackMapMarkerView = async (data) => {
   const response = await api.post('/api/coffee-trail/marker-view', data);
   return unwrap(response);
@@ -408,4 +420,3 @@ export const authService = {
   login: async ({ email, password }) => login(email, password),
   logout: async () => logout(),
 };
-

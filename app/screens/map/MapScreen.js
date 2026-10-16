@@ -16,6 +16,7 @@ import {
   Text,
   TextInput,
   View,
+  useWindowDimensions,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import MapView, { Callout, Marker, Polyline } from 'react-native-maps';
@@ -27,8 +28,10 @@ import { useFocusEffect } from '@react-navigation/native';
 import {
   api,
   getCouponPromos,
+  getLocationChecks,
   getEstablishments,
   getProducts,
+  submitLocationCheck,
   trackMapMarkerView,
 } from '../../services';
 
@@ -824,7 +827,9 @@ const ROUTE_CONSUME_MAX_SNAP_DISTANCE_KM = 0.15;
 const ROUTE_CONSUME_ARRIVAL_DISTANCE_KM = 0.05;
 const TRAIL_REROUTE_MIN_DISTANCE_KM = 0.05;
 const TRAIL_REROUTE_MIN_INTERVAL_MS = 10000;
+const TRAIL_ARRIVAL_RADIUS_KM = 0.1;
 const TRAIL_RESET_SIGNAL_KEY = 'trail_reset_signal_at';
+const TRAIL_ACTIVE_STATE_KEY_PREFIX = 'coffee_trail_active_state:';
 const SAVED_ESTABLISHMENTS_KEY = 'saved_establishments';
 const DOWNLOADED_VARIETIES_KEY = 'offline_saved_varieties';
 
@@ -972,6 +977,7 @@ function normalizeTrailStop(stop, index) {
     id: source?.establishment_id ?? source?.id ?? stop?.id ?? index,
     establishment_id: source?.establishment_id ?? source?.establishmentId ?? source?.id ??
       raw?.establishment_id ?? raw?.id ?? stop?.establishment_id ?? stop?.establishmentId ?? stop?.id ?? null,
+    sequence: Number(source?.sequence ?? stop?.sequence ?? index + 1),
     trivia_history: getTrailTriviaHistory(
       source?.trivia_history,
       source?.establishment?.trivia_history,
@@ -1079,6 +1085,7 @@ function normalizeWebsiteUrl(websiteValue) {
 
 export default function MapScreen({ navigation, route }) {
   const insets = useSafeAreaInsets();
+  const { height: windowHeight } = useWindowDimensions();
   const mapRef = useRef(null);
   const sheetScrollRef = useRef(null);
   const ignoreMapPressUntilRef = useRef(0);
@@ -1103,10 +1110,19 @@ export default function MapScreen({ navigation, route }) {
   const [androidCalloutLayout, setAndroidCalloutLayout] = useState(null);
   const [trailState, setTrailState] = useState('not_started');
   const [currentStopIndex, setCurrentStopIndex] = useState(0);
+  const [isTrailRestoring, setIsTrailRestoring] = useState(false);
+  const [locationChecks, setLocationChecks] = useState([]);
+  const [isLocationChecksLoading, setIsLocationChecksLoading] = useState(false);
+  const [locationChecksError, setLocationChecksError] = useState('');
+  const [selectedLocationResponse, setSelectedLocationResponse] = useState(null);
+  const [isSavingLocationCheck, setIsSavingLocationCheck] = useState(false);
+  const [locationCheckError, setLocationCheckError] = useState('');
+  const [locationCheckNotice, setLocationCheckNotice] = useState('');
+  const [locationTrackingStatus, setLocationTrackingStatus] = useState('');
+  const [locationTrackingRetry, setLocationTrackingRetry] = useState(0);
   const [trailLegOrigin, setTrailLegOrigin] = useState(null);
   const [distanceRemaining, setDistanceRemaining] = useState('0.0 km');
   const [etaRemaining, setEtaRemaining] = useState('0 mins');
-  const [showDestinationReachedModal, setShowDestinationReachedModal] = useState(false);
   const [activeSheetImageUri, setActiveSheetImageUri] = useState(null);
   const [activeSheetImageIndex, setActiveSheetImageIndex] = useState(0);
   const [savedEstablishments, setSavedEstablishments] = useState([]);
@@ -1130,18 +1146,23 @@ export default function MapScreen({ navigation, route }) {
     point: null,
     at: 0,
   });
+  const trailResumeLoadedKeyRef = useRef(null);
+  const arrivalStopKeyRef = useRef(null);
+  const locationCheckSubmissionRef = useRef(false);
+  const trailAdvanceRef = useRef(false);
   const savedToastTimeoutRef = useRef(null);
   const navigationDestinationRef = useRef(null);
 
   const locationWatchRef = useRef(null);
   const trailPulseAnim = useRef(new Animated.Value(1)).current;
-  const destinationPulseAnim = useRef(new Animated.Value(1)).current;
   const heartTapAnim = useRef(new Animated.Value(1)).current;
   const savedToastOpacity = useRef(new Animated.Value(0)).current;
   const aboutPulseAnim = useRef(new Animated.Value(1)).current;
   const beanPreviewAnim = useRef(new Animated.Value(0)).current;
   const trailTriviaSlideAnim = useRef(new Animated.Value(1)).current;
+  const locationValidationAnim = useRef(new Animated.Value(0)).current;
   const trailTriviaRequestIdRef = useRef(0);
+  const locationChecksRequestIdRef = useRef(0);
   const loadTrailTriviaProducts = useCallback(() => {
     if (Array.isArray(trailTriviaProductsCacheRef.current)) {
       return Promise.resolve(trailTriviaProductsCacheRef.current);
@@ -1164,7 +1185,14 @@ export default function MapScreen({ navigation, route }) {
 
   const rawTrailStops = route?.params?.trailStops;
   const rawTrailOrigin = route?.params?.trailOrigin;
+  const trailId = route?.params?.trailId ?? route?.params?.trail_id ?? null;
   const isTrailMode = Boolean(route?.params?.isTrailMode && Array.isArray(rawTrailStops) && rawTrailStops.length);
+  const activeTrailStorageKey = trailId === null || trailId === undefined
+    ? null
+    : `${TRAIL_ACTIVE_STATE_KEY_PREFIX}${trailId}`;
+  const trailPositionStorageKey = activeTrailStorageKey || 'coffee_trail_active_state:unpersisted';
+  const isTrailPositionReady =
+    !isTrailMode || trailResumeLoadedKeyRef.current === trailPositionStorageKey;
 
   const trailOrigin = useMemo(() => {
     const latitude = Number(rawTrailOrigin?.latitude ?? rawTrailOrigin?.lat);
@@ -1184,8 +1212,65 @@ export default function MapScreen({ navigation, route }) {
 
   const currentTrailStop = useMemo(() => trailStops[currentStopIndex] || null, [trailStops, currentStopIndex]);
   const isOnLastTrailStop = currentStopIndex >= Math.max(trailStops.length - 1, 0);
-  const isFinalDestinationFlow = trailState === 'arrived' && isOnLastTrailStop;
-  const shouldHideTrailOverlays = showDestinationReachedModal || isFinalDestinationFlow;
+  const currentStopSequence = Number(currentTrailStop?.sequence ?? currentStopIndex + 1);
+  const currentLocationCheck = locationChecks.find(
+    (check) =>
+      String(check?.trail_id ?? check?.coffee_trail_id ?? '') === String(trailId ?? '') &&
+      Number(check?.stop_sequence) === currentStopSequence &&
+      String(check?.establishment_id ?? '') === String(currentTrailStop?.establishment_id ?? '')
+  ) || null;
+  const isCurrentLocationCheckSaved = Boolean(currentLocationCheck?.response);
+  const shouldDisableNextStop =
+    isTrailRestoring ||
+    !isTrailPositionReady ||
+    isLocationChecksLoading ||
+    isSavingLocationCheck ||
+    (trailState === 'arrived' && !isCurrentLocationCheckSaved);
+  const refreshLocationChecks = useCallback(async () => {
+    const requestId = locationChecksRequestIdRef.current + 1;
+    locationChecksRequestIdRef.current = requestId;
+
+    if (!trailId) {
+      setLocationChecks([]);
+      setLocationChecksError('This trail is missing its saved server ID. Please generate a new trail before verifying locations.');
+      setIsLocationChecksLoading(false);
+      return;
+    }
+
+    setIsLocationChecksLoading(true);
+    setLocationChecksError('');
+    try {
+      const response = await getLocationChecks(trailId);
+      const checks = Array.isArray(response)
+        ? response
+        : Array.isArray(response?.data)
+          ? response.data
+          : [];
+      if (locationChecksRequestIdRef.current === requestId) {
+        setLocationChecks(checks);
+      }
+    } catch {
+      if (locationChecksRequestIdRef.current === requestId) {
+        setLocationChecksError('Unable to load saved location checks. Check your connection and retry.');
+      }
+    } finally {
+      if (locationChecksRequestIdRef.current === requestId) {
+        setIsLocationChecksLoading(false);
+      }
+    }
+  }, [trailId]);
+
+  useEffect(() => {
+    if (!isTrailMode) {
+      locationChecksRequestIdRef.current += 1;
+      setLocationChecks([]);
+      setLocationChecksError('');
+      setIsLocationChecksLoading(false);
+      return;
+    }
+
+    void refreshLocationChecks();
+  }, [isTrailMode, refreshLocationChecks]);
 
   const trailItineraryCoordinates = useMemo(() => {
     const stopsCoordinates = trailStops.map((stop) => ({ latitude: stop.latitude, longitude: stop.longitude }));
@@ -1257,7 +1342,6 @@ export default function MapScreen({ navigation, route }) {
 
     return markerStops.filter((stop) => Number.isFinite(stop.latitude) && Number.isFinite(stop.longitude));
   }, [trailStops]);
-  const shouldDisableNextStop = false;
 
   const panelAnimation = useRef(new Animated.Value(160)).current;
   const dragY = useRef(new Animated.Value(0)).current;
@@ -1563,14 +1647,29 @@ export default function MapScreen({ navigation, route }) {
   }, [panelAnimation, selectedEstablishment]);
 
   useEffect(() => {
+    let isActive = true;
+
     if (!isTrailMode) {
       setTrailState('not_started');
       setCurrentStopIndex(0);
       setTrailLegOrigin(null);
       setDistanceRemaining('0.0 km');
       setEtaRemaining('0 mins');
-      return;
+      setIsTrailRestoring(false);
+      trailResumeLoadedKeyRef.current = null;
+      return () => {
+        isActive = false;
+      };
     }
+
+    const storageKey = activeTrailStorageKey || 'coffee_trail_active_state:unpersisted';
+    if (trailResumeLoadedKeyRef.current === storageKey) {
+      return () => {
+        isActive = false;
+      };
+    }
+    trailResumeLoadedKeyRef.current = null;
+    setIsTrailRestoring(true);
 
     setTrailState('not_started');
     setCurrentStopIndex(0);
@@ -1579,7 +1678,98 @@ export default function MapScreen({ navigation, route }) {
     setSelectedEstablishmentId(null);
     setOpenFilterMenu(null);
     setRouteCoordinates([]);
-  }, [isTrailMode, trailOrigin]);
+
+    const restoreActiveTrail = async () => {
+      if (!activeTrailStorageKey) {
+        trailResumeLoadedKeyRef.current = storageKey;
+        setIsTrailRestoring(false);
+        return;
+      }
+
+      try {
+        const savedValue = await AsyncStorage.getItem(activeTrailStorageKey);
+        if (!isActive) {
+          return;
+        }
+        const savedState = JSON.parse(savedValue || 'null');
+        const savedIndex = Number(savedState?.currentStopIndex);
+        if (
+          Number.isInteger(savedIndex) &&
+          savedIndex >= 0 &&
+          savedIndex < trailStops.length &&
+          ['navigating', 'arrived'].includes(savedState?.trailState)
+        ) {
+          if (['yes', 'no'].includes(savedState?.selectedLocationResponse)) {
+            setSelectedLocationResponse(savedState.selectedLocationResponse);
+          }
+          setCurrentStopIndex(savedIndex);
+          setTrailState(savedState.trailState);
+          const restoredStop = trailStops[savedIndex];
+          setTrailLegOrigin(
+            savedState?.trailLegOrigin ||
+            (savedIndex > 0
+              ? {
+                  latitude: trailStops[savedIndex - 1].latitude,
+                  longitude: trailStops[savedIndex - 1].longitude,
+                }
+              : trailOrigin)
+          );
+          const distance = getDistance(
+            userLocation?.latitude ?? trailOrigin?.latitude ?? restoredStop.latitude,
+            userLocation?.longitude ?? trailOrigin?.longitude ?? restoredStop.longitude,
+            restoredStop.latitude,
+            restoredStop.longitude
+          );
+          setDistanceRemaining(formatDistanceKm(savedState.trailState === 'arrived' ? 0 : distance));
+          setEtaRemaining(formatEtaMinutes(savedState.trailState === 'arrived' ? 0 : estimateEtaFromDistance(distance)));
+        }
+      } catch {
+        setLocationTrackingStatus('Unable to restore your active trail position. You can retry location tracking.');
+      } finally {
+        if (isActive) {
+          trailResumeLoadedKeyRef.current = storageKey;
+          setIsTrailRestoring(false);
+        }
+      }
+    };
+
+    void restoreActiveTrail();
+
+    return () => {
+      isActive = false;
+    };
+  }, [isTrailMode, activeTrailStorageKey, trailStops, trailOrigin]);
+
+  useEffect(() => {
+    const storageKey = activeTrailStorageKey || 'coffee_trail_active_state:unpersisted';
+    if (
+      !isTrailMode ||
+      !activeTrailStorageKey ||
+      trailResumeLoadedKeyRef.current !== storageKey ||
+      !['navigating', 'arrived'].includes(trailState)
+    ) {
+      return;
+    }
+
+    void AsyncStorage.setItem(
+      activeTrailStorageKey,
+      JSON.stringify({
+        currentStopIndex,
+        trailState,
+        trailLegOrigin,
+        selectedLocationResponse,
+      })
+    ).catch(() => {
+      setLocationTrackingStatus('Unable to save trail progress on this device. Keep the app open to continue safely.');
+    });
+  }, [
+    activeTrailStorageKey,
+    currentStopIndex,
+    isTrailMode,
+    selectedLocationResponse,
+    trailLegOrigin,
+    trailState,
+  ]);
 
   useEffect(() => {
     if (!isTrailMode || !trailStops.length || !mapRef.current) {
@@ -1682,7 +1872,7 @@ export default function MapScreen({ navigation, route }) {
 
   useEffect(() => {
     const trailDestination =
-      isTrailMode && trailState === 'navigating' && currentTrailStop
+      isTrailMode && trailState === 'navigating' && currentTrailStop && !isTrailRestoring
         ? {
             latitude: currentTrailStop.latitude,
             longitude: currentTrailStop.longitude,
@@ -1701,73 +1891,114 @@ export default function MapScreen({ navigation, route }) {
     }
 
     let isMounted = true;
-    Location.watchPositionAsync(
-      {
-        accuracy: Location.Accuracy.High,
-        distanceInterval: 10,
-        timeInterval: 4000,
-      },
-      (position) => {
+    const watchLocation = async () => {
+      try {
+        const permission = await Location.getForegroundPermissionsAsync();
         if (!isMounted) {
           return;
         }
+        if (permission?.status !== 'granted') {
+          if (isTrailMode) {
+            setLocationTrackingStatus('Location permission is required to confirm arrival. Tap Retry to allow location access.');
+          } else {
+            setNavigationError('Location permission is required to track your route.');
+          }
+          return;
+        }
 
-        const nextUser = {
-          latitude: position.coords.latitude,
-          longitude: position.coords.longitude,
-        };
-        setUserLocation(nextUser);
+        setLocationTrackingStatus('');
+        const subscription = await Location.watchPositionAsync(
+          {
+            accuracy: Location.Accuracy.High,
+            distanceInterval: 10,
+            timeInterval: 4000,
+          },
+          (position) => {
+            if (!isMounted) {
+              return;
+            }
 
-        const distanceToDestinationKm = getDistance(
-          nextUser.latitude,
-          nextUser.longitude,
-          activeDestination.latitude,
-          activeDestination.longitude
+            const nextUser = {
+              latitude: position.coords.latitude,
+              longitude: position.coords.longitude,
+            };
+            setUserLocation(nextUser);
+
+            const distanceToDestinationKm = getDistance(
+              nextUser.latitude,
+              nextUser.longitude,
+              activeDestination.latitude,
+              activeDestination.longitude
+            );
+
+            if (!isTrailMode && distanceToDestinationKm < ROUTE_CONSUME_ARRIVAL_DISTANCE_KM) {
+              setRouteCoordinates([]);
+              return;
+            }
+
+            setRouteCoordinates((currentRoute) => trimConsumedRoute(currentRoute, nextUser, activeDestination));
+
+            if (
+              isTrailMode &&
+              shouldRefreshTrailLeg(lastRerouteRef.current.point, nextUser, lastRerouteRef.current.at)
+            ) {
+              setTrailLegOrigin(nextUser);
+              lastRerouteRef.current = {
+                point: nextUser,
+                at: Date.now(),
+              };
+            }
+
+            if (!(isTrailMode && currentTrailStop)) {
+              return;
+            }
+
+            const remainingKm = distanceToDestinationKm;
+            const accuracyMeters = Number(position.coords.accuracy);
+            setDistanceRemaining(formatDistanceKm(remainingKm));
+            setEtaRemaining(formatEtaMinutes(estimateEtaFromDistance(remainingKm)));
+
+            if (remainingKm <= TRAIL_ARRIVAL_RADIUS_KM) {
+              if (
+                !Number.isFinite(accuracyMeters) ||
+                accuracyMeters <= 0 ||
+                remainingKm + accuracyMeters / 1000 > TRAIL_ARRIVAL_RADIUS_KM
+              ) {
+                setLocationTrackingStatus('You are near this stop, but GPS accuracy is not sufficient to confirm arrival yet.');
+                return;
+              }
+
+              const stopKey = `${trailId}:${currentStopSequence}:${currentTrailStop.establishment_id}`;
+              if (arrivalStopKeyRef.current === stopKey) {
+                return;
+              }
+              arrivalStopKeyRef.current = stopKey;
+              setLocationTrackingStatus('');
+              setDistanceRemaining('0.0 km');
+              setEtaRemaining('0 mins');
+              setRouteCoordinates([]);
+              setTrailState('arrived');
+            }
+          }
         );
 
-        if (!isTrailMode && distanceToDestinationKm < ROUTE_CONSUME_ARRIVAL_DISTANCE_KM) {
-          setRouteCoordinates([]);
-          return;
-        }
-
-        setRouteCoordinates((currentRoute) => trimConsumedRoute(currentRoute, nextUser, activeDestination));
-
-        if (
-          isTrailMode &&
-          shouldRefreshTrailLeg(lastRerouteRef.current.point, nextUser, lastRerouteRef.current.at)
-        ) {
-          setTrailLegOrigin(nextUser);
-          lastRerouteRef.current = {
-            point: nextUser,
-            at: Date.now(),
-          };
-        }
-
-        if (!(isTrailMode && currentTrailStop)) {
-          return;
-        }
-
-        const remainingKm = distanceToDestinationKm;
-
-        setDistanceRemaining(formatDistanceKm(remainingKm));
-        setEtaRemaining(formatEtaMinutes(estimateEtaFromDistance(remainingKm)));
-
-        if (remainingKm < 0.1) {
-          setRouteCoordinates([]);
-          setTrailState('arrived');
-        }
-      }
-    )
-      .then((subscription) => {
         if (!isMounted) {
           subscription.remove();
           return;
         }
         locationWatchRef.current = subscription;
-      })
-      .catch(() => {
-        setNavigationError('Unable to track location for trail navigation.');
-      });
+      } catch {
+        if (isMounted) {
+          const message = 'Unable to track your GPS location. Check your location settings and retry.';
+          if (isTrailMode) {
+            setLocationTrackingStatus(message);
+          } else {
+            setNavigationError(message);
+          }
+        }
+      }
+    };
+    void watchLocation();
 
     return () => {
       isMounted = false;
@@ -1776,7 +2007,17 @@ export default function MapScreen({ navigation, route }) {
         locationWatchRef.current = null;
       }
     };
-  }, [isTrailMode, trailState, currentTrailStop, routeCoordinates.length]);
+  }, [
+    activeTrailStorageKey,
+    currentStopSequence,
+    currentTrailStop,
+    isTrailMode,
+    isTrailRestoring,
+    locationTrackingRetry,
+    routeCoordinates.length,
+    trailId,
+    trailState,
+  ]);
 
   useEffect(() => {
     if (!(isTrailMode && trailState === 'navigating')) {
@@ -2517,16 +2758,27 @@ export default function MapScreen({ navigation, route }) {
     mapRef.current.animateToRegion(region, 340);
   }, [userLocation, requestCurrentLocation, handleDismissSheet, sheetScrollRef, mapRef]);
 
-  const handleStartTrail = () => {
+  const handleStartTrail = async () => {
     if (!trailStops.length) {
       return;
     }
 
+    setLocationTrackingStatus('');
+    const currentLocation = userLocation || (await requestCurrentLocation());
+    if (!currentLocation) {
+      setLocationTrackingStatus('Location permission or a current GPS position is required to start the trail.');
+      return;
+    }
+
     const firstStop = trailStops[0];
-    const origin = userLocation || trailOrigin;
+    const origin = currentLocation || trailOrigin;
 
     setCurrentStopIndex(0);
     setTrailLegOrigin(origin || null);
+    arrivalStopKeyRef.current = null;
+    setLocationCheckError('');
+    setLocationCheckNotice('');
+    setSelectedLocationResponse(null);
     if (origin) {
       lastRerouteRef.current = {
         point: origin,
@@ -2541,6 +2793,17 @@ export default function MapScreen({ navigation, route }) {
 
     setDistanceRemaining(formatDistanceKm(seedDistance));
     setEtaRemaining(formatEtaMinutes(estimateEtaFromDistance(seedDistance)));
+  };
+
+  const handleRetryLocationTracking = async () => {
+    setLocationTrackingStatus('Checking location permission and GPS…');
+    const location = await requestCurrentLocation();
+    if (!location) {
+      setLocationTrackingStatus('Location access is unavailable. Enable permission or GPS, then retry.');
+      return;
+    }
+    setLocationTrackingStatus('');
+    setLocationTrackingRetry((retry) => retry + 1);
   };
 
   const handleOpenNativeMaps = async () => {
@@ -2685,6 +2948,15 @@ export default function MapScreen({ navigation, route }) {
   };
 
   const resetTrailMode = async () => {
+    trailAdvanceRef.current = false;
+    arrivalStopKeyRef.current = null;
+    if (activeTrailStorageKey) {
+      try {
+        await AsyncStorage.removeItem(activeTrailStorageKey);
+      } catch {
+        setLocationTrackingStatus('Trail progress could not be cleared from this device.');
+      }
+    }
     trailTriviaRequestIdRef.current += 1;
     trailTriviaSlideAnim.stopAnimation();
     trailTriviaSlideAnim.setValue(1);
@@ -2693,6 +2965,10 @@ export default function MapScreen({ navigation, route }) {
     setTrailTriviaRecordId(null);
     setTrailTriviaProducts([]);
     setTrailTriviaError('');
+    setSelectedLocationResponse(null);
+    setLocationCheckError('');
+    setLocationCheckNotice('');
+    setLocationTrackingStatus('');
 
     try {
       await AsyncStorage.setItem(TRAIL_RESET_SIGNAL_KEY, String(Date.now()));
@@ -2737,71 +3013,67 @@ export default function MapScreen({ navigation, route }) {
     ]);
   };
 
-  const handleLastStopReached = () => {
-    if (!currentTrailStop) {
+  useEffect(() => {
+    if (!(isTrailMode && trailState === 'arrived' && !showTrailTriviaPanel)) {
+      locationValidationAnim.setValue(0);
       return;
     }
 
-    setDistanceRemaining('0.0 km');
-    setEtaRemaining('0 mins');
-    setTrailLegOrigin({
-      latitude: currentTrailStop.latitude,
-      longitude: currentTrailStop.longitude,
+    locationValidationAnim.setValue(0);
+    const validationAnimation = Animated.spring(locationValidationAnim, {
+      toValue: 1,
+      speed: 18,
+      bounciness: 2,
+      useNativeDriver: true,
     });
-    setRouteCoordinates([]);
-    setTrailState('arrived');
-  };
+    validationAnimation.start();
+
+    setLocationTrackingStatus('');
+    setLocationCheckError('');
+    return () => validationAnimation.stop();
+  }, [isTrailMode, locationValidationAnim, showTrailTriviaPanel, trailState]);
 
   useEffect(() => {
-    if (!(isTrailMode && trailState === 'arrived' && isOnLastTrailStop)) {
-      setShowDestinationReachedModal(false);
-      destinationPulseAnim.setValue(1);
+    if (!(isTrailMode && trailState === 'arrived' && showTrailTriviaPanel)) {
       return;
     }
 
-    setShowDestinationReachedModal(true);
-
-    const pulse = Animated.loop(
-      Animated.sequence([
-        Animated.timing(destinationPulseAnim, {
-          toValue: 1.08,
-          duration: 420,
-          useNativeDriver: true,
-        }),
-        Animated.timing(destinationPulseAnim, {
-          toValue: 1,
-          duration: 420,
-          useNativeDriver: true,
-        }),
-      ])
-    );
-
-    pulse.start();
-
-    const timerId = setTimeout(() => {
-      setShowDestinationReachedModal(false);
-      void resetTrailMode();
-
-      if (cafeTrailStops.length) {
-        navigation?.navigate?.('Rating', { trailStops: cafeTrailStops });
-        return;
+    Animated.timing(trailTriviaSlideAnim, {
+      toValue: 1,
+      duration: 220,
+      useNativeDriver: true,
+    }).start(({ finished }) => {
+      if (finished) {
+        setShowTrailTriviaPanel(false);
       }
+    });
+  }, [isTrailMode, showTrailTriviaPanel, trailState, trailTriviaSlideAnim]);
 
-      navigation?.navigate?.('Trail');
-    }, 6000);
-
-    return () => {
-      clearTimeout(timerId);
-      pulse.stop();
-      destinationPulseAnim.setValue(1);
-    };
-  }, [isTrailMode, trailState, isOnLastTrailStop, destinationPulseAnim, cafeTrailStops, navigation]);
+  useEffect(() => {
+    trailAdvanceRef.current = false;
+  }, [currentStopIndex, trailState]);
 
   const handleNextDestination = () => {
+    if (trailAdvanceRef.current) {
+      return;
+    }
+    if (trailState !== 'arrived') {
+      setLocationCheckError('Reach the current destination before continuing.');
+      return;
+    }
+    if (isLocationChecksLoading) {
+      setLocationCheckError('Checking whether this location was already verified. Please wait.');
+      return;
+    }
+    if (!isCurrentLocationCheckSaved) {
+      setLocationCheckError('Please verify this location before continuing.');
+      return;
+    }
     if (currentStopIndex >= trailStops.length - 1) {
       return;
     }
 
+    trailAdvanceRef.current = true;
     const nextIndex = currentStopIndex + 1;
     const previousStop = trailStops[currentStopIndex];
     const nextStop = trailStops[nextIndex];
@@ -2815,6 +3087,10 @@ export default function MapScreen({ navigation, route }) {
     const origin = previousStopOrigin || userLocation || trailOrigin;
 
     setCurrentStopIndex(nextIndex);
+    arrivalStopKeyRef.current = null;
+    setSelectedLocationResponse(null);
+    setLocationCheckError('');
+    setLocationCheckNotice('');
     setTrailLegOrigin(origin || null);
     if (origin) {
       lastRerouteRef.current = {
@@ -2830,6 +3106,77 @@ export default function MapScreen({ navigation, route }) {
 
     setDistanceRemaining(formatDistanceKm(seedDistance));
     setEtaRemaining(formatEtaMinutes(estimateEtaFromDistance(seedDistance)));
+  };
+
+  const handleCompleteTrail = async () => {
+    if (trailAdvanceRef.current) {
+      return;
+    }
+    if (trailState !== 'arrived' || !isCurrentLocationCheckSaved) {
+      setLocationCheckError('Please verify this location before completing the trail.');
+      return;
+    }
+
+    trailAdvanceRef.current = true;
+    const completedTrailStops = trailStops;
+    await resetTrailMode();
+    if (cafeTrailStops.length) {
+      navigation?.navigate?.('Rating', { trailStops: cafeTrailStops });
+      return;
+    }
+    navigation?.navigate?.('Trail', { trailStops: completedTrailStops });
+  };
+
+  const handleSaveLocationCheck = async (response) => {
+    if (locationCheckSubmissionRef.current || isCurrentLocationCheckSaved) {
+      return;
+    }
+    if (!trailId || !currentTrailStop?.establishment_id) {
+      setSelectedLocationResponse(response);
+      setLocationCheckError('This trail cannot be verified because its saved trail details are unavailable.');
+      return;
+    }
+
+    locationCheckSubmissionRef.current = true;
+    setSelectedLocationResponse(response);
+    setIsSavingLocationCheck(true);
+    setLocationCheckError('');
+    setLocationCheckNotice('');
+
+    try {
+      const result = await submitLocationCheck(trailId, {
+        establishment_id: currentTrailStop.establishment_id,
+        stop_sequence: currentStopSequence,
+        response,
+      });
+      const savedCheck = result?.data ?? result;
+      if (!savedCheck?.response) {
+        throw new Error('The server did not confirm that the location check was saved.');
+      }
+      setLocationChecks((checks) => [
+        savedCheck,
+        ...checks.filter(
+          (check) =>
+            !(String(check?.trail_id ?? check?.coffee_trail_id) === String(trailId) &&
+              Number(check?.stop_sequence) === currentStopSequence)
+        ),
+      ]);
+      setSelectedLocationResponse(null);
+      setLocationCheckNotice(
+        response === 'no'
+          ? 'Location reported for review. Your response has been saved.'
+          : 'Your location check has been saved.'
+      );
+    } catch (error) {
+      setLocationCheckError(
+        error?.response?.data?.message ||
+          error?.message ||
+          'Unable to save your location check. Please retry when you are back online.'
+      );
+    } finally {
+      locationCheckSubmissionRef.current = false;
+      setIsSavingLocationCheck(false);
+    }
   };
 
   const toggleTrailTriviaPanel = () => {
@@ -3053,7 +3400,7 @@ export default function MapScreen({ navigation, route }) {
               )) : null)}
       </MapView>
 
-      {isTrailMode && !shouldHideTrailOverlays ? (
+      {isTrailMode ? (
         <View style={[styles.trailTopBanner, { top: Math.max(insets.top + 8, 16) }]}>
           <View style={styles.trailTopHeaderRow}>
             <View style={styles.trailTopLeftWrap}>
@@ -3320,7 +3667,7 @@ export default function MapScreen({ navigation, route }) {
         </Pressable>
       </Animated.View>
 
-      {isTrailMode && currentTrailStop && !shouldHideTrailOverlays ? (
+      {isTrailMode && currentTrailStop ? (
         <Animated.View
           style={[
             styles.aboutButtonWrap,
@@ -3735,7 +4082,7 @@ export default function MapScreen({ navigation, route }) {
         </Animated.View>
       ) : null}
 
-      {isTrailMode && currentTrailStop && !shouldHideTrailOverlays ? (
+      {isTrailMode && currentTrailStop ? (
         <View
           style={[styles.trailBottomPanel, { paddingBottom: Math.max(insets.bottom + 10, 16) }]}
           onLayout={({ nativeEvent }) => setTrailBottomPanelHeight(nativeEvent.layout.height)}
@@ -3770,30 +4117,45 @@ export default function MapScreen({ navigation, route }) {
           </View>
 
           {trailState === 'not_started' ? (
-            <Pressable style={styles.trailPrimaryBtn} onPress={handleStartTrail}>
-              <Text style={styles.trailPrimaryBtnText}>Start Trail</Text>
+            <Pressable
+              style={[
+                styles.trailPrimaryBtn,
+                (isTrailRestoring || !isTrailPositionReady || isLocationBusy) && styles.trailPrimaryBtnDisabled,
+              ]}
+              onPress={handleStartTrail}
+              disabled={isTrailRestoring || !isTrailPositionReady || isLocationBusy}
+            >
+              <Text style={styles.trailPrimaryBtnText}>
+                {isTrailRestoring || !isTrailPositionReady ? 'Restoring Trail…' : 'Start Trail'}
+              </Text>
             </Pressable>
           ) : null}
 
           {trailState === 'navigating' ? (
             <View style={styles.trailActionsRow}>
-              {!isOnLastTrailStop ? (
-                <Pressable style={styles.trailStopBtn} onPress={handleStopTrail}>
-                  <Text style={styles.trailStopBtnText}>Stop</Text>
-                </Pressable>
-              ) : null}
+              <Pressable style={styles.trailStopBtn} onPress={handleStopTrail}>
+                <Text style={styles.trailStopBtnText}>Stop</Text>
+              </Pressable>
               <Pressable
                 style={[styles.trailPrimaryBtn, shouldDisableNextStop && styles.trailPrimaryBtnDisabled]}
-                onPress={isOnLastTrailStop ? handleLastStopReached : handleNextDestination}
-                disabled={shouldDisableNextStop}
+                onPress={handleNextDestination}
+                disabled={
+                  isTrailRestoring ||
+                  !isTrailPositionReady ||
+                  isLocationChecksLoading ||
+                  isSavingLocationCheck
+                }
+                accessibilityState={{
+                  disabled:
+                    isTrailRestoring ||
+                    !isTrailPositionReady ||
+                    isLocationChecksLoading ||
+                    isSavingLocationCheck,
+                }}
               >
                 <View style={styles.trailButtonContentRow}>
-                  <Text style={styles.trailPrimaryBtnText}>{isOnLastTrailStop ? 'Reached Destination' : 'Next Stop'}</Text>
-                  <MaterialIcons
-                    name={isOnLastTrailStop ? 'check-circle' : 'arrow-forward'}
-                    size={16}
-                    color="#FFFFFF"
-                  />
+                  <Text style={styles.trailPrimaryBtnText}>Next Stop</Text>
+                  <MaterialIcons name="arrow-forward" size={16} color="#FFFFFF" />
                 </View>
               </Pressable>
             </View>
@@ -3804,44 +4166,64 @@ export default function MapScreen({ navigation, route }) {
               <Text style={styles.arrivedTitle}>You've arrived! ☕</Text>
               <Text style={styles.arrivedName}>{currentTrailStop.name}</Text>
 
-              {currentStopIndex < trailStops.length - 1 ? (
-                <View style={styles.trailActionsRow}>
-                  <Pressable style={styles.trailStopBtn} onPress={handleStopTrail}>
-                    <Text style={styles.trailStopBtnText}>Stop Trail</Text>
-                  </Pressable>
-                  <Pressable style={styles.trailPrimaryBtn} onPress={handleNextDestination}>
-                    <Text style={styles.trailPrimaryBtnText}>Next Destination →</Text>
-                  </Pressable>
-                </View>
-              ) : (
-                <>
-                  <Text style={styles.completeTitle}>Yay! You have reached your destination.</Text>
-                  <Text style={styles.completeText}>Preparing your quick rating flow...</Text>
-                  <View style={styles.trailActionsRow}>
-                    <Pressable style={styles.trailStopBtnFull} onPress={handleStopTrail}>
-                      <Text style={styles.trailStopBtnText}>Stop</Text>
-                    </Pressable>
-                  </View>
-                </>
-              )}
+              <View style={styles.trailActionsRow}>
+                <Pressable style={styles.trailStopBtn} onPress={handleStopTrail}>
+                  <Text style={styles.trailStopBtnText}>Stop Trail</Text>
+                </Pressable>
+                <Pressable
+                  style={[styles.trailPrimaryBtn, shouldDisableNextStop && styles.trailPrimaryBtnDisabled]}
+                  onPress={isOnLastTrailStop ? handleCompleteTrail : handleNextDestination}
+                  disabled={
+                    isTrailRestoring ||
+                    !isTrailPositionReady ||
+                    isLocationChecksLoading ||
+                    isSavingLocationCheck
+                  }
+                  accessibilityState={{
+                    disabled:
+                      isTrailRestoring ||
+                      !isTrailPositionReady ||
+                      isLocationChecksLoading ||
+                      isSavingLocationCheck,
+                  }}
+                >
+                  <Text style={styles.trailPrimaryBtnText}>{isOnLastTrailStop ? 'Complete Trail' : 'Next Stop'}</Text>
+                </Pressable>
+              </View>
             </>
+          ) : null}
+
+          {locationTrackingStatus && trailState === 'navigating' ? (
+            <View style={styles.locationTrackingNotice}>
+              <Text style={styles.locationTrackingNoticeText}>{locationTrackingStatus}</Text>
+              <Pressable
+                style={styles.locationTrackingRetry}
+                onPress={handleRetryLocationTracking}
+                disabled={isLocationBusy}
+              >
+                <Text style={styles.locationTrackingRetryText}>{isLocationBusy ? 'Checking…' : 'Retry'}</Text>
+              </Pressable>
+            </View>
+          ) : null}
+          {locationCheckError && trailState !== 'arrived' ? (
+            <Text style={styles.locationValidationInlineError}>{locationCheckError}</Text>
           ) : null}
         </View>
       ) : null}
 
-      {showTrailTriviaPanel && isTrailMode && currentTrailStop && !shouldHideTrailOverlays ? (
-        <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
+      {showTrailTriviaPanel && isTrailMode && currentTrailStop ? (
+        <View pointerEvents={trailState === 'arrived' ? 'none' : 'box-none'} style={StyleSheet.absoluteFill}>
           <Animated.View
             style={[
               styles.trailTriviaPanel,
               {
                 bottom: trailBottomPanelHeight + 12,
                 maxHeight: Math.max(
-                  72,
+                  80,
                   Math.min(
-                    Dimensions.get('window').height * 0.48,
+                    windowHeight * 0.48,
                     410,
-                    Dimensions.get('window').height - trailBottomPanelHeight - insets.top - 24
+                    Math.max(80, windowHeight - trailBottomPanelHeight - insets.top - 24)
                   )
                 ),
                 opacity: trailTriviaSlideAnim.interpolate({
@@ -3945,6 +4327,160 @@ export default function MapScreen({ navigation, route }) {
                 <Text style={styles.trailTriviaEmpty}>
                   No trivia, history, coffee varieties, or offered products are available for this destination yet.
                 </Text>
+              ) : null}
+            </ScrollView>
+          </Animated.View>
+        </View>
+      ) : null}
+
+      {isTrailMode && currentTrailStop && trailState === 'arrived' ? (
+        <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
+          <Animated.View
+            style={[
+              styles.locationValidationPanel,
+              {
+                bottom: trailBottomPanelHeight + 12,
+                zIndex: 50,
+                opacity: locationValidationAnim,
+                transform: [
+                  {
+                    translateY: locationValidationAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [24, 0],
+                    }),
+                  },
+                ],
+                maxHeight: Math.max(
+                  80,
+                  Math.min(
+                    windowHeight * 0.46,
+                    360,
+                    Math.max(80, windowHeight - trailBottomPanelHeight - insets.top - 24)
+                  )
+                ),
+              },
+            ]}
+          >
+            <ScrollView
+              contentContainerStyle={styles.locationValidationContent}
+              showsVerticalScrollIndicator
+              nestedScrollEnabled
+            >
+              <Text style={styles.locationValidationEyebrow}>VERIFY LOCATION</Text>
+              <Text style={styles.locationValidationQuestion}>Is this the right pinned location?</Text>
+              <Text style={styles.locationValidationEstablishment}>{currentTrailStop.name}</Text>
+              {currentTrailStop.address ? (
+                <Text style={styles.locationValidationAddress}>
+                  {formatAddressWithBarangay(currentTrailStop.address, currentTrailStop.barangay)}
+                </Text>
+              ) : null}
+
+              {isLocationChecksLoading ? (
+                <View style={styles.locationValidationLoading}>
+                  <ActivityIndicator size="small" color={BRAND.accent} />
+                  <Text style={styles.locationValidationMessage}>Checking saved response…</Text>
+                </View>
+              ) : currentLocationCheck ? (
+                <View
+                  style={[
+                    styles.locationValidationSaved,
+                    currentLocationCheck.response === 'yes'
+                      ? styles.locationValidationSavedCorrect
+                      : styles.locationValidationSavedIncorrect,
+                  ]}
+                >
+                  <MaterialIcons
+                    name={currentLocationCheck.response === 'yes' ? 'thumb-up' : 'thumb-down'}
+                    size={20}
+                    color={currentLocationCheck.response === 'yes' ? '#2D4A1E' : '#A33939'}
+                  />
+                  <View style={styles.locationValidationSavedTextWrap}>
+                    <Text style={styles.locationValidationSavedTitle}>
+                      {currentLocationCheck.result ||
+                        (currentLocationCheck.response === 'yes' ? 'Correct Location' : 'Incorrect Location')}
+                    </Text>
+                    <Text style={styles.locationValidationMessage}>
+                      {currentLocationCheck.response === 'no'
+                        ? 'Your location report has been saved for review.'
+                        : 'Your location check has been saved.'}
+                    </Text>
+                  </View>
+                </View>
+              ) : locationChecksError ? (
+                <View style={styles.locationValidationErrorWrap}>
+                  <Text style={styles.locationValidationError}>{locationChecksError}</Text>
+                  <Pressable
+                    style={styles.locationValidationRetry}
+                    onPress={() => void refreshLocationChecks()}
+                  >
+                    <Text style={styles.locationValidationRetryText}>Retry</Text>
+                  </Pressable>
+                </View>
+              ) : (
+                <View style={styles.locationValidationResponses}>
+                  {[
+                    { response: 'yes', label: 'Yes, correct', icon: 'thumb-up' },
+                    { response: 'no', label: 'No, incorrect', icon: 'thumb-down' },
+                  ].map((option) => {
+                    const selected = selectedLocationResponse === option.response;
+                    return (
+                      <Pressable
+                        key={option.response}
+                        style={[
+                          styles.locationValidationOption,
+                          option.response === 'yes'
+                            ? styles.locationValidationOptionCorrect
+                            : styles.locationValidationOptionIncorrect,
+                          selected && (option.response === 'yes'
+                            ? styles.locationValidationOptionSelectedCorrect
+                            : styles.locationValidationOptionSelectedIncorrect),
+                        ]}
+                        onPress={() => void handleSaveLocationCheck(option.response)}
+                        disabled={isSavingLocationCheck || Boolean(currentLocationCheck)}
+                        accessibilityRole="button"
+                        accessibilityState={{
+                          selected,
+                          disabled: isSavingLocationCheck || Boolean(currentLocationCheck),
+                        }}
+                      >
+                        {isSavingLocationCheck && selected ? (
+                          <ActivityIndicator size="small" color="#2D4A1E" />
+                        ) : (
+                          <MaterialIcons
+                            name={option.icon}
+                            size={20}
+                            color={option.response === 'yes' ? '#2D4A1E' : '#A33939'}
+                          />
+                        )}
+                        <Text style={styles.locationValidationOptionText}>{option.label}</Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              )}
+
+              {locationCheckError ? (
+                <View style={styles.locationValidationErrorWrap}>
+                  <Text style={styles.locationValidationError}>{locationCheckError}</Text>
+                  {selectedLocationResponse ? (
+                    <Pressable
+                      style={styles.locationValidationRetry}
+                      onPress={() => void handleSaveLocationCheck(selectedLocationResponse)}
+                      disabled={isSavingLocationCheck}
+                    >
+                      <Text style={styles.locationValidationRetryText}>
+                        {isSavingLocationCheck ? 'Saving…' : 'Retry save'}
+                      </Text>
+                    </Pressable>
+                  ) : null}
+                </View>
+              ) : null}
+
+              {locationCheckNotice ? (
+                <Text style={styles.locationValidationNotice}>{locationCheckNotice}</Text>
+              ) : null}
+              {locationTrackingStatus ? (
+                <Text style={styles.locationValidationMessage}>{locationTrackingStatus}</Text>
               ) : null}
             </ScrollView>
           </Animated.View>
@@ -4092,24 +4628,6 @@ export default function MapScreen({ navigation, route }) {
         </View>
       </Modal>
 
-      <Modal visible={showDestinationReachedModal} transparent animationType="fade" onRequestClose={() => {}}>
-        <View style={styles.destinationModalBackdrop}>
-          <View style={styles.destinationModalCard}>
-            <Animated.View
-              style={[
-                styles.destinationModalIconWrap,
-                { transform: [{ scale: destinationPulseAnim }] },
-              ]}
-            >
-              <MaterialIcons name="celebration" size={22} color="#FFFFFF" />
-            </Animated.View>
-            <Text style={styles.destinationModalTitle}>Yay! You have reached your destination.</Text>
-            <Text style={styles.destinationModalSubtitle}>
-              {cafeTrailStops.length ? 'Opening ratings...' : 'Returning to trail...'}
-            </Text>
-          </View>
-        </View>
-      </Modal>
     </View>
   );
 }
@@ -4274,6 +4792,200 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     elevation: 12,
     zIndex: 40,
+  },
+  locationValidationPanel: {
+    position: 'absolute',
+    left: 12,
+    right: 12,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#D9C9B2',
+    backgroundColor: '#FFF9F0',
+    paddingHorizontal: 14,
+    paddingTop: 14,
+    paddingBottom: 8,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 14,
+  },
+  locationValidationContent: {
+    gap: 8,
+    paddingBottom: 8,
+  },
+  locationValidationEyebrow: {
+    color: '#2D4A1E',
+    fontFamily: 'PoppinsBold',
+    fontSize: 11,
+    lineHeight: 15,
+    letterSpacing: 0.6,
+  },
+  locationValidationQuestion: {
+    color: '#3A2E22',
+    fontFamily: 'PoppinsBold',
+    fontSize: 16,
+    lineHeight: 22,
+  },
+  locationValidationEstablishment: {
+    color: '#3A2E22',
+    fontFamily: 'PoppinsSemiBold',
+    fontSize: 14,
+    lineHeight: 19,
+  },
+  locationValidationAddress: {
+    color: '#6A5A4B',
+    fontFamily: 'PoppinsRegular',
+    fontSize: 12,
+    lineHeight: 17,
+  },
+  locationValidationResponses: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 4,
+  },
+  locationValidationOption: {
+    flex: 1,
+    minWidth: 0,
+    minHeight: 48,
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingHorizontal: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  locationValidationOptionCorrect: {
+    backgroundColor: '#FFFFFF',
+    borderColor: '#B8CBAA',
+  },
+  locationValidationOptionIncorrect: {
+    backgroundColor: '#FFFFFF',
+    borderColor: '#E6B9B9',
+  },
+  locationValidationOptionSelectedCorrect: {
+    backgroundColor: '#E9F2E3',
+    borderColor: '#2D4A1E',
+    borderWidth: 2,
+  },
+  locationValidationOptionSelectedIncorrect: {
+    backgroundColor: '#FCECEC',
+    borderColor: '#A33939',
+    borderWidth: 2,
+  },
+  locationValidationOptionText: {
+    color: '#3A2E22',
+    fontFamily: 'PoppinsSemiBold',
+    fontSize: 11,
+    lineHeight: 15,
+    flexShrink: 1,
+    textAlign: 'center',
+  },
+  locationValidationLoading: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 10,
+  },
+  locationValidationMessage: {
+    color: '#6A5A4B',
+    fontFamily: 'PoppinsRegular',
+    fontSize: 11,
+    lineHeight: 16,
+    flexShrink: 1,
+  },
+  locationValidationSaved: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 9,
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 10,
+    marginTop: 4,
+  },
+  locationValidationSavedCorrect: {
+    borderColor: '#B8CBAA',
+    backgroundColor: '#E9F2E3',
+  },
+  locationValidationSavedIncorrect: {
+    borderColor: '#E6B9B9',
+    backgroundColor: '#FCECEC',
+  },
+  locationValidationSavedTextWrap: {
+    flex: 1,
+    gap: 2,
+  },
+  locationValidationSavedTitle: {
+    color: '#3A2E22',
+    fontFamily: 'PoppinsBold',
+    fontSize: 12,
+    lineHeight: 17,
+  },
+  locationValidationNotice: {
+    color: '#2D4A1E',
+    fontFamily: 'PoppinsMedium',
+    fontSize: 11,
+    lineHeight: 16,
+  },
+  locationValidationErrorWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderRadius: 10,
+    backgroundColor: '#F8EFE4',
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  locationValidationError: {
+    flex: 1,
+    color: '#80552F',
+    fontFamily: 'PoppinsRegular',
+    fontSize: 11,
+    lineHeight: 15,
+  },
+  locationValidationRetry: {
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+  },
+  locationValidationRetryText: {
+    color: '#2D4A1E',
+    fontFamily: 'PoppinsSemiBold',
+    fontSize: 12,
+  },
+  locationTrackingNotice: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 9,
+    borderRadius: 10,
+    backgroundColor: '#FFF9F0',
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+  },
+  locationTrackingNoticeText: {
+    flex: 1,
+    color: '#80552F',
+    fontFamily: 'PoppinsRegular',
+    fontSize: 11,
+    lineHeight: 15,
+  },
+  locationTrackingRetry: {
+    paddingHorizontal: 6,
+    paddingVertical: 5,
+  },
+  locationTrackingRetryText: {
+    color: '#2D4A1E',
+    fontFamily: 'PoppinsBold',
+    fontSize: 12,
+  },
+  locationValidationInlineError: {
+    marginTop: 8,
+    color: '#A33939',
+    fontFamily: 'PoppinsMedium',
+    fontSize: 11,
+    lineHeight: 15,
   },
   trailTriviaHeader: {
     flexDirection: 'row',
