@@ -292,6 +292,13 @@ export const login = async (email, password) => {
   }
 };
 
+export const checkEmailAvailability = async (email) => {
+  const response = await api.get('/api/register/check-email', {
+    params: { email: email.trim() },
+  });
+  return unwrap(response);
+};
+
 export const register = async (name, email, password) => {
   const response = await api.post('/api/register', { name, email, password });
   return unwrap(response);
