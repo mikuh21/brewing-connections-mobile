@@ -11,6 +11,7 @@ export {
 	getCoffeeTrailPreview,
 	getCoffeeTrailHistory,
 	getLocationChecks,
+	getCommunityLocationChecks,
 	submitLocationCheck,
 	trackMapMarkerView,
 	getCouponPromos,
