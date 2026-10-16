@@ -1892,8 +1892,7 @@ const styles = StyleSheet.create({
     color: COLORS.muted,
     fontSize: 12,
     lineHeight: 16,
-    fontFamily: 'PoppinsRegular',
-    fontStyle: 'italic',
+    fontFamily: 'PoppinsItalic',
   },
   separator: {
     marginTop: 10,
@@ -1949,7 +1948,7 @@ const styles = StyleSheet.create({
     paddingTop: 10,
     marginHorizontal: -16,
     paddingHorizontal: 16,
-    paddingBottom: 2,
+    paddingBottom: 16,
     borderTopWidth: 1,
     borderTopColor: '#D7CFC4',
     backgroundColor: COLORS.bg,
