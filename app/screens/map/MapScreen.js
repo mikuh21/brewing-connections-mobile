@@ -4274,7 +4274,7 @@ export default function MapScreen({ navigation, route }) {
                 <View style={styles.trailTriviaHoursRow}>
                   <MaterialIcons name="access-time" size={13} color="#6A5A4B" />
                   <Text style={styles.trailTriviaHoursText} numberOfLines={2}>
-                    {activeTrailOperatingHours || 'Operating hours not available'}
+                    {activeTrailOperatingHours ? `Operating hours: ${activeTrailOperatingHours}` : 'Operating hours not available'}
                   </Text>
                 </View>
               </View>
@@ -5058,7 +5058,8 @@ const styles = StyleSheet.create({
     fontFamily: 'PoppinsRegular',
     fontSize: 11,
     lineHeight: 15,
-  },  trailTriviaCloseButton: {
+  },
+  trailTriviaCloseButton: {
     width: 34,
     height: 34,
     borderRadius: 999,
