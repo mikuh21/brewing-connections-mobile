@@ -3212,6 +3212,19 @@ export default function MapScreen({ navigation, route }) {
   const activeTrailTriviaHistory = isTrailTriviaForCurrentStop
     ? getTrailTriviaHistory(currentTrailStop?.trivia_history, trailTriviaRecord?.trivia_history)
     : '';
+  const activeTrailOperatingHours = isTrailTriviaForCurrentStop
+    ? getTrailTriviaHistory(
+        currentTrailStop?.visit_hours,
+        currentTrailStop?.hours,
+        currentTrailStop?.operating_hours,
+        currentTrailStop?.raw?.visit_hours,
+        currentTrailStop?.raw?.hours,
+        currentTrailStop?.raw?.operating_hours,
+        trailTriviaRecord?.visit_hours,
+        trailTriviaRecord?.hours,
+        trailTriviaRecord?.operating_hours
+      )
+    : '';
   const activeTrailVarieties = isTrailTriviaForCurrentStop
     ? getTrailVarieties(trailTriviaRecord)
     : [];
@@ -4258,6 +4271,12 @@ export default function MapScreen({ navigation, route }) {
                 <Text style={styles.trailTriviaDestination} numberOfLines={1}>
                   {currentTrailStop.name}
                 </Text>
+                <View style={styles.trailTriviaHoursRow}>
+                  <MaterialIcons name="access-time" size={13} color="#6A5A4B" />
+                  <Text style={styles.trailTriviaHoursText} numberOfLines={2}>
+                    {activeTrailOperatingHours || 'Operating hours not available'}
+                  </Text>
+                </View>
               </View>
               <Pressable
                 style={styles.trailTriviaCloseButton}
@@ -5026,7 +5045,20 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 16,
   },
-  trailTriviaCloseButton: {
+
+  trailTriviaHoursRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 5,
+    marginTop: 3,
+  },
+  trailTriviaHoursText: {
+    flex: 1,
+    color: '#6A5A4B',
+    fontFamily: 'PoppinsRegular',
+    fontSize: 11,
+    lineHeight: 15,
+  },  trailTriviaCloseButton: {
     width: 34,
     height: 34,
     borderRadius: 999,
