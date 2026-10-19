@@ -31,6 +31,7 @@ export default function RegisterScreen({ navigation }) {
   const [emailTaken, setEmailTaken] = useState(false);
   const [activeLegalDocument, setActiveLegalDocument] = useState(null);
   const [termsAccepted, setTermsAccepted] = useState(false);
+  const [privacyAccepted, setPrivacyAccepted] = useState(false);
   const [termsScrolledToEnd, setTermsScrolledToEnd] = useState(false);
 
   const openLegalDocument = (document) => {
@@ -241,6 +242,12 @@ export default function RegisterScreen({ navigation }) {
       return;
     }
 
+    if (!privacyAccepted) {
+      setFormError('Please read and agree to the Privacy Policy before signing up.');
+      setIsSubmitting(false);
+      return;
+    }
+
     if (!termsAccepted) {
       setFormError('Please review and agree to the Terms & Conditions before signing up.');
       setIsSubmitting(false);
@@ -248,7 +255,7 @@ export default function RegisterScreen({ navigation }) {
     }
 
     try {
-      await registerRequest(name, email, password);
+      await registerRequest(name, email, password, privacyAccepted);
       setSuccessMessage('Registration successful. Please login.');
       setTimeout(() => {
         navigation.navigate('Login');
@@ -417,6 +424,31 @@ export default function RegisterScreen({ navigation }) {
               <View style={styles.termsCheckboxRow}>
                 <Pressable
                   accessibilityRole="checkbox"
+                  accessibilityState={{ checked: privacyAccepted }}
+                  onPress={() => {
+                    setPrivacyAccepted((previous) => !previous);
+                    setFormError('');
+                  }}
+                  hitSlop={6}
+                >
+                  <MaterialIcons
+                    name={privacyAccepted ? 'check-box' : 'check-box-outline-blank'}
+                    size={22}
+                    color={privacyAccepted ? '#2E5A3D' : '#6F5948'}
+                  />
+                </Pressable>
+                <Text style={styles.termsCheckboxText}>
+                  I have read and agree to the{' '}
+                  <Text
+                    style={styles.legalLink}
+                    onPress={() => openLegalDocument('privacy')}
+                    accessibilityRole="link"
+                  >Privacy Policy</Text>
+                </Text>
+              </View>
+              <View style={styles.termsCheckboxRow}>
+                <Pressable
+                  accessibilityRole="checkbox"
                   accessibilityState={{ checked: termsAccepted }}
                   onPress={() => setTermsAccepted((previous) => !previous)}
                   hitSlop={6}
@@ -428,7 +460,7 @@ export default function RegisterScreen({ navigation }) {
                   />
                 </Pressable>
                 <Text style={styles.termsCheckboxText}>
-                  I agree to the{' '}
+                  I confirm the information is accurate and agree to BrewHub's{' '}
                   <Text
                     style={styles.legalLink}
                     onPress={() => openLegalDocument('terms')}
@@ -436,15 +468,6 @@ export default function RegisterScreen({ navigation }) {
                   >Terms & Conditions</Text>
                 </Text>
               </View>
-              <Text style={styles.privacyPrompt}>
-                Please review BrewHub's{' '}
-                <Text
-                  style={styles.legalLink}
-                  onPress={() => openLegalDocument('privacy')}
-                  accessibilityRole="link"
-                >Privacy Policy</Text>
-                {' '}before creating your account.
-              </Text>
             </View>
 
             <Pressable
@@ -770,14 +793,6 @@ const styles = StyleSheet.create({
     fontFamily: 'PoppinsRegular',
     fontSize: 13,
     lineHeight: 19,
-  },
-  privacyPrompt: {
-    color: '#5D4B3A',
-    fontFamily: 'PoppinsRegular',
-    fontSize: 13,
-    lineHeight: 19,
-    marginTop: 3,
-    paddingLeft: 29,
   },
   legalLink: {
     color: '#2E5A3D',
