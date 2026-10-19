@@ -226,6 +226,37 @@ function normalizeTrailResponse(response) {
         name: source?.name || stop?.name || 'Coffee Stop',
         type: String(source?.type || stop?.type || 'establishment').toLowerCase(),
         address: source?.address || stop?.address || 'Address not available',
+        visit_hours: String(
+          source?.visit_hours ??
+          source?.operating_hours ??
+          source?.operatingHours ??
+          source?.establishment?.visit_hours ??
+          source?.raw?.visit_hours ??
+          raw?.visit_hours ??
+          stop?.visit_hours ??
+          stop?.operating_hours ??
+          stop?.operatingHours ??
+          ''
+        ).trim(),
+        offered_products: (() => {
+          const value =
+            source?.offered_products ??
+            source?.offeredProducts ??
+            source?.products ??
+            source?.establishment?.products ??
+            source?.raw?.offered_products ??
+            source?.raw?.products ??
+            raw?.offered_products ??
+            raw?.products ??
+            stop?.offered_products ??
+            stop?.offeredProducts ??
+            stop?.products ??
+            [];
+          const items = Array.isArray(value) ? value : [];
+          return [...new Set(items.map((item) =>
+            String(typeof item === 'string' ? item : item?.name || item?.product_name || item?.title || '').trim()
+          ).filter(Boolean))];
+        })(),
         barangay,
         latitude: toNumber(source?.latitude ?? stop?.latitude, 0),
         longitude: toNumber(source?.longitude ?? stop?.longitude, 0),
@@ -1139,6 +1170,12 @@ export default function CoffeeTrailScreen({ navigation }) {
                 </View>
 
                 <Text style={styles.stopAddress}>{formatAddressWithBarangay(stop.address, stop.barangay)}</Text>
+                {!!stop.visit_hours && (
+                  <View style={styles.operatingHoursRow}>
+                    <MaterialIcons name="schedule" size={14} color={COLORS.primary} />
+                    <Text style={styles.operatingHoursText}>Operating hours: {stop.visit_hours}</Text>
+                  </View>
+                )}
 
                 <View style={styles.distanceMetaRow}>
                   <MaterialIcons name="directions-car" size={14} color={COLORS.primary} />
@@ -1158,6 +1195,12 @@ export default function CoffeeTrailScreen({ navigation }) {
                 </View>
 
                 <Text style={styles.recommendText}>{stop.why_recommended}</Text>
+                {stop.offered_products.length > 0 && (
+                  <View style={styles.offeredProductsBlock}>
+                    <Text style={styles.offeredProductsLabel}>Offered products:</Text>
+                    <Text style={styles.offeredProductsText}>{stop.offered_products.join(', ')}</Text>
+                  </View>
+                )}
 
                 <View style={styles.separator} />
 
@@ -1873,6 +1916,33 @@ const styles = StyleSheet.create({
     fontSize: 11,
     lineHeight: 14,
     fontFamily: 'PoppinsBold',
+  },
+  operatingHoursRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginTop: 5,
+    gap: 6,
+  },
+  operatingHoursText: {
+    flex: 1,
+    color: COLORS.mutedText || '#6B7280',
+    fontSize: 12,
+    lineHeight: 17,
+  },
+  offeredProductsBlock: {
+    marginTop: 7,
+  },
+  offeredProductsLabel: {
+    color: COLORS.text || '#3A2E22',
+    fontSize: 12,
+    fontWeight: '600',
+    lineHeight: 17,
+  },
+  offeredProductsText: {
+    color: COLORS.mutedText || '#6B7280',
+    fontSize: 12,
+    lineHeight: 17,
+    marginTop: 1,
   },
   stopAddress: {
     marginTop: 10,
