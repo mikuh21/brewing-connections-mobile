@@ -299,8 +299,8 @@ export const checkEmailAvailability = async (email) => {
   return unwrap(response);
 };
 
-export const register = async (name, email, password) => {
-  const response = await api.post('/api/register', { name, email, password });
+export const register = async (name, email, password, privacyAccepted = false) => {
+  const response = await api.post('/api/register', { name, email, password, privacy_agreed: privacyAccepted });
   return unwrap(response);
 };
 
