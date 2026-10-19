@@ -615,9 +615,39 @@ export default function RegisterScreen({ navigation }) {
                     </Pressable>
                   </>
                 ) : (
-                  <Pressable onPress={closeLegalDocument} style={styles.legalAgreeButton}>
-                    <Text style={styles.legalAgreeButtonText}>Close</Text>
-                  </Pressable>
+                  <>
+                    <Pressable
+                      style={styles.legalPrivacyCheckboxRow}
+                      onPress={() => setPrivacyAccepted((previous) => !previous)}
+                      accessibilityRole="checkbox"
+                      accessibilityState={{ checked: privacyAccepted }}
+                    >
+                      <MaterialIcons
+                        name={privacyAccepted ? 'check-box' : 'check-box-outline-blank'}
+                        size={22}
+                        color={privacyAccepted ? '#2E5A3D' : '#6F5948'}
+                      />
+                      <Text style={styles.legalPrivacyCheckboxText}>
+                        I have read and agree to the Privacy Policy
+                      </Text>
+                    </Pressable>
+                    <Pressable
+                      disabled={!privacyAccepted}
+                      onPress={() => {
+                        setPrivacyAccepted(true);
+                        setFormError('');
+                        closeLegalDocument();
+                      }}
+                      accessibilityRole="button"
+                      accessibilityState={{ disabled: !privacyAccepted }}
+                      style={[
+                        styles.legalAgreeButton,
+                        !privacyAccepted && styles.legalAgreeButtonDisabled,
+                      ]}
+                    >
+                      <Text style={styles.legalAgreeButtonText}>I Accept</Text>
+                    </Pressable>
+                  </>
                 )}
               </View>
             </View>
@@ -781,18 +811,36 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   termsCheckboxRow: {
+    width: '100%',
     flexDirection: 'row',
     alignItems: 'center',
-    alignSelf: 'flex-start',
-    gap: 7,
+    alignSelf: 'stretch',
+    gap: 8,
     paddingVertical: 5,
   },
   termsCheckboxText: {
     flex: 1,
+    flexShrink: 1,
     color: '#3A2E22',
     fontFamily: 'PoppinsRegular',
     fontSize: 13,
     lineHeight: 19,
+  },
+  legalPrivacyCheckboxRow: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    paddingVertical: 4,
+  },
+  legalPrivacyCheckboxText: {
+    flex: 1,
+    flexShrink: 1,
+    color: '#3A2E22',
+    fontFamily: 'PoppinsRegular',
+    fontSize: 12,
+    lineHeight: 17,
   },
   legalLink: {
     color: '#2E5A3D',
