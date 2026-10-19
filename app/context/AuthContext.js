@@ -3,6 +3,7 @@ import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 
 const AUTH_TOKEN_KEY = 'auth_token';
 const AUTH_USER_KEY = 'auth_user';
+const PRIVACY_PENDING_KEY = 'privacy_policy_pending';
 const AuthContext = createContext(null);
 
 function normalizeUser(userData) {
@@ -28,13 +29,15 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [privacyPolicyPending, setPrivacyPolicyPending] = useState(false);
 
   useEffect(() => {
     const hydrateAuth = async () => {
       try {
-        const [storedToken, storedUser] = await Promise.all([
+        const [storedToken, storedUser, storedPrivacyPending] = await Promise.all([
           AsyncStorage.getItem(AUTH_TOKEN_KEY),
           AsyncStorage.getItem(AUTH_USER_KEY),
+          AsyncStorage.getItem(PRIVACY_PENDING_KEY),
         ]);
 
         let parsedUser = null;
@@ -50,6 +53,7 @@ export function AuthProvider({ children }) {
 
         setToken(storedToken ?? null);
         setUser(parsedUser ? normalizeUser(parsedUser) : null);
+        setPrivacyPolicyPending(Boolean(storedToken && storedPrivacyPending === 'true'));
       } catch (error) {
         console.warn('Failed to read auth session', error);
       } finally {
@@ -66,20 +70,29 @@ export function AuthProvider({ children }) {
     await Promise.all([
       AsyncStorage.setItem(AUTH_TOKEN_KEY, nextToken),
       AsyncStorage.setItem(AUTH_USER_KEY, JSON.stringify(normalizedUser)),
+      AsyncStorage.setItem(PRIVACY_PENDING_KEY, 'true'),
     ]);
 
     setToken(nextToken);
     setUser(normalizedUser);
+    setPrivacyPolicyPending(true);
   };
 
   const logout = async () => {
     await Promise.all([
       AsyncStorage.removeItem(AUTH_TOKEN_KEY),
       AsyncStorage.removeItem(AUTH_USER_KEY),
+      AsyncStorage.removeItem(PRIVACY_PENDING_KEY),
     ]);
 
     setToken(null);
     setUser(null);
+    setPrivacyPolicyPending(false);
+  };
+
+  const acceptPrivacyPolicy = async () => {
+    await AsyncStorage.removeItem(PRIVACY_PENDING_KEY);
+    setPrivacyPolicyPending(false);
   };
 
   const updateUser = async (userData) => {
@@ -94,6 +107,8 @@ export function AuthProvider({ children }) {
       token,
       isLoading,
       isAuthenticated: Boolean(token),
+      privacyPolicyPending,
+      acceptPrivacyPolicy,
       login,
       logout,
       updateUser,
@@ -102,7 +117,7 @@ export function AuthProvider({ children }) {
       signIn: login,
       signOut: logout,
     }),
-    [user, token, isLoading]
+    [user, token, isLoading, privacyPolicyPending]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
