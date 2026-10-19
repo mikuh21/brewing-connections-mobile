@@ -18,10 +18,11 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { AuthProvider, ChatProvider, useAuth } from './app/context';
 import AppNavigator from './app/navigation/AppNavigator';
 import AuthNavigator from './app/navigation/AuthNavigator';
+import PrivacyPolicyModal from './app/components/PrivacyPolicyModal';
 import theme from './app/theme';
 
 function RootNavigator() {
-  const { isLoading, isAuthenticated } = useAuth();
+  const { isLoading, isAuthenticated, privacyPolicyPending, acceptPrivacyPolicy } = useAuth();
 
   if (isLoading) {
     return (
@@ -36,6 +37,10 @@ function RootNavigator() {
         <ActivityIndicator size="large" color={theme.colors.primary} />
       </View>
     );
+  }
+
+  if (isAuthenticated && privacyPolicyPending) {
+    return <PrivacyPolicyModal visible onAccept={acceptPrivacyPolicy} />;
   }
 
   return isAuthenticated ? <AppNavigator /> : <AuthNavigator />;
